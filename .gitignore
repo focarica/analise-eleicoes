@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+*.log
+*.dump
+*.sql.gz
+*.zip
+*.csv
+*.jsonl
+/data/raw/
+/data/staging/
+/postgres-data/
