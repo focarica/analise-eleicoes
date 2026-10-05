@@ -68,6 +68,7 @@ A etapa 05 prepara a identificação por título eleitoral quando publicado pelo
 - `sql/03_carga_candidaturas_postgresql.sql`: candidatos, partidos e candidaturas
 - `sql/04_carga_fatos_postgresql.sql`: votos, perfil, comparecimento, bens e finanças
 - `sql/05_identidade_e_cadeira.sql`: título eleitoral e visão de custo médio por cadeira
+- `sql/06_reparar_candidatura_municipio_votos.sql`: correção transacional para bancos já carregados antes da dimensão municipal
 - `scripts/normalizar_dados_tse.py`: leitura dos ZIPs e geração dos CSVs de entrada
 - `scripts/carregar_staging.py`: importação transacional dos CSVs para PostgreSQL
 
