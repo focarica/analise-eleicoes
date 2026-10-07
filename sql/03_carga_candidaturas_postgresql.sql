@@ -215,7 +215,7 @@ ON CONFLICT (cd_municipio_tse) DO UPDATE SET
 INSERT INTO candidatura (
     ano_eleicao, sq_candidato, id_pessoa_projeto, nr_partido,
     cd_municipio_tse, sg_partido, sg_ue, cd_cargo, ds_cargo,
-    nr_turno_resultado, ds_sit_tot_turno
+    nm_urna_candidato, nr_turno_resultado, ds_sit_tot_turno
 )
 SELECT DISTINCT ON (s.ano_eleicao::integer, s.sq_candidato::bigint)
        s.ano_eleicao::integer,
@@ -227,6 +227,7 @@ SELECT DISTINCT ON (s.ano_eleicao::integer, s.sq_candidato::bigint)
        NULLIF(trim(s.sg_ue), ''),
        CASE WHEN s.cd_cargo ~ '^[0-9]+$' THEN s.cd_cargo::integer END,
        NULLIF(trim(s.ds_cargo), ''),
+       stg_tse.texto_publicado(s.nm_urna_candidato),
        s.turno_resultado::integer,
        CASE WHEN s.turno_resultado IS NOT NULL THEN s.situacao_informada END
 FROM stg_tse.candidatura_resultado s
@@ -248,6 +249,7 @@ ON CONFLICT (ano_eleicao, sq_candidato) DO UPDATE SET
     sg_ue = EXCLUDED.sg_ue,
     cd_cargo = EXCLUDED.cd_cargo,
     ds_cargo = EXCLUDED.ds_cargo,
+    nm_urna_candidato = coalesce(EXCLUDED.nm_urna_candidato, candidatura.nm_urna_candidato),
     nr_turno_resultado = EXCLUDED.nr_turno_resultado,
     ds_sit_tot_turno = EXCLUDED.ds_sit_tot_turno;
 

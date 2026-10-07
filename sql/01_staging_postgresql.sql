@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS stg_tse.candidatura (
     sq_candidato text NOT NULL,
     nr_cpf_candidato text,
     nm_candidato text,
+    nm_urna_candidato text,
     dt_nascimento text,
     ds_grau_instrucao text,
     ds_genero text,
@@ -41,6 +42,9 @@ CREATE TABLE IF NOT EXISTS stg_tse.candidatura (
     source_file text NOT NULL,
     nr_titulo_eleitoral_candidato text
 );
+
+ALTER TABLE stg_tse.candidatura
+    ADD COLUMN IF NOT EXISTS nm_urna_candidato text;
 
 CREATE TABLE IF NOT EXISTS stg_tse.votacao_candidato_munzona (
     ano_eleicao text NOT NULL,

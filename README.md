@@ -1,6 +1,32 @@
-# Análise de eleições: carga TSE em PostgreSQL
+# Análise de eleições: dados do TSE em MotherDuck e PostgreSQL
 
 Este repositório contém o modelo relacional de destino, as tabelas de staging e o fluxo para baixar, normalizar e carregar dados públicos do TSE. Os arquivos de dados não são versionados: cada pessoa os obtém no [Portal de Dados Abertos do TSE](https://dadosabertos.tse.jus.br/).
+
+## MotherDuck e painel web
+
+O banco analítico publicado chama-se `BDR-TSE`. A carga de referência cobre AC, AL, BA, DF, RO e SP, nos anos 2018, 2020, 2022 e 2024. Ela publica somente as 11 tabelas do modelo e as quatro views definidas em `sql/motherduck/01_views_analiticas.sql`. Não inclui staging, relatórios de execução ou arquivos brutos.
+
+O painel em `frontend/` usa TypeScript, Vite e Bun. O navegador chama uma API local Bun; somente essa API conecta ao MotherDuck com DuckDB. O token fica no servidor e nunca é enviado ao navegador.
+
+```sh
+cd frontend
+cp .env.example .env
+# Edite .env e informe MOTHERDUCK_TOKEN, sem commitar o arquivo.
+bun install
+bun run dev
+```
+
+Abra `http://127.0.0.1:5173`. Para gerar e servir a versão de produção local: `bun run build && bun run start`; o servidor usa `PORT` quando definido e, por padrão, a porta 3001. O token pode ser criado nas configurações da conta MotherDuck. Use um token adequado a consultas de leitura.
+
+O painel consulta `v_partidos_eleitos`, `vw_questao_2_despesas` (visão oficial da questão 2) e `v_historico_candidato`, além das tabelas municipais de perfil, comparecimento e votação. A interface inclui composição dos eleitos, faixas de gasto, busca de municípios e candidatos e histórico por candidatura.
+
+### Recriar a carga MotherDuck
+
+`scripts/motherduck/carga_tse_motherduck_flight.py` é o código autocontido executado no MotherDuck Flight. Ele descobre e baixa as fontes públicas pelo CKAN do TSE, normaliza temporariamente os arquivos e publica o modelo e as views. Configure o Flight para usar o banco `BDR-TSE`; autenticação MotherDuck é fornecida pelo próprio ambiente Flight. O arquivo não contém credenciais. `sql/motherduck/02_carga_modelo.sql` documenta a transformação e depende das tabelas temporárias de staging preparadas pelo Flight; não é um script isolado para rodar manualmente.
+
+Para reaplicar somente as views a um banco já carregado, abra `sql/motherduck/01_views_analiticas.sql` no editor SQL MotherDuck com `BDR-TSE` selecionado.
+
+O `ID_PESSOA_PROJETO` é estável por título eleitoral divulgado; sem título, identifica apenas aquela candidatura. Uma carga histórica mais ampla deve recalcular os IDs no conjunto completo. O HTML legado com snapshot embutido não é usado pelo painel novo.
 
 O recorte de referência inclui AC, AL, BA, DF, RO e SP nos pleitos de 2018, 2020, 2022 e 2024. As constantes de anos e UFs ficam no início de `scripts/normalizar_dados_tse.py`; o escopo no banco fica em `stg_tse.escopo_uf`, definido por `sql/01_staging_postgresql.sql`. Ajuste os dois em conjunto para outro recorte. O normalizador considera eleições gerais e municipais; compare resultados respeitando o tipo de pleito, cargo, turno e circunscrição.
 
@@ -40,6 +66,8 @@ Crie `data/raw/` e salve 32 ZIPs com nomes exatos no padrão `<conjunto>_<ano>.z
 
 A normalização lê os CSVs dentro dos ZIPs (codificação de origem Latin-1), seleciona os estados configurados e gera CSVs temporários UTF-8 delimitados por `;`. Valores sentinela do TSE são preservados para que as funções SQL tratem ausência sem convertê-la em zero.
 
+Em `CONSULTA_CAND`, `NM_URNA_CANDIDATO` é carregado em `CANDIDATURA`, junto ao ano e ao sequencial TSE, pois o nome exibido pode mudar entre pleitos. Em bancos já existentes, aplique `sql/07_nome_urna_candidatura.sql` no schema de destino antes de executar a carga 03; bancos novos recebem a coluna por `sql/00_schema_destino.sql`.
+
 ```sh
 python3 scripts/normalizar_dados_tse.py --zip-dir data/raw --output data/staging
 python3 scripts/carregar_staging.py --input data/staging
@@ -69,6 +97,11 @@ A etapa 05 prepara a identificação por título eleitoral quando publicado pelo
 - `sql/04_carga_fatos_postgresql.sql`: votos, perfil, comparecimento, bens e finanças
 - `sql/05_identidade_e_cadeira.sql`: título eleitoral e visão de custo médio por cadeira
 - `sql/06_reparar_candidatura_municipio_votos.sql`: correção transacional para bancos já carregados antes da dimensão municipal
+- `sql/07_nome_urna_candidatura.sql`: migração aditiva para bancos existentes; o schema novo já inclui o campo em `CANDIDATURA`
+- `sql/motherduck/01_views_analiticas.sql`: quatro views analíticas para o banco DuckDB/MotherDuck
+- `sql/motherduck/02_carga_modelo.sql`: transformação DuckDB do staging local para as 11 tabelas do DER
+- `scripts/motherduck/carga_tse_motherduck_flight.py`: Flight autocontido que descobre, baixa e carrega os arquivos do TSE no MotherDuck
+- `frontend/`: painel TypeScript + Vite servido por Bun e conectado ao MotherDuck no backend
 - `scripts/normalizar_dados_tse.py`: leitura dos ZIPs e geração dos CSVs de entrada
 - `scripts/carregar_staging.py`: importação transacional dos CSVs para PostgreSQL
 

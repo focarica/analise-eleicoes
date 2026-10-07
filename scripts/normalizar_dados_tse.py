@@ -26,7 +26,7 @@ SOURCES = (
 )
 
 STAGES = {
-    "candidatura": ["ano_eleicao", "cd_eleicao", "nr_turno", "cd_tipo_eleicao", "nm_tipo_eleicao", "sg_uf", "sg_ue", "nm_ue", "cd_cargo", "ds_cargo", "sq_candidato", "nr_cpf_candidato", "nm_candidato", "dt_nascimento", "ds_grau_instrucao", "ds_genero", "ds_cor_raca", "nr_partido", "sg_partido", "nm_partido", "ds_sit_tot_turno", "source_file", "nr_titulo_eleitoral_candidato"],
+    "candidatura": ["ano_eleicao", "cd_eleicao", "nr_turno", "cd_tipo_eleicao", "nm_tipo_eleicao", "sg_uf", "sg_ue", "nm_ue", "cd_cargo", "ds_cargo", "sq_candidato", "nr_cpf_candidato", "nm_candidato", "nm_urna_candidato", "dt_nascimento", "ds_grau_instrucao", "ds_genero", "ds_cor_raca", "nr_partido", "sg_partido", "nm_partido", "ds_sit_tot_turno", "source_file", "nr_titulo_eleitoral_candidato"],
     "candidatura_complementar": ["ano_eleicao", "cd_eleicao", "sq_candidato", "nr_turno", "nm_tipo_destinacao_votos", "source_file"],
     "bem_candidato": ["ano_eleicao", "sq_candidato", "nr_ordem_bem_candidato", "ds_tipo_bem_candidato", "ds_bem_candidato", "vr_bem_candidato", "source_file"],
     "votacao_candidato_munzona": ["ano_eleicao", "sg_uf", "cd_eleicao", "nr_turno", "cd_cargo", "cd_municipio_tse", "sq_candidato", "qt_votos_nominais", "source_file"],
@@ -180,7 +180,7 @@ def main():
                                         val(r,"ANO_ELEICAO",str(year)), val(r,"CD_ELEICAO"), val(r,"NR_TURNO"),
                                         val(r,"CD_TIPO_ELEICAO"), val(r,"NM_TIPO_ELEICAO"), sg, mun_code(val(r,"SG_UE")), val(r,"NM_UE"),
                                         val(r,"CD_CARGO"), val(r,"DS_CARGO"), val(r,"SQ_CANDIDATO"), val(r,"NR_CPF_CANDIDATO"),
-                                        val(r,"NM_CANDIDATO"), val(r,"DT_NASCIMENTO"), val(r,"DS_GRAU_INSTRUCAO"), val(r,"DS_GENERO"),
+                                        val(r,"NM_CANDIDATO"), val(r,"NM_URNA_CANDIDATO"), val(r,"DT_NASCIMENTO"), val(r,"DS_GRAU_INSTRUCAO"), val(r,"DS_GENERO"),
                                         val(r,"DS_COR_RACA"), val(r,"NR_PARTIDO"), val(r,"SG_PARTIDO"), val(r,"NM_PARTIDO"),
                                         val(r,"DS_SIT_TOT_TURNO"), source_file, val(r,"NR_TITULO_ELEITORAL_CANDIDATO")])
                                 elif source == "consulta_cand_complementar":

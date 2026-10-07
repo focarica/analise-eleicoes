@@ -42,12 +42,16 @@ CREATE TABLE IF NOT EXISTS candidatura (
     sg_ue varchar(10),
     cd_cargo integer,
     ds_cargo varchar(50),
+    nm_urna_candidato varchar(150),
     nr_turno_resultado integer,
     ds_sit_tot_turno varchar(50),
     vies_politico_eleicao varchar(50),
     qt_votos_totais integer,
     PRIMARY KEY (ano_eleicao, sq_candidato)
 );
+
+ALTER TABLE candidatura
+    ADD COLUMN IF NOT EXISTS nm_urna_candidato varchar(150);
 
 CREATE TABLE IF NOT EXISTS bens_declarados (
     ano_eleicao integer NOT NULL,
