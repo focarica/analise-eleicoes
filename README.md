@@ -11,14 +11,14 @@ O painel em `frontend/` usa TypeScript, Vite e Bun. O navegador chama uma API lo
 ```sh
 cd frontend
 cp .env.example .env
-# Edite .env e informe MOTHERDUCK_TOKEN, sem commitar o arquivo.
+# Edite .env e informe MOTHERDUCK_TOKEN,
 bun install
 bun run dev
 ```
 
 Abra `http://127.0.0.1:5173`. Para gerar e servir a versão de produção local: `bun run build && bun run start`; o servidor usa `PORT` quando definido e, por padrão, a porta 3001. O token pode ser criado nas configurações da conta MotherDuck. Use um token adequado a consultas de leitura.
 
-O painel consulta `v_partidos_eleitos`, `vw_questao_2_despesas` (visão oficial da questão 2) e `v_historico_candidato`, além das tabelas municipais de perfil, comparecimento e votação. A interface inclui composição dos eleitos, faixas de gasto, busca de municípios e candidatos e histórico por candidatura.
+O painel preserva o layout e as interações do HTML de apresentação: mapa por partido com áreas proporcionais, navegação por estado/ano, filtro de cargo, busca e gaveta de detalhes. Consulta `v_partidos_eleitos`, `vw_questao_2_despesas` (visão oficial da questão 2), `v_historico_candidato` e tabelas municipais. O snapshot gzipado de 62 MB foi removido; os dados vêm ao vivo do MotherDuck.
 
 ### Recriar a carga MotherDuck
 

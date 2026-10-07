@@ -64,7 +64,9 @@ async function route(request: Request) {
                    "piso_faixa_r$" AS piso_faixa, "teto_faixa_r$" AS teto_faixa,
                    qtd_candidatos_na_faixa, qtd_eleitos, taxa_sucesso_pct,
                    media_gasto_eleitos, media_gasto_nao_eleitos,
-                   MAX("teto_faixa_r$") OVER (PARTITION BY uf, ano_eleicao, ds_cargo) AS gasto_maximo
+                   MAX("teto_faixa_r$") OVER (PARTITION BY uf, ano_eleicao, ds_cargo) AS gasto_maximo,
+                   ROUND((MAX("teto_faixa_r$") OVER (PARTITION BY uf, ano_eleicao, ds_cargo) + 0.01)
+                         * faixa_financeira / 4, 2) AS limite_superior_faixa
             FROM public.vw_questao_2_despesas WHERE uf = $1 AND ano_eleicao = $2
             ORDER BY ds_cargo, faixa_financeira`, [uf, year]),
     ]);
@@ -84,7 +86,8 @@ async function route(request: Request) {
             ORDER BY nm_municipio LIMIT 8`, [uf, pattern]),
       rows(`SELECT ca.id_pessoa_projeto AS id, ca.nm_candidato AS nome,
                    string_agg(DISTINCT c.nm_urna_candidato, ' / ' ORDER BY c.nm_urna_candidato) AS urna,
-                   string_agg(DISTINCT CAST(c.ano_eleicao AS VARCHAR), ', ' ORDER BY CAST(c.ano_eleicao AS VARCHAR)) AS anos
+                   string_agg(DISTINCT CAST(c.ano_eleicao AS VARCHAR), ', ' ORDER BY CAST(c.ano_eleicao AS VARCHAR)) AS anos,
+                   string_agg(DISTINCT c.ds_cargo, '|#|' ORDER BY c.ds_cargo) AS cargos
             FROM public.candidato ca
             JOIN public.candidatura c USING (id_pessoa_projeto)
             LEFT JOIN public.municipio m ON m.cd_municipio_tse = c.cd_municipio_tse
@@ -123,7 +126,7 @@ async function route(request: Request) {
                                               pib_per_capita, idhm, populacao_total
                                        FROM public.municipio WHERE cd_municipio_tse = $1`, [code]);
     if (!municipality) return json({ error: "Município não encontrado." }, 404);
-    const [attendance, electorate, parties, topCandidates] = await Promise.all([
+    const [attendance, electorate, parties, topCandidates, localCandidacies] = await Promise.all([
       rows(`SELECT ano_eleicao, nr_turno, qt_aptos, qt_comparecimento, qt_abstencao
             FROM public.comparecimento_municipio WHERE cd_municipio_tse = $1
             ORDER BY ano_eleicao, nr_turno`, [code]),
@@ -145,8 +148,17 @@ async function route(request: Request) {
               WHERE v.cd_municipio_tse = $1 AND v.nr_turno = 1
             ) ranked WHERE pos <= 5
             ORDER BY ano_eleicao, cd_cargo, pos`, [code]),
+      rows(`SELECT c.ano_eleicao, c.ds_cargo AS cargo, c.id_pessoa_projeto,
+                   c.nm_urna_candidato, ca.nm_candidato, c.sg_partido,
+                   c.ds_sit_tot_turno, c.qt_votos_totais AS qt_votos_nominais
+            FROM public.candidatura c
+            LEFT JOIN public.candidato ca USING (id_pessoa_projeto)
+            WHERE c.cd_municipio_tse = $1
+              AND c.ano_eleicao IN (2020, 2024)
+              AND c.ds_cargo IN ('PREFEITO', 'VEREADOR')
+            ORDER BY c.ano_eleicao, c.ds_cargo, c.ds_sit_tot_turno, c.nm_urna_candidato`, [code]),
     ]);
-    return json({ ...municipality, attendance, electorate, parties, topCandidates });
+    return json({ ...municipality, attendance, electorate, parties, topCandidates, localCandidacies });
   }
 
   return json({ error: "Rota não encontrada." }, 404);

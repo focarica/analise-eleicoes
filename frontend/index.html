@@ -1,13 +1,78 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f6f5f1" />
-    <title>Eleitoral — dados do TSE</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Eleitos por partido nos estados da amostra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch(e) {}
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+</head>
+<body>
+<div class="carregando" id="carregando">Preparando os dados…</div>
+<div class="wrap">
+  <div class="topo">
+    <span class="marca">Eleitos nos estados da amostra</span>
+    <div class="topo-dir">
+      <nav class="estados" id="estados" aria-label="Estados"></nav>
+      <button class="tema" id="tema" type="button" aria-pressed="false">
+        <svg class="ico-sol" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>
+        <svg class="ico-lua" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+        <span id="tema-txt">Modo claro</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="cab">
+    <div>
+      <h1 id="uf-nome">Estado</h1>
+      <p class="resumo" id="resumo"></p>
+    </div>
+    <div class="anos" role="group" aria-label="Ano da eleição" id="anos"></div>
+  </div>
+
+  <div class="busca">
+    <svg class="lupa" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <input id="busca" type="search" autocomplete="off" placeholder="Buscar município ou candidato" aria-label="Buscar município ou candidato neste estado" aria-controls="resultados">
+    <div class="resultados" id="resultados" hidden role="listbox"></div>
+  </div>
+
+  <div class="comp">
+    <div class="forma-box">
+      <svg id="forma" viewBox="0 0 600 520" role="img" aria-labelledby="uf-nome resumo"></svg>
+      <div class="forma-vazia" id="forma-vazia" hidden></div>
+      <div class="tip" id="tip"></div>
+    </div>
+    <div class="leg">
+      <h2>Eleitos por partido</h2>
+      <p class="nota">Cada faixa ocupa a parte da área do estado proporcional aos eleitos do partido. Titulares apenas; vices e suplentes não entram.</p>
+      <div class="cargos" id="cargos" role="group" aria-label="Filtrar por cargo"></div>
+      <ol id="legenda"></ol>
+    </div>
+  </div>
+
+  <section class="sec" aria-labelledby="gs-t">
+    <h2 id="gs-t">Quem gasta mais se elege mais?</h2>
+    <p class="nota">Candidatos que prestaram contas, em quatro faixas de despesa paga do mesmo tamanho em reais, de R$ 0 até o maior gasto de cada cargo. A barra mostra a parcela de eleitos em cada faixa; abaixo dela, o limite da faixa e quantos candidatos caíram nela.</p>
+    <div class="quartis" id="quartis"></div>
+  </section>
+
+  <footer>
+    <span>Fonte: TSE, tabelas do projeto BD Relacionais (UFPI). A amostra não contém todos os candidatos de cada disputa.</span>
+    <span id="origem"></span>
+  </footer>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="gaveta" id="gaveta" aria-modal="true" role="dialog" aria-labelledby="g-titulo" tabindex="-1">
+  <button class="fechar" id="fechar" aria-label="Fechar">✕</button>
+  <div id="g-corpo"></div>
+</aside>
+<script type="module" src="/src/main.ts"></script>
+</body>
 </html>
