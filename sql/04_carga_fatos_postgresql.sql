@@ -132,7 +132,7 @@ INSERT INTO despesas_pagas (
 )
 SELECT l.ano_eleicao::integer, l.sq_candidato::bigint, k.id_lancamento,
        CASE WHEN upper(trim(l.ds_despesa)) IN ('', '#NULO', '#NE', '-1', '-3', '-4', 'NÃO DIVULGÁVEL') THEN NULL ELSE trim(l.ds_despesa) END,
-       NULL::varchar(150), -- categoria analítica do projeto ainda sem regra
+       CASE WHEN upper(trim(l.ds_categoria_despesa)) IN ('', '#NULO', '#NE', '-1', '-3', '-4', 'NÃO DIVULGÁVEL') THEN NULL ELSE trim(l.ds_categoria_despesa) END, -- DS_ORIGEM_DESPESA oficial do TSE
        stg_tse.parse_brl_amount(l.vr_pago) -- somente origem explicitamente DESPESAS_PAGAS
 FROM stg_tse.despesa_candidato l
 JOIN stg_tse.mapa_lancamento k

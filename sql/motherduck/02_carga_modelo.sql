@@ -197,13 +197,14 @@ WITH parse AS (
            TRY_CAST(sq_candidato AS BIGINT) AS sq_candidato,
            id_linha_origem,
            texto_publicado(ds_despesa) AS ds_despesa,
+           texto_publicado(ds_categoria_despesa) AS ds_categoria_despesa,
            valor_brl(vr_pago) AS vr_pago
     FROM stg_despesa
 )
 SELECT p.ano_eleicao, p.sq_candidato,
        ROW_NUMBER() OVER (PARTITION BY p.ano_eleicao,p.sq_candidato ORDER BY p.id_linha_origem)::INTEGER AS id_despesa,
        ds_despesa,
-       CAST(NULL AS VARCHAR(150)) AS ds_categoria_despesa,
+       ds_categoria_despesa,
        vr_pago
 FROM parse p
 JOIN public.candidatura c USING (ano_eleicao,sq_candidato);

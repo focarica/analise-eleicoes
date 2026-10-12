@@ -289,7 +289,7 @@ def main():
                                 duplicate_expense_rows_dropped += 1
                                 continue
                             expense_keys.add(key)
-                            out.put("despesa_candidato",[year,sq,line,val(r,"DS_DESPESA"),None,val(r,"VR_PAGTO_DESPESA"),source_file])
+                            out.put("despesa_candidato",[year,sq,line,val(r,"DS_DESPESA"),val(r,"DS_ORIGEM_DESPESA"),val(r,"VR_PAGTO_DESPESA"),source_file])
                     covered.add((year,sq))
         # A coverage row is emitted only when an account was identified from a
         # final TSE prestação. No account is silently interpreted as zero cost.

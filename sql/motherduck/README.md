@@ -13,6 +13,29 @@ Esta pasta contém as views analíticas e o SQL que transforma o staging do Flig
 
 Para reaplicar as views em um banco já carregado, conecte-se ao `BDR-TSE` no editor SQL do MotherDuck e execute `01_views_analiticas.sql`.
 
+`03_views_propaganda.sql` cria as duas views da questão 9, depois de preencher `despesas_pagas.ds_categoria_despesa` com `DS_ORIGEM_DESPESA` oficial do TSE:
+
+- `vw_questao_9_nuvem_valor`: palavras das descrições, com `peso` em reais pagos nos lançamentos que contêm cada palavra.
+- `vw_questao_9_nuvem_frequencia`: as mesmas palavras, com `peso` igual ao número de lançamentos que as contêm.
+
+As duas expõem `valor_pago_associado` e `qt_lancamentos`, além do candidato, ano, UF, cargo e partido. Sempre filtre por `ano_eleicao` **e** `sq_candidato`; o SQ sozinho não identifica uma candidatura entre eleições.
+
+```sql
+SELECT termo, peso, valor_pago_associado, qt_lancamentos
+FROM public.vw_questao_9_nuvem_valor
+WHERE ano_eleicao = 2024 AND sq_candidato = 250001926547
+ORDER BY peso DESC, termo
+LIMIT 80;
+```
+
+Troque o nome da view por `vw_questao_9_nuvem_frequencia` para comparar frequência. Um pagamento de R$ 1 milhão com a palavra `facebook` pesa 1 milhão na primeira view e 1 na segunda; 100 lançamentos de R$ 10 com `panfletagem` pesam R$ 1.000 e 100, respectivamente.
+
+O SQL declara as 11 rubricas de publicidade, comunicação, eventos/comícios e mobilização de rua incluídas. Rubricas genéricas de pessoal/terceiros não são classificadas automaticamente como propaganda. Entram somente valores positivos com descrição publicada; ausências, zeros e ajustes negativos ficam fora das nuvens. Palavras são normalizadas para minúsculas sem acentos; termos genéricos/documentais são removidos. Não há correção automática de grafia ou agrupamento de sinônimos. Uma palavra repetida na mesma descrição conta uma vez por lançamento.
+
+Frequência não é quantidade de produtos nem número comprovado de compras: os dados são pagamentos e podem incluir parcelas ou lotes. Cada palavra recebe o valor dos lançamentos associados; como um lançamento pode conter várias palavras, **não some os pesos da nuvem como orçamento**. Para o total de propaganda, some `vr_pago` diretamente nas rubricas filtradas em `despesas_pagas`.
+
+Para recuperar categorias em um banco já carregado sem trocar valores ou IDs, veja [o script de atualização](../../scripts/motherduck/README.md#recuperar-categorias-e-criar-as-views-da-questão-9).
+
 ## Transformação do modelo
 
 `02_carga_modelo.sql` carrega as 11 tabelas do modelo a partir das tabelas temporárias criadas pelo Flight. Ele depende desse staging, por isso não deve ser executado isoladamente. O fluxo completo está em [scripts/motherduck/README.md](../../scripts/motherduck/README.md).

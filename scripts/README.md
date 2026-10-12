@@ -26,3 +26,7 @@ Para começar do zero e reinicializar também esses mapas, use um banco descart�
 ## MotherDuck Flight
 
 O diretório `motherduck/` guarda o script autocontido executado no ambiente Flight do MotherDuck, com fluxo de carga distinto do pipeline local. Veja [motherduck/README.md](motherduck/README.md).
+
+## Fotos
+
+A descoberta das fotos oficiais por UF, sua associação por ano e SQ e a proposta de cache no painel estão em [fotos/README.md](fotos/README.md).
