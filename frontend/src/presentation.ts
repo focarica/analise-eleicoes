@@ -120,10 +120,78 @@ function cortesPorArea(uf, pathStr){
 let UF = "SP", ANO = 2022, CARGO = "TODOS", LINHAS = [];
 const svg = d3.select("#forma"), tip = document.getElementById("tip");
 
+/* ===================== Municípios: malha, zoom e seleção ===================== */
+// Malhas geradas por scripts/malhas.ts (IBGE simplificado, com o código TSE em cada feição).
+let MALHA = null, MUN_SEL = null, gMapa = null, pathAtual = null, faixasAtuais = [], totalAtual = 0;
+const malhaCache = new Map();
+function carregarMalha(uf){
+  if (!malhaCache.has(uf)) malhaCache.set(uf, fetch(`${import.meta.env.BASE_URL}geo/municipios-${uf}.json`)
+    .then(r => { if (!r.ok) throw new Error(`Malha municipal de ${uf} indisponível.`); return r.json(); })
+    .then(t => {
+      const o = t.objects.municipios;
+      const municipios = topojson.feature(t, o).features.filter(f => f.properties.tse);
+      return {
+        municipios, porTse: new Map(municipios.map(f => [f.properties.tse, f])),
+        contorno: { type: "Feature", properties: GEO[uf].properties, geometry: topojson.merge(t, o.geometries) },
+        divisas: topojson.mesh(t, o, (a, b) => a !== b),
+      };
+    })
+    // sem malha, o mapa volta ao comportamento original (só o contorno do estado)
+    .catch(e => { console.error(e); malhaCache.delete(uf); return null; }));
+  return malhaCache.get(uf);
+}
+
+const ZOOM_MAX = 12;
+const formaBox = document.querySelector(".forma-box");
+const zoom = d3.zoom().scaleExtent([1, ZOOM_MAX]).extent([[0,0],[W,H]]).translateExtent([[0,0],[W,H]])
+  // a roda do mouse sozinha rola a página; com Ctrl/⌘ (ou pinça no trackpad) dá zoom.
+  // No toque, um dedo só arrasta o mapa quando ele já está ampliado.
+  .filter(ev => {
+    if (ev.type === "wheel") return ev.ctrlKey || ev.metaKey;
+    if (ev.type === "touchstart") return ev.touches.length > 1 || d3.zoomTransform(svg.node()).k > 1;
+    return !ev.button;
+  })
+  .on("zoom", ev => { gMapa?.attr("transform", ev.transform); estadoZoom(ev.transform.k); });
+svg.call(zoom).on("dblclick.zoom", null);
+
+const btnMais = document.getElementById("zoom-mais"), btnMenos = document.getElementById("zoom-menos"), btnAjustar = document.getElementById("zoom-ajustar");
+function estadoZoom(k){
+  formaBox.classList.toggle("ampliado", k > 1.001);
+  btnMais.disabled = k >= ZOOM_MAX - 0.01;
+  btnMenos.disabled = btnAjustar.disabled = k <= 1.001;
+}
+const duracao = ms => matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : ms;
+btnMais.onclick = () => svg.transition().duration(duracao(300)).call(zoom.scaleBy, 1.8);
+btnMenos.onclick = () => svg.transition().duration(duracao(300)).call(zoom.scaleBy, 1/1.8);
+btnAjustar.onclick = () => svg.transition().duration(duracao(500)).call(zoom.transform, d3.zoomIdentity);
+
+const dica = document.getElementById("zoom-dica");
+dica.textContent = `Use ${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl"} + roda do mouse para dar zoom no mapa`;
+let tDica = null;
+svg.on("wheel.dica", ev => {
+  if (ev.ctrlKey || ev.metaKey) return;
+  dica.classList.add("on"); clearTimeout(tDica); tDica = setTimeout(() => dica.classList.remove("on"), 1200);
+});
+
+function marcarMunicipio(tse){
+  MUN_SEL = tse ? String(tse) : null;
+  const f = MUN_SEL && MALHA?.porTse.get(MUN_SEL);
+  gMapa?.select(".mun-sel").attr("d", f && pathAtual ? pathAtual(f) : null);
+}
+// aproxima o mapa até o município (usado ao escolher um município na busca)
+function focarMunicipio(tse){
+  const f = MALHA?.porTse.get(String(tse)); if (!f || !pathAtual) return;
+  const [[x0,y0],[x1,y1]] = pathAtual.bounds(f);
+  const k = Math.max(1, Math.min(ZOOM_MAX, 0.55 / Math.max((x1-x0)/W, (y1-y0)/H)));
+  const t = d3.zoomIdentity.translate(W/2, H/2).scale(k).translate(-(x0+x1)/2, -(y0+y1)/2);
+  svg.transition().duration(duracao(750)).call(zoom.transform, t);
+}
+
 function anosDisponiveis(uf){ return uf === "DF" ? [2018, 2022] : ANOS; }
 
 async function abrirEstado(uf){
-  UF = uf; CARGO = "TODOS";
+  UF = uf; CARGO = "TODOS"; MALHA = null; MUN_SEL = null;
+  svg.call(zoom.transform, d3.zoomIdentity);
   if (!anosDisponiveis(uf).includes(ANO)) ANO = 2022;
   document.querySelectorAll("#estados a").forEach(a => a.setAttribute("aria-current", a.dataset.uf===uf ? "page" : "false"));
   document.getElementById("uf-nome").textContent = GEO[uf].properties.nome;
@@ -140,8 +208,8 @@ function montarAnos(){
 }
 
 async function carregarAno(){
-  const [linhas, gasto] = await Promise.all([api.partidos(UF, ANO), api.gasto(UF, ANO)]);
-  LINHAS = linhas;
+  const [linhas, gasto, malha] = await Promise.all([api.partidos(UF, ANO), api.gasto(UF, ANO), carregarMalha(UF)]);
+  LINHAS = linhas; MALHA = malha;
   montarCargos(); desenharForma(true); montarQuartis(gasto);
 }
 
@@ -162,8 +230,10 @@ function agregados(){
 }
 
 function desenharForma(animar){
-  const f = GEO[UF];
+  // com a malha municipal, o contorno do estado é a união dos municípios (alinhamento exato)
+  const f = MALHA?.contorno || GEO[UF];
   const proj = d3.geoMercator().fitExtent([[12,12],[W-12,H-12]], f), path = d3.geoPath(proj), d = path(f);
+  pathAtual = path;
   const partes = agregados(), total = d3.sum(partes, p=>p.qt);
   const cargosTxt = [...new Set(LINHAS.map(r=>r.ds_cargo))].sort((a,b)=>ordemCargo(a)-ordemCargo(b)).map(c=>cargoNome(c).toLowerCase());
   const totAno = d3.sum(LINHAS, r=>+r.qt_eleitos);
@@ -174,20 +244,24 @@ function desenharForma(animar){
   svg.selectAll("*").remove();
   const defs = svg.append("defs");
   defs.append("clipPath").attr("id","clip-uf").append("path").attr("d", d);
+  // tudo que é desenhado fica num grupo que recebe a transformação do zoom
+  gMapa = svg.append("g").attr("class","mapa").attr("transform", d3.zoomTransform(svg.node()));
   const vazio = document.getElementById("forma-vazia");
+  faixasAtuais = []; totalAtual = total;
 
   if (!total){
-    svg.append("path").attr("d", d).style("fill", "var(--vazio)");
+    gMapa.append("path").attr("d", d).style("fill", "var(--vazio)");
     vazio.hidden = false; vazio.textContent = UF==="DF" && (ANO===2020||ANO===2024) ? "O Distrito Federal não tem eleições municipais." : "Sem eleitos na base para este filtro.";
-    montarLegenda([], 0); return;
+    montarLegenda([], 0); desenharMunicipios(path); return;
   }
   vazio.hidden = true;
-  const corte = cortesPorArea(UF, d);
+  const corte = cortesPorArea(MALHA ? UF + ":mun" : UF, d);
   const [[x0,y0],[x1,y1]] = path.bounds(f);
   let acum = 0;
   const faixas = partes.map(p => { const a = corte(acum/total); acum += p.qt; const b = corte(acum/total); return {...p, a, b}; });
+  faixasAtuais = faixas;
 
-  const g = svg.append("g").attr("clip-path","url(#clip-uf)");
+  const g = gMapa.append("g").attr("clip-path","url(#clip-uf)");
   g.selectAll("rect").data(faixas, p=>p.sg).join("rect")
     .attr("class","faixa").attr("data-sg", p=>p.sg)
     .attr("y", y0-2).attr("height", y1-y0+4).attr("fill", p=>corP(p.sg))
@@ -196,17 +270,52 @@ function desenharForma(animar){
       s.transition().duration(700).delay((p,i)=>i*35).ease(d3.easeCubicOut).attr("x",p=>p.a).attr("width",p=>Math.max(0,p.b-p.a+0.6)); })
     .on("mousemove", (ev,p) => mostrarTip(ev, p, total))
     .on("mouseleave", () => { tip.classList.remove("on"); realcar(null); });
-  svg.append("path").attr("class","contorno").attr("d", d);
+  gMapa.append("path").attr("class","contorno").attr("d", d);
+  desenharMunicipios(path);
   montarLegenda(partes, total);
+}
+
+/* Municípios por cima das faixas: divisas, área clicável, realce e seleção */
+function desenharMunicipios(path){
+  if (!MALHA) return;
+  const gm = gMapa.append("g").attr("class","municipios");
+  gm.append("path").attr("class","divisas").attr("d", path(MALHA.divisas));
+  if (gMapa.select(".contorno").empty()) gm.append("path").attr("class","contorno").attr("d", path(MALHA.contorno));
+  const realce = () => gm.select(".mun-realce");
+  gm.selectAll("path.mun").data(MALHA.municipios).join("path")
+    .attr("class","mun").attr("d", path)
+    .on("mouseenter", (ev,f) => realce().attr("d", path(f)))
+    .on("mousemove", (ev,f) => tipMunicipio(ev, f))
+    .on("mouseleave", () => { realce().attr("d", null); tip.classList.remove("on"); realcar(null); })
+    .on("click", (ev,f) => { tip.classList.remove("on"); abrirMunicipio(f.properties.tse, f.properties.nome); });
+  gm.append("path").attr("class","mun-realce");
+  const sel = MUN_SEL && MALHA.porTse.get(MUN_SEL);
+  gm.append("path").attr("class","mun-sel").attr("d", sel ? path(sel) : null);
+}
+
+function htmlPartido(p, total){
+  const cargos = Object.entries(p.cargos).sort((a,b)=>ordemCargo(a[0])-ordemCargo(b[0])).map(([c,q])=>`${cargoNome(c)}: ${q}`).join("<br>");
+  return `<b>${esc(p.sg)}${p.nm && p.nm!==p.sg ? ", " + esc(titulo(p.nm)) : ""}</b>${p.qt} ${p.qt===1?"eleito":"eleitos"} (${(p.qt/total*100).toLocaleString("pt-BR",{maximumFractionDigits:1})}%)<br>${cargos}`;
+}
+function posicionarTip(ev){
+  const box = document.querySelector(".forma-box").getBoundingClientRect();
+  let x = ev.clientX - box.left + 14; if (x > box.width - 250) x -= 270;
+  tip.style.left = x+"px"; tip.style.top = (ev.clientY - box.top + 14)+"px"; tip.classList.add("on");
+}
+function tipMunicipio(ev, f){
+  // a faixa sob o cursor continua sendo informada, como no mapa original
+  const [x] = d3.pointer(ev, gMapa.node());
+  const p = faixasAtuais.find(q => x >= q.a && x < q.b + 0.6);
+  realcar(p ? p.sg : null);
+  tip.innerHTML = `<b>${esc(f.properties.nome)}</b><span class="tip-acao">Clique para ver os dados do município</span>`
+    + (p ? `<span class="tip-faixa">${htmlPartido(p, totalAtual)}</span>` : "");
+  posicionarTip(ev);
 }
 
 function mostrarTip(ev, p, total){
   realcar(p.sg);
-  const cargos = Object.entries(p.cargos).sort((a,b)=>ordemCargo(a[0])-ordemCargo(b[0])).map(([c,q])=>`${cargoNome(c)}: ${q}`).join("<br>");
-  tip.innerHTML = `<b>${esc(p.sg)}${p.nm && p.nm!==p.sg ? ", " + esc(titulo(p.nm)) : ""}</b>${p.qt} ${p.qt===1?"eleito":"eleitos"} (${(p.qt/total*100).toLocaleString("pt-BR",{maximumFractionDigits:1})}%)<br>${cargos}`;
-  const box = document.querySelector(".forma-box").getBoundingClientRect();
-  let x = ev.clientX - box.left + 14; if (x > box.width - 250) x -= 270;
-  tip.style.left = x+"px"; tip.style.top = (ev.clientY - box.top + 14)+"px"; tip.classList.add("on");
+  tip.innerHTML = htmlPartido(p, total);
+  posicionarTip(ev);
 }
 function realcar(sg){
   document.getElementById("forma").classList.toggle("foco", !!sg);
@@ -270,7 +379,7 @@ async function buscar(){
       <span class="r-meta">${esc(titulo(c.nome))}, ${[...c.cargos].sort((a,b)=>ordemCargo(a)-ordemCargo(b)).map(cargoNome).join(", ")} (${c.anos.join(", ")})</span></button>`).join("");
   res.innerHTML = h || `<div class="vazio">Nada encontrado em ${GEO[UF].properties.nome} para “${esc(termo)}”.</div>`;
   res.hidden = false;
-  res.querySelectorAll("button").forEach(b => b.onclick = () => { fecharResultados(); b.dataset.tipo==="m" ? abrirMunicipio(b.dataset.id) : abrirCandidato(+b.dataset.id); });
+  res.querySelectorAll("button").forEach(b => b.onclick = () => { fecharResultados(); if (b.dataset.tipo==="m"){ focarMunicipio(b.dataset.id); abrirMunicipio(b.dataset.id); } else abrirCandidato(+b.dataset.id); });
 }
 
 /* ===================== Gaveta ===================== */
@@ -349,9 +458,15 @@ async function abrirCandidato(id){
     <p class="aviso-mini">A trajetória reúne as candidaturas ligadas ao mesmo identificador de pessoa do projeto. Receitas de fundo especial e fundo partidário contam como públicas; outros recursos, como privados.</p>`);
 }
 
-async function abrirMunicipio(cd){
-  const m = await api.municipio(cd);
-  if (!m){ abrirGaveta(`<h2>Município não encontrado</h2>`); return; }
+async function abrirMunicipio(cd, nomeMapa){
+  marcarMunicipio(cd);
+  let m = null, erro = null;
+  try { m = await api.municipio(cd); } catch(e){ erro = e; console.error(e); }
+  if (!m){
+    const nome = nomeMapa || MALHA?.porTse.get(String(cd))?.properties.nome;
+    const motivo = !erro || /não encontrado/i.test(erro.message) ? "Não há registros deste município na base." : esc(erro.message);
+    abrirGaveta(`<h2 id="g-titulo">${esc(nome || "Município não encontrado")}</h2><p class="sub">${motivo}</p>`); return;
+  }
   let h = `<h2 id="g-titulo">${esc(titulo(m.nome))}</h2><p class="sub">${esc(m.uf)}, código TSE ${esc(m.cd)}${m.ibge ? `, código IBGE ${esc(m.ibge)}` : ""}</p>`;
   const faltam = [];
 

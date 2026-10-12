@@ -36,8 +36,18 @@ O servidor usa `PORT` quando definido e, por padrão, escuta na porta 3001.
 
 O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2018, 2020, 2022 e 2024. A interface mostra eleitos por partido no mapa, filtro de cargo, faixas de gastos da questão 2, busca de candidatos/municípios e detalhes em gaveta.
 
+### Mapa de municípios
+
+Os limites municipais ficam em `public/geo/municipios-UF.json` (TopoJSON, um arquivo por estado, já versionado). Cada município traz o código TSE, o mesmo de `municipio.cd_municipio_tse`. No mapa, as divisas aparecem sobre as faixas de partido; clicar em um município abre a gaveta com os dados dele e escolher um município na busca aproxima o mapa até ele. O zoom funciona pelos botões, com Ctrl/⌘ + roda do mouse, pinça no trackpad ou dois dedos no celular; ampliado, o mapa pode ser arrastado.
+
+Para regenerar as malhas (IBGE via `tbrugz/geodata-br`, correspondência TSE x IBGE via `betafcc/Municipios-Brasileiros-TSE`):
+
+```sh
+bun run malhas
+```
+
 A API consulta `v_partidos_eleitos`, `vw_questao_2_despesas`, `v_historico_candidato` e tabelas municipais. A view oficial da questão 2 é `vw_questao_2_despesas`. O identificador de pessoa não é prova de identidade entre pleitos quando o título eleitoral não está disponível.
 
-`server.ts` contém as rotas e consultas; `src/presentation.ts` preserva o comportamento do HTML original; `src/style.css` contém os estilos originais; `dev.ts` inicia os dois servidores em desenvolvimento. O arquivo `.env` é local e ignorado pelo Git: nunca coloque o token em código frontend, `VITE_*`, issues ou commits.
+`server.ts` contém as rotas e consultas; `src/presentation.ts` preserva o comportamento do HTML original; `src/style.css` contém os estilos originais; `dev.ts` inicia os dois servidores em desenvolvimento; `scripts/malhas.ts` gera as malhas municipais. O arquivo `.env` é local e ignorado pelo Git: nunca coloque o token em código frontend, `VITE_*`, issues ou commits.
 
 O GitHub Pages hospeda apenas o frontend estático. Para publicar o painel com dados ao vivo, é necessário também hospedar a API Bun e configurar a URL dela no frontend, mantendo o token no ambiente do backend.

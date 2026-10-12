@@ -47,6 +47,13 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
       <svg id="forma" viewBox="0 0 600 520" role="img" aria-labelledby="uf-nome resumo"></svg>
       <div class="forma-vazia" id="forma-vazia" hidden></div>
       <div class="tip" id="tip"></div>
+      <div class="zoom" role="group" aria-label="Zoom do mapa">
+        <button type="button" id="zoom-mais" aria-label="Aproximar" title="Aproximar">+</button>
+        <button type="button" id="zoom-menos" aria-label="Afastar" title="Afastar" disabled>−</button>
+        <button type="button" id="zoom-ajustar" aria-label="Ver o estado inteiro" title="Ver o estado inteiro" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
+      </div>
+      <div class="zoom-dica" id="zoom-dica" aria-hidden="true"></div>
+      <p class="nota mapa-ajuda">Clique em um município para ver os dados dele. Arraste para mover o mapa; aproxime pelos botões, com Ctrl + roda do mouse ou com dois dedos.</p>
     </div>
     <div class="leg">
       <h2>Eleitos por partido</h2>
