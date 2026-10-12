@@ -157,6 +157,23 @@ summary{ cursor:pointer; color:var(--ink-2); font-weight:600; }
 .ctrl{ display:flex; flex-wrap:wrap; gap:.5rem; margin:.2rem 0 .6rem; }
 .ctrl select{ padding:.3rem .5rem; border-radius:6px; border:1.5px solid var(--line); background:var(--raised); }
 .aviso-mini{ font-size:.82rem; color:var(--ink-3); margin:.3rem 0 0; }
+.q9{ margin-top:.65rem; font-size:.88rem; }
+.q9 summary{ color:var(--ink-2); }
+.q9-conteudo{ margin-top:.6rem; }
+.q9-controles{ gap:.35rem; }
+.q9-controles button{ border:1.5px solid var(--line); background:transparent; border-radius:999px; padding:.25rem .7rem; font-size:.82rem; cursor:pointer; }
+.q9-controles button[aria-pressed="true"]{ background:var(--ink); color:var(--bg); border-color:var(--ink); }
+.nuvem{ position:relative; width:100%; height:clamp(280px,45vw,370px); overflow:hidden; border-radius:8px; background:var(--surface); }
+.nuvem span{ position:absolute; display:block; max-width:calc(100% - 12px); transform:translate(-50%,-50%); color:var(--ink); font-weight:700; line-height:1; white-space:nowrap; cursor:help; transition:transform .16s ease, color .16s ease, text-shadow .16s ease; }
+.nuvem span:nth-child(4n+2){ color:var(--ink-2); }
+.nuvem span:nth-child(4n+3){ color:var(--ink-3); }
+.nuvem span:nth-child(4n){ color:var(--ok); }
+.nuvem span:hover,.nuvem span:focus-visible{ z-index:1; color:var(--ink); transform:translate(-50%,-50%) scale(1.18); text-shadow:0 2px 10px color-mix(in srgb,var(--ink) 35%,transparent); outline:none; }
+.nuvem-tooltip{ position:absolute; z-index:2; transform:translate(-50%,-100%); display:grid; gap:.2rem; width:max-content; max-width:min(260px,calc(100% - 16px)); padding:.55rem .7rem; border:1px solid var(--line); border-radius:8px; background:var(--raised); color:var(--ink); box-shadow:0 6px 18px rgba(0,0,0,.14); font-size:.78rem; line-height:1.35; pointer-events:none; }
+.nuvem-tooltip[hidden]{ display:none; }
+.nuvem-tooltip b{ font-size:.88rem; }
+.nuvem-tooltip span{ position:static; display:block; max-width:none; transform:none; color:var(--ink-2); font-size:.75rem; font-weight:500; white-space:normal; }
+.q9 .aviso-mini{ margin-top:.55rem; }
 
 footer{ margin-top:2.5rem; padding-top:1rem; border-top:1px solid var(--line); color:var(--ink-3); font-size:.8rem; display:flex; flex-wrap:wrap; gap:.5rem 1.5rem; justify-content:space-between; }
 .carregando{ position:fixed; inset:0; display:grid; place-items:center; background:var(--bg); z-index:60; color:var(--ink-2); font-weight:600; }
