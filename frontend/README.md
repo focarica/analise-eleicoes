@@ -10,7 +10,7 @@ O painel usa TypeScript, Vite e Bun. Seu markup, CSS, mapa e interações reprod
 
 ## Executar localmente
 
-Se ainda não houver `.env`, copie o exemplo e informe seu token:
+Se ainda não houver `.env`, copie o exemplo e preencha os dados de MotherDuck e R2:
 
 ```sh
 cp .env.example .env
@@ -31,6 +31,12 @@ bun run start
 ```
 
 O servidor usa `PORT` quando definido e, por padrão, escuta na porta 3001.
+
+### Fotos oficiais dos candidatos
+
+As fotos ficam em um bucket R2 público, fora do MotherDuck. O backend valida a candidatura pela combinação `ano_eleicao + sq_candidato` e redireciona o navegador para `R2_PUBLIC_BASE_URL/candidatos/{ano}/{sq}`. O navegador e o servidor não precisam de credenciais R2 para ler as fotos. O `.env.example` contém a URL pública do bucket. No primeiro acesso ao bucket, carregue a imagem oficial correspondente do pacote do TSE, preservando-a fora do Git.
+
+As chaves S3 compatíveis com R2 ainda são necessárias para administrar e carregar objetos, mas não devem ficar no ambiente da aplicação web. O domínio `r2.dev` é destinado a desenvolvimento e tem limitação variável de tráfego; para produção, configure um domínio próprio no bucket. Não publique credenciais nem o arquivo `.env`.
 
 ## Dados e estrutura
 
