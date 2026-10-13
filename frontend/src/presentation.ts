@@ -402,10 +402,24 @@ function abrirGaveta(html){
     if (ativa) organizarNuvem(ativa);
   });
   prepararNuvens(corpo);
+  prepararFotos(corpo);
 }
 function fecharGaveta(){ gaveta.classList.remove("on"); scrim.classList.remove("on"); ultimoFoco?.focus?.(); }
 document.getElementById("fechar").onclick = fecharGaveta; scrim.onclick = fecharGaveta;
 document.addEventListener("keydown", ev => { if (ev.key==="Escape" && gaveta.classList.contains("on")) fecharGaveta(); });
+
+function prepararFotos(raiz){
+  raiz.querySelectorAll(".foto-frame img").forEach(img => {
+    const moldura = img.closest(".foto-frame");
+    const ocultarSemFoto = () => {
+      moldura.hidden = true;
+      moldura.closest(".perfil-topo")?.classList.add("sem-foto");
+      moldura.closest(".linha-tempo > li")?.classList.add("sem-foto");
+    };
+    img.addEventListener("error", ocultarSemFoto, { once: true });
+    if (img.complete && !img.naturalWidth) ocultarSemFoto();
+  });
+}
 
 function organizarNuvem(nuvem){
   if (!nuvem || !nuvem.clientWidth || nuvem.closest("[hidden]") || !nuvem.closest("details")?.open) return;
@@ -521,6 +535,7 @@ async function abrirCandidato(id){
   const h = await api.historico(id);
   if (!h){ abrirGaveta(`<h2>Candidato não encontrado</h2><p class="sub">Não há registro para este identificador na base.</p>`); return; }
   const cs = h.candidaturas.filter(c => c.cargo).sort((a,b)=>a.ano_eleicao-b.ano_eleicao || ordemCargo(a.cargo)-ordemCargo(b.cargo));
+  const candidaturaRecente = cs[cs.length-1];
   const eleicoes = cs.filter(c=>ehEleito(c.situacao)).length;
   const urna = [...new Set(cs.map(c=>c.nm_urna_candidato))].map(titulo).join(" / ");
   const ultimaIdade = cs.length ? idade(h.nascimento, cs[cs.length-1].ano_eleicao) : null;
@@ -536,7 +551,10 @@ async function abrirCandidato(id){
       ${c.despesas.map(d=>`<tr><td>${esc(d.despesa ? d.despesa.toLowerCase().replace(/^./,x=>x.toUpperCase()) : "Sem descrição")}</td><td class="v">${brl(d.valor)}</td></tr>`).join("")}</tbody></table></div></details>` : "";
     const bens = c.bens.length ? `<details><summary>Bens declarados (${c.bens.length})</summary><div class="tabw"><table class="tab"><tbody>
       ${c.bens.map(b=>`<tr><td>${esc(b.tipo)}${b.descricao ? `<br><span style="color:var(--ink-3)">${esc(b.descricao.toLowerCase())}</span>` : ""}</td><td class="v">${brl(b.valor)}</td></tr>`).join("")}</tbody></table></div></details>` : "";
-    return `<li class="${el?"el":""}">
+    const foto = c !== candidaturaRecente && c.sq_candidato ? `<span class="foto-frame foto-candidatura"><img src="/api/photo/${c.ano_eleicao}/${c.sq_candidato}" alt="Foto oficial de ${esc(titulo(c.nm_candidato||h.nome))} na eleição ${c.ano_eleicao}" loading="lazy" decoding="async"></span>` : "";
+    return `<li class="${el?"el":""} ${foto?"":"sem-foto"}">
+      ${foto}
+      <div class="timeline-candidatura">
       <div class="lt-ano">${c.ano_eleicao}</div>
       <div class="lt-cargo">${cargoNome(c.cargo)}, ${esc(local)} <span class="chip" style="background:${corP(c.partido)}">${esc(c.partido)}</span><span class="sit ${el?"el":""}">${sitTxt(c.situacao)}</span></div>
       <div class="grade">
@@ -547,6 +565,7 @@ async function abrirCandidato(id){
       </div>
       ${nuvemPropaganda(c, h)}
       ${receitas}${despesas}${bens}
+      </div>
     </li>`;
   };
 
@@ -561,19 +580,24 @@ async function abrirCandidato(id){
   }
 
   abrirGaveta(`
-    <h2 id="g-titulo">${esc(titulo(h.nome))}</h2>
-    <p class="sub">${urna ? "Na urna: " + esc(urna) : ""}</p>
-    <ul class="fatos">
+    <div class="perfil-topo ${candidaturaRecente?.sq_candidato ? "" : "sem-foto"}">
+      ${candidaturaRecente?.sq_candidato ? `<span class="foto-frame foto-topo"><img src="/api/photo/${candidaturaRecente.ano_eleicao}/${candidaturaRecente.sq_candidato}" alt="Foto oficial de ${esc(titulo(candidaturaRecente.nm_candidato||h.nome))} na eleição ${candidaturaRecente.ano_eleicao}" decoding="async"></span>` : ""}
+      <div class="perfil-info">
+      <h2 id="g-titulo">${esc(titulo(h.nome))}</h2>
+      <p class="sub">${urna ? "Na urna: " + esc(urna) : ""}</p>
+      <ul class="fatos">
       <li><b>${cs.length}</b> ${cs.length===1?"candidatura":"candidaturas"} na base</li>
       <li><b>${eleicoes}</b> ${eleicoes===1?"vez eleito":"vezes eleito"}</li>
       ${ultimaIdade!=null ? `<li><b>${ultimaIdade}</b> anos em ${cs[cs.length-1].ano_eleicao}</li>` : ""}
       ${h.genero ? `<li>${esc(titulo(h.genero))}</li>` : ""}${h.cor_raca ? `<li>${esc(titulo(h.cor_raca))}</li>` : ""}
       ${h.instrucao ? `<li>${esc(titulo(h.instrucao).replace(/^./,x=>x.toUpperCase()).replace(/\b(Completo|Incompleto|Fundamental|Médio|Superior)\b/g,m=>m.toLowerCase()).replace(/^./,x=>x.toUpperCase()))}</li>` : ""}
-    </ul>
+      </ul>
+      </div>
+    </div>
     ${evol}
     <h3>Trajetória</h3>
     <ol class="linha-tempo">${cs.map(item).join("")}</ol>
-    <p class="aviso-mini">A trajetória reúne as candidaturas ligadas ao mesmo identificador de pessoa do projeto. Receitas de fundo especial e fundo partidário contam como públicas; outros recursos, como privados.</p>`);
+    <p class="aviso-mini">A trajetória reúne as candidaturas ligadas ao mesmo identificador de pessoa do projeto. As fotos são as imagens oficiais do TSE disponíveis para cada candidatura. Receitas de fundo especial e fundo partidário contam como públicas; outros recursos, como privados.</p>`);
 }
 
 async function abrirMunicipio(cd, nomeMapa){

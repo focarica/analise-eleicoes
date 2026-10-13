@@ -99,6 +99,23 @@ async function route(request: Request) {
     return json({ municipalities, candidates });
   }
 
+  const photoMatch = path.match(/^\/api\/photo\/(\d{4})\/(\d{1,20})$/);
+  if (photoMatch) {
+    const year = Number(photoMatch[1]);
+    const sq = photoMatch[2];
+    if (!YEARS.has(year)) return json({ error: "Ano inválido." }, 400);
+    const [candidacy] = await rows(
+      "SELECT 1 AS encontrada FROM public.candidatura WHERE ano_eleicao = $1 AND sq_candidato = $2 LIMIT 1",
+      [year, Number(sq)],
+    );
+    if (!candidacy) return json({ error: "Candidatura não encontrada." }, 404);
+    const publicBase = Bun.env.R2_PUBLIC_BASE_URL?.replace(/\/+$/, "");
+    if (!publicBase || !publicBase.startsWith("https://")) {
+      return json({ error: "Configure R2_PUBLIC_BASE_URL no ambiente local." }, 503);
+    }
+    return Response.redirect(`${publicBase}/candidatos/${year}/${sq}`, 302);
+  }
+
   const candidateMatch = path.match(/^\/api\/candidate\/(\d+)$/);
   if (candidateMatch) {
     const id = Number(candidateMatch[1]);
@@ -106,7 +123,7 @@ async function route(request: Request) {
       rows(`SELECT nm_candidato, dt_nascimento, ds_grau_instrucao,
                    ds_genero, ds_cor_raca
             FROM public.candidato WHERE id_pessoa_projeto = $1`, [id]),
-      rows(`SELECT ano_eleicao, nm_candidato, nm_urna_candidato,
+      rows(`SELECT ano_eleicao, sq_candidato, nm_candidato, nm_urna_candidato,
                    partido, cargo, uf, municipio, nm_municipio,
                    turno, situacao, votos, total_receitas,
                    receitas_publicas, receitas_privadas, receitas,
