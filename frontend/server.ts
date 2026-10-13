@@ -102,20 +102,40 @@ async function route(request: Request) {
   const candidateMatch = path.match(/^\/api\/candidate\/(\d+)$/);
   if (candidateMatch) {
     const id = Number(candidateMatch[1]);
-    const [person] = await rows(`SELECT nm_candidato, dt_nascimento, ds_grau_instrucao,
-                                        ds_genero, ds_cor_raca
-                                 FROM public.candidato WHERE id_pessoa_projeto = $1`, [id]);
+    const [personRows, candidacies, propagandaValor, propagandaFrequencia] = await Promise.all([
+      rows(`SELECT nm_candidato, dt_nascimento, ds_grau_instrucao,
+                   ds_genero, ds_cor_raca
+            FROM public.candidato WHERE id_pessoa_projeto = $1`, [id]),
+      rows(`SELECT ano_eleicao, nm_candidato, nm_urna_candidato,
+                   partido, cargo, uf, municipio, nm_municipio,
+                   turno, situacao, votos, total_receitas,
+                   receitas_publicas, receitas_privadas, receitas,
+                   total_despesas, qt_despesas, despesas,
+                   patrimonio_declarado, bens
+            FROM public.v_historico_candidato
+            WHERE id_pessoa_projeto = $1
+            ORDER BY ano_eleicao, cargo`, [id]),
+      rows(`SELECT ano_eleicao, sq_candidato, ds_cargo, termo, peso,
+                   valor_pago_associado, qt_lancamentos
+            FROM public.vw_questao_9_nuvem_valor
+            WHERE id_pessoa_projeto = $1
+            QUALIFY ROW_NUMBER() OVER (
+              PARTITION BY ano_eleicao, ds_cargo ORDER BY peso DESC, termo
+            ) <= 35
+            ORDER BY ano_eleicao, ds_cargo, peso DESC, termo`, [id]),
+      // Deriva frequência da mesma base de termos para evitar divergência entre as duas views.
+      rows(`SELECT ano_eleicao, sq_candidato, ds_cargo, termo,
+                   qt_lancamentos AS peso, valor_pago_associado, qt_lancamentos
+            FROM public.vw_questao_9_nuvem_valor
+            WHERE id_pessoa_projeto = $1
+            QUALIFY ROW_NUMBER() OVER (
+              PARTITION BY ano_eleicao, ds_cargo ORDER BY qt_lancamentos DESC, termo
+            ) <= 35
+            ORDER BY ano_eleicao, ds_cargo, qt_lancamentos DESC, termo`, [id]),
+    ]);
+    const person = personRows[0];
     if (!person) return json({ error: "Candidato não encontrado." }, 404);
-    const candidacies = await rows(`SELECT ano_eleicao, nm_candidato, nm_urna_candidato,
-                                          partido, cargo, uf, municipio, nm_municipio,
-                                          turno, situacao, votos, total_receitas,
-                                          receitas_publicas, receitas_privadas, receitas,
-                                          total_despesas, qt_despesas, despesas,
-                                          patrimonio_declarado, bens
-                                   FROM public.v_historico_candidato
-                                   WHERE id_pessoa_projeto = $1
-                                   ORDER BY ano_eleicao, cargo`, [id]);
-    return json({ ...person, candidacies });
+    return json({ ...person, candidacies, propagandaValor, propagandaFrequencia });
   }
 
   const municipalityMatch = path.match(/^\/api\/municipality\/([0-9]+)$/);
