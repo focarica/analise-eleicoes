@@ -73,6 +73,37 @@ async function route(request: Request) {
     return json({ uf, year, parties, spending });
   }
 
+  // Partido vencedor em cada município: o mais votado no 1º turno de cada cargo
+  // (votos nominais + legenda) e, para prefeito, o partido do eleito.
+  if (path === "/api/municipal-map") {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    const year = Number(url.searchParams.get("year"));
+    if (!UFS.has(uf) || !YEARS.has(year)) return json({ error: "UF ou ano inválido." }, 400);
+    const [winners, mayors] = await Promise.all([
+      rows(`WITH votos AS (
+              SELECT v.cd_municipio_tse, v.cd_cargo, v.sg_partido,
+                     SUM(COALESCE(v.qt_votos_nominais, 0) + COALESCE(v.qt_votos_legenda, 0)) AS votos
+              FROM public.votacao_partido v
+              JOIN public.municipio m USING (cd_municipio_tse)
+              WHERE m.sg_uf = $1 AND v.ano_eleicao = $2 AND v.nr_turno = 1 AND v.sg_partido IS NOT NULL
+              GROUP BY 1, 2, 3
+            ), ranqueado AS (
+              SELECT *, SUM(votos) OVER (PARTITION BY cd_municipio_tse, cd_cargo) AS total,
+                     ROW_NUMBER() OVER (PARTITION BY cd_municipio_tse, cd_cargo ORDER BY votos DESC, sg_partido) AS pos
+              FROM votos
+            )
+            SELECT cd_municipio_tse AS municipio, cd_cargo AS cargo, sg_partido AS partido, votos, total
+            FROM ranqueado WHERE pos = 1 AND votos > 0`, [uf, year]),
+      rows(`SELECT c.cd_municipio_tse AS municipio, c.sg_partido AS partido,
+                   c.nm_urna_candidato AS nome, c.id_pessoa_projeto AS id, c.qt_votos_totais AS votos
+            FROM public.candidatura c
+            JOIN public.municipio m USING (cd_municipio_tse)
+            WHERE m.sg_uf = $1 AND c.ano_eleicao = $2 AND c.ds_cargo = 'PREFEITO'
+              AND c.ds_sit_tot_turno IN ('ELEITO', 'ELEITO POR QP', 'ELEITO POR MÉDIA')`, [uf, year]),
+    ]);
+    return json({ uf, year, winners, mayors });
+  }
+
   if (path === "/api/search") {
     const uf = (url.searchParams.get("uf") || "").toUpperCase();
     const term = (url.searchParams.get("q") || "").trim();

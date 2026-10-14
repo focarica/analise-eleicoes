@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Eleitos por partido nos estados da amostra</title>
+<title>Partido vencedor por município nos estados da amostra</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -17,7 +17,7 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
 <div class="carregando" id="carregando">Preparando os dados…</div>
 <div class="wrap">
   <div class="topo">
-    <span class="marca">Eleitos nos estados da amostra</span>
+    <span class="marca">Eleições nos estados da amostra</span>
     <div class="topo-dir">
       <nav class="estados" id="estados" aria-label="Estados"></nav>
       <button class="tema" id="tema" type="button" aria-pressed="false">
@@ -56,9 +56,9 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
       <p class="nota mapa-ajuda">Clique em um município para ver os dados dele. Arraste para mover o mapa; aproxime pelos botões, com Ctrl + roda do mouse ou com dois dedos.</p>
     </div>
     <div class="leg">
-      <h2>Eleitos por partido</h2>
-      <p class="nota">Cada faixa ocupa a parte da área do estado proporcional aos eleitos do partido. Titulares apenas; vices e suplentes não entram.</p>
-      <div class="cargos" id="cargos" role="group" aria-label="Filtrar por cargo"></div>
+      <h2>Partido vencedor por município</h2>
+      <p class="nota" id="leg-nota"></p>
+      <div class="cargos" id="cargos" role="group" aria-label="Escolher o cargo"></div>
       <ol id="legenda"></ol>
     </div>
   </div>
