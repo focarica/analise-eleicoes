@@ -40,11 +40,11 @@ As chaves S3 compatíveis com R2 ainda são necessárias para administrar e carr
 
 ## Dados e estrutura
 
-O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2018, 2020, 2022 e 2024. A interface mostra eleitos por partido no mapa, filtro de cargo, faixas de gastos da questão 2, busca de candidatos/municípios e detalhes em gaveta.
+O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2018, 2020, 2022 e 2024. A interface mostra o partido vencedor em cada município no mapa, filtro de cargo, faixas de gastos da questão 2, busca de candidatos/municípios e detalhes em gaveta.
 
 ### Mapa de municípios
 
-Os limites municipais ficam em `public/geo/municipios-UF.json` (TopoJSON, um arquivo por estado, já versionado). Cada município traz o código TSE, o mesmo de `municipio.cd_municipio_tse`. No mapa, as divisas aparecem sobre as faixas de partido; clicar em um município abre a gaveta com os dados dele e escolher um município na busca aproxima o mapa até ele. O zoom funciona pelos botões, com Ctrl/⌘ + roda do mouse, pinça no trackpad ou dois dedos no celular; ampliado, o mapa pode ser arrastado.
+Os limites municipais ficam em `public/geo/municipios-UF.json` (TopoJSON, um arquivo por estado, já versionado). Cada município traz o código TSE, o mesmo de `municipio.cd_municipio_tse`. Cada município é pintado com a cor do partido vencedor no cargo escolhido: para prefeito, o partido do eleito (ou o mais votado no 1º turno, se o eleito não estiver na base); para os demais cargos, o partido mais votado no 1º turno, somando votos nominais e de legenda. A rota `/api/municipal-map` faz esse cálculo a partir de `votacao_partido` e `candidatura`. A legenda conta em quantos municípios cada partido venceu; clicar em um município abre a gaveta com os dados dele e escolher um município na busca aproxima o mapa até ele. O zoom funciona pelos botões, com Ctrl/⌘ + roda do mouse, pinça no trackpad ou dois dedos no celular; ampliado, o mapa pode ser arrastado.
 
 Para regenerar as malhas (IBGE via `tbrugz/geodata-br`, correspondência TSE x IBGE via `betafcc/Municipios-Brasileiros-TSE`):
 

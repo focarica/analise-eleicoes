@@ -3,8 +3,10 @@ const TOPO = {"type":"Topology","arcs":[[[17228,61335],[449,-204]],[[17677,61131
 
 const UFS = ["AC","AL","BA","DF","RO","SP"];
 const ANOS = [2018, 2020, 2022, 2024];
-const CARGO_COD = {3:"Governador",5:"Senador",6:"Deputado federal",7:"Deputado estadual",8:"Deputado distrital",11:"Prefeito",13:"Vereador"};
+const CARGO_COD = {1:"Presidente",3:"Governador",5:"Senador",6:"Deputado federal",7:"Deputado estadual",8:"Deputado distrital",11:"Prefeito",13:"Vereador"};
 const ORDEM_CARGO = ["GOVERNADOR","SENADOR","DEPUTADO FEDERAL","DEPUTADO ESTADUAL","DEPUTADO DISTRITAL","PREFEITO","VEREADOR"];
+// ordem dos botões de cargo no mapa; o primeiro disponível é o padrão do ano
+const ORDEM_COD = [11, 13, 3, 5, 1, 6, 7, 8];
 const ELEITO = new Set(["ELEITO","ELEITO POR QP","ELEITO POR MÉDIA"]);
 
 const COR = {
@@ -40,7 +42,7 @@ const request = async (path) => {
   if (!response.ok) throw new Error(data.error || "Não foi possível consultar MotherDuck.");
   return data;
 };
-const painelCache = new Map();
+const painelCache = new Map(), mapaCache = new Map();
 const carregarPainel = (uf, ano) => {
   const key = `${uf}:${ano}`;
   if (!painelCache.has(key)) painelCache.set(key, request(`/api/dashboard?uf=${encodeURIComponent(uf)}&year=${ano}`));
@@ -88,6 +90,25 @@ api = {
       candidaturas_locais: d.localCandidacies.map(c => ({ ano: c.ano_eleicao, cargo: c.cargo, id: c.id_pessoa_projeto, nome: c.nm_urna_candidato || c.nm_candidato, partido: c.sg_partido, situacao: c.ds_sit_tot_turno, votos: c.qt_votos_nominais })),
     };
   },
+  // Map<cd_cargo, Map<cd_municipio_tse, vencedor>>
+  mapa(uf, ano) {
+    const key = `${uf}:${ano}`;
+    if (!mapaCache.has(key)) mapaCache.set(key, request(`/api/municipal-map?uf=${encodeURIComponent(uf)}&year=${ano}`).then(d => {
+      const porCargo = new Map();
+      const doCargo = c => porCargo.get(c) || porCargo.set(c, new Map()).get(c);
+      for (const r of d.winners)
+        doCargo(+r.cargo).set(String(r.municipio), { partido: r.partido, votos: +r.votos, total: +r.total, fonte: "votos" });
+      // prefeito: vale o partido do eleito; o mais votado no 1º turno fica como alternativa
+      for (const r of d.mayors){
+        const m = doCargo(11), k = String(r.municipio);
+        if (m.get(k)?.fonte === "eleito") continue;
+        const v = m.get(k);
+        m.set(k, { partido: r.partido, fonte: "eleito", prefeito: { nome: r.nome, id: r.id }, votos: v?.partido === r.partido ? v.votos : null, total: v?.total });
+      }
+      return porCargo;
+    }));
+    return mapaCache.get(key);
+  },
   origem: "Dados ao vivo do MotherDuck · BDR-TSE",
 };
 
@@ -101,30 +122,13 @@ document.getElementById("estados").innerHTML = UFS.map(uf => {
   return `<a href="#/${uf}" data-uf="${uf}"><svg viewBox="0 0 34 30" aria-hidden="true"><path d="${p(GEO[uf])}"/></svg>${uf}</a>`;
 }).join("");
 
-/* Cortes verticais cuja área dentro do estado é proporcional à parcela de cada partido */
-const cacheArea = {};
-function cortesPorArea(uf, pathStr){
-  if (!cacheArea[uf]){
-    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
-    const cx = cv.getContext("2d"); cx.fill(new Path2D(pathStr));
-    const px = cx.getImageData(0,0,W,H).data, col = new Float64Array(W);
-    for (let y=0; y<H; y++) for (let x=0; x<W; x++) col[x] += px[(y*W+x)*4+3]/255;
-    const acc = new Float64Array(W+1); for (let x=0; x<W; x++) acc[x+1] = acc[x]+col[x];
-    cacheArea[uf] = acc;
-  }
-  const acc = cacheArea[uf], total = acc[W];
-  return frac => { const alvo = frac*total; let lo=0, hi=W;
-    while (hi-lo>1){ const m=(lo+hi)>>1; if (acc[m] < alvo) lo=m; else hi=m; }
-    const a = acc[lo], b = acc[hi]; return lo + (b>a ? (alvo-a)/(b-a) : 0); };
-}
-
 /* ===================== Estado da página ===================== */
-let UF = "SP", ANO = 2022, CARGO = "TODOS", LINHAS = [];
+let UF = "SP", ANO = 2022, CARGO = null, LINHAS = [], VENCEDORES = new Map();
 const svg = d3.select("#forma"), tip = document.getElementById("tip");
 
 /* ===================== Municípios: malha, zoom e seleção ===================== */
 // Malhas geradas por scripts/malhas.ts (IBGE simplificado, com o código TSE em cada feição).
-let MALHA = null, MUN_SEL = null, gMapa = null, pathAtual = null, faixasAtuais = [], totalAtual = 0;
+let MALHA = null, MUN_SEL = null, gMapa = null, pathAtual = null;
 const malhaCache = new Map();
 function carregarMalha(uf){
   if (!malhaCache.has(uf)) malhaCache.set(uf, fetch(`${import.meta.env.BASE_URL}geo/municipios-${uf}.json`)
@@ -192,12 +196,12 @@ function focarMunicipio(tse){
 function anosDisponiveis(uf){ return uf === "DF" ? [2018, 2022] : ANOS; }
 
 async function abrirEstado(uf){
-  UF = uf; CARGO = "TODOS"; MALHA = null; MUN_SEL = null;
+  UF = uf; CARGO = null; MALHA = null; MUN_SEL = null;
   svg.call(zoom.transform, d3.zoomIdentity);
   if (!anosDisponiveis(uf).includes(ANO)) ANO = 2022;
   document.querySelectorAll("#estados a").forEach(a => a.setAttribute("aria-current", a.dataset.uf===uf ? "page" : "false"));
   document.getElementById("uf-nome").textContent = GEO[uf].properties.nome;
-  document.title = GEO[uf].properties.nome + ": eleitos por partido";
+  document.title = GEO[uf].properties.nome + ": partido vencedor por município";
   document.getElementById("busca").value = ""; fecharResultados();
   document.getElementById("busca").placeholder = "Buscar município ou candidato"; document.getElementById("busca").setAttribute("aria-label", `Buscar município ou candidato em ${GEO[uf].properties.nome}`);
   montarAnos(); await carregarAno();
@@ -206,33 +210,40 @@ async function abrirEstado(uf){
 function montarAnos(){
   const el = document.getElementById("anos"), disp = anosDisponiveis(UF);
   el.innerHTML = ANOS.map(a => `<button class="ano-btn" data-ano="${a}" aria-pressed="${a===ANO}" ${disp.includes(a)?"":"disabled title=\"O DF não tem eleições municipais\""}>${a}</button>`).join("");
-  el.querySelectorAll("button").forEach(b => b.onclick = () => { ANO = +b.dataset.ano; CARGO = "TODOS"; montarAnos(); carregarAno(); });
+  el.querySelectorAll("button").forEach(b => b.onclick = () => { ANO = +b.dataset.ano; CARGO = null; montarAnos(); carregarAno(); });
 }
 
 async function carregarAno(){
-  const [linhas, gasto, malha] = await Promise.all([api.partidos(UF, ANO), api.gasto(UF, ANO), carregarMalha(UF)]);
-  LINHAS = linhas; MALHA = malha;
+  const [linhas, gasto, malha, vencedores] = await Promise.all([api.partidos(UF, ANO), api.gasto(UF, ANO), carregarMalha(UF), api.mapa(UF, ANO)]);
+  LINHAS = linhas; MALHA = malha; VENCEDORES = vencedores;
   montarCargos(); desenharForma(true); montarQuartis(gasto);
 }
 
 function montarCargos(){
-  const cargos = [...new Set(LINHAS.map(r=>r.ds_cargo))].sort((a,b)=>ordemCargo(a)-ordemCargo(b));
+  const cargos = ORDEM_COD.filter(c => VENCEDORES.get(c)?.size);
+  if (!cargos.includes(CARGO)) CARGO = cargos[0] ?? null;
   const el = document.getElementById("cargos");
-  el.innerHTML = [["TODOS","Todos os cargos"], ...cargos.map(c=>[c, cargoNome(c)])]
-    .map(([v,t]) => `<button data-c="${v}" aria-pressed="${CARGO===v}">${t}</button>`).join("");
-  el.querySelectorAll("button").forEach(b => b.onclick = () => { CARGO = b.dataset.c; montarCargos(); desenharForma(true); });
+  el.innerHTML = cargos.map(c => `<button data-c="${c}" aria-pressed="${CARGO===c}">${CARGO_COD[c]}</button>`).join("");
+  el.querySelectorAll("button").forEach(b => b.onclick = () => { CARGO = +b.dataset.c; montarCargos(); desenharForma(true); });
+  document.getElementById("leg-nota").textContent = CARGO === 11
+    ? "Cor de cada município: partido do prefeito eleito. Onde o eleito não está na base, vale o partido mais votado no 1º turno. A lista conta em quantos municípios cada partido venceu."
+    : "Cor de cada município: partido mais votado no 1º turno para o cargo, somando votos nominais e de legenda. A lista conta em quantos municípios cada partido venceu.";
 }
 
+const vencedor = f => VENCEDORES.get(CARGO)?.get(f.properties.tse);
+const nomePartido = (() => { let cache = null, base = null;
+  return sg => { if (base !== LINHAS){ base = LINHAS; cache = new Map(LINHAS.filter(r=>r.nm_partido).map(r=>[r.sg_partido, r.nm_partido])); } return cache.get(sg); }; })();
+
+// municípios vencidos por partido no cargo escolhido
 function agregados(){
   const m = new Map();
-  for (const r of LINHAS){ if (CARGO!=="TODOS" && r.ds_cargo!==CARGO) continue;
-    const k = r.sg_partido, o = m.get(k) || {sg:k, nm:r.nm_partido, qt:0, cargos:{}};
-    o.qt += +r.qt_eleitos; o.cargos[r.ds_cargo] = (o.cargos[r.ds_cargo]||0) + +r.qt_eleitos; if (!o.nm) o.nm = r.nm_partido; m.set(k,o); }
+  for (const f of MALHA?.municipios || []){ const v = vencedor(f); if (!v) continue;
+    const o = m.get(v.partido) || { sg: v.partido, nm: nomePartido(v.partido), qt: 0 }; o.qt++; m.set(v.partido, o); }
   return [...m.values()].sort((a,b)=>b.qt-a.qt || a.sg.localeCompare(b.sg));
 }
 
 function desenharForma(animar){
-  // com a malha municipal, o contorno do estado é a união dos municípios (alinhamento exato)
+  // o contorno do estado é a união dos municípios (alinhamento exato com a malha)
   const f = MALHA?.contorno || GEO[UF];
   const proj = d3.geoMercator().fitExtent([[12,12],[W-12,H-12]], f), path = d3.geoPath(proj), d = path(f);
   pathAtual = path;
@@ -244,90 +255,68 @@ function desenharForma(animar){
     : `Nenhum eleito na base para ${ANO}.`;
 
   svg.selectAll("*").remove();
-  const defs = svg.append("defs");
-  defs.append("clipPath").attr("id","clip-uf").append("path").attr("d", d);
   // tudo que é desenhado fica num grupo que recebe a transformação do zoom
   gMapa = svg.append("g").attr("class","mapa").attr("transform", d3.zoomTransform(svg.node()));
+  gMapa.append("path").attr("d", d).style("fill", "var(--vazio)");
   const vazio = document.getElementById("forma-vazia");
-  faixasAtuais = []; totalAtual = total;
-
-  if (!total){
-    gMapa.append("path").attr("d", d).style("fill", "var(--vazio)");
-    vazio.hidden = false; vazio.textContent = UF==="DF" && (ANO===2020||ANO===2024) ? "O Distrito Federal não tem eleições municipais." : "Sem eleitos na base para este filtro.";
-    montarLegenda([], 0); desenharMunicipios(path); return;
-  }
-  vazio.hidden = true;
-  const corte = cortesPorArea(MALHA ? UF + ":mun" : UF, d);
-  const [[x0,y0],[x1,y1]] = path.bounds(f);
-  let acum = 0;
-  const faixas = partes.map(p => { const a = corte(acum/total); acum += p.qt; const b = corte(acum/total); return {...p, a, b}; });
-  faixasAtuais = faixas;
-
-  const g = gMapa.append("g").attr("clip-path","url(#clip-uf)");
-  g.selectAll("rect").data(faixas, p=>p.sg).join("rect")
-    .attr("class","faixa").attr("data-sg", p=>p.sg)
-    .attr("y", y0-2).attr("height", y1-y0+4).attr("fill", p=>corP(p.sg))
-    .attr("x", p => animar ? x0 : p.a).attr("width", p => animar ? 0 : Math.max(0,p.b-p.a+0.6))
-    .call(s => { if (!animar || matchMedia("(prefers-reduced-motion: reduce)").matches) return s.attr("x",p=>p.a).attr("width",p=>Math.max(0,p.b-p.a+0.6));
-      s.transition().duration(700).delay((p,i)=>i*35).ease(d3.easeCubicOut).attr("x",p=>p.a).attr("width",p=>Math.max(0,p.b-p.a+0.6)); })
-    .on("mousemove", (ev,p) => mostrarTip(ev, p, total))
-    .on("mouseleave", () => { tip.classList.remove("on"); realcar(null); });
-  gMapa.append("path").attr("class","contorno").attr("d", d);
-  desenharMunicipios(path);
+  vazio.hidden = !!(MALHA && total);
+  if (!MALHA) vazio.textContent = "Não foi possível carregar os limites dos municípios.";
+  else if (!total) vazio.textContent = UF==="DF" && (ANO===2020||ANO===2024) ? "O Distrito Federal não tem eleições municipais." : "Sem votação por município na base para este ano.";
   montarLegenda(partes, total);
-}
+  if (!MALHA){ gMapa.append("path").attr("class","contorno").attr("d", d); return; }
 
-/* Municípios por cima das faixas: divisas, área clicável, realce e seleção */
-function desenharMunicipios(path){
-  if (!MALHA) return;
+  const [[x0],[x1]] = path.bounds(f), animado = animar && !matchMedia("(prefers-reduced-motion: reduce)").matches;
   const gm = gMapa.append("g").attr("class","municipios");
-  gm.append("path").attr("class","divisas").attr("d", path(MALHA.divisas));
-  if (gMapa.select(".contorno").empty()) gm.append("path").attr("class","contorno").attr("d", path(MALHA.contorno));
   const realce = () => gm.select(".mun-realce");
   gm.selectAll("path.mun").data(MALHA.municipios).join("path")
     .attr("class","mun").attr("d", path)
+    .style("fill", f => { const v = vencedor(f); return v ? corP(v.partido) : "var(--vazio)"; })
     .on("mouseenter", (ev,f) => realce().attr("d", path(f)))
     .on("mousemove", (ev,f) => tipMunicipio(ev, f))
     .on("mouseleave", () => { realce().attr("d", null); tip.classList.remove("on"); realcar(null); })
-    .on("click", (ev,f) => { tip.classList.remove("on"); abrirMunicipio(f.properties.tse, f.properties.nome); });
+    .on("click", (ev,f) => { tip.classList.remove("on"); abrirMunicipio(f.properties.tse, f.properties.nome); })
+    // entrada da esquerda para a direita, lembrando as faixas do mapa original
+    .call(s => { if (!animado) return;
+      s.attr("fill-opacity", 0).transition().duration(450).ease(d3.easeCubicOut)
+        .delay(f => (path.centroid(f)[0] - x0) / (x1 - x0 || 1) * 500).attr("fill-opacity", 1); });
+  gm.append("path").attr("class","divisas").attr("d", path(MALHA.divisas));
+  gm.append("path").attr("class","contorno").attr("d", d);
   gm.append("path").attr("class","mun-realce");
   const sel = MUN_SEL && MALHA.porTse.get(MUN_SEL);
   gm.append("path").attr("class","mun-sel").attr("d", sel ? path(sel) : null);
 }
 
-function htmlPartido(p, total){
-  const cargos = Object.entries(p.cargos).sort((a,b)=>ordemCargo(a[0])-ordemCargo(b[0])).map(([c,q])=>`${cargoNome(c)}: ${q}`).join("<br>");
-  return `<b>${esc(p.sg)}${p.nm && p.nm!==p.sg ? ", " + esc(titulo(p.nm)) : ""}</b>${p.qt} ${p.qt===1?"eleito":"eleitos"} (${(p.qt/total*100).toLocaleString("pt-BR",{maximumFractionDigits:1})}%)<br>${cargos}`;
-}
 function posicionarTip(ev){
   const box = document.querySelector(".forma-box").getBoundingClientRect();
   let x = ev.clientX - box.left + 14; if (x > box.width - 250) x -= 270;
   tip.style.left = x+"px"; tip.style.top = (ev.clientY - box.top + 14)+"px"; tip.classList.add("on");
 }
+const pct = (a, b) => (a/b*100).toLocaleString("pt-BR",{maximumFractionDigits:1}) + "%";
 function tipMunicipio(ev, f){
-  // a faixa sob o cursor continua sendo informada, como no mapa original
-  const [x] = d3.pointer(ev, gMapa.node());
-  const p = faixasAtuais.find(q => x >= q.a && x < q.b + 0.6);
-  realcar(p ? p.sg : null);
-  tip.innerHTML = `<b>${esc(f.properties.nome)}</b><span class="tip-acao">Clique para ver os dados do município</span>`
-    + (p ? `<span class="tip-faixa">${htmlPartido(p, totalAtual)}</span>` : "");
-  posicionarTip(ev);
-}
-
-function mostrarTip(ev, p, total){
-  realcar(p.sg);
-  tip.innerHTML = htmlPartido(p, total);
+  const v = vencedor(f);
+  realcar(v ? v.partido : null);
+  let h = `<b>${esc(f.properties.nome)}</b><span class="tip-acao">Clique para ver os dados do município</span>`;
+  if (!v) h += `<span class="tip-faixa">Sem votação na base para ${esc(CARGO_COD[CARGO] || "este cargo").toLowerCase()}.</span>`;
+  else {
+    const nm = nomePartido(v.partido);
+    const votos = v.votos && v.total ? `${fmt.format(v.votos)} votos (${pct(v.votos, v.total)})` : "";
+    h += `<span class="tip-faixa"><b>${esc(v.partido)}${nm && nm !== v.partido ? ", " + esc(titulo(nm)) : ""}</b>`
+      + (v.fonte === "eleito" ? `Prefeito eleito: ${esc(titulo(v.prefeito.nome))}${votos ? `<br>${votos} no 1º turno` : ""}`
+        : `${CARGO === 11 ? "Mais votado no 1º turno; o eleito não está na base" : `Mais votado para ${esc(CARGO_COD[CARGO].toLowerCase())}, 1º turno`}<br>${votos}`)
+      + `</span>`;
+  }
+  tip.innerHTML = h;
   posicionarTip(ev);
 }
 function realcar(sg){
   document.getElementById("forma").classList.toggle("foco", !!sg);
-  svg.selectAll(".faixa").classed("on", p => p.sg === sg);
+  svg.selectAll(".mun").classed("on", f => !!sg && vencedor(f)?.partido === sg);
 }
 
 function montarLegenda(partes, total){
   const max = d3.max(partes, p=>p.qt) || 1;
   const ol = document.getElementById("legenda");
-  ol.innerHTML = partes.map(p => `<li data-sg="${esc(p.sg)}" title="${esc(titulo(p.nm||p.sg))}">
+  ol.innerHTML = partes.map(p => `<li data-sg="${esc(p.sg)}" title="${esc(titulo(p.nm||p.sg))}: ${p.qt} ${p.qt===1?"município":"municípios"}">
       <i class="sw" style="background:${corP(p.sg)}"></i><span class="sg">${esc(p.sg)}</span>
       <i class="bar" style="width:${(p.qt/max*100).toFixed(1)}%;background:${corP(p.sg)}"></i>
       <span class="q num">${p.qt} <small>${Math.round(p.qt/total*100)}%</small></span></li>`).join("");
