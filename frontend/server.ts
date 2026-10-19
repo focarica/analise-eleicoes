@@ -2,7 +2,9 @@ import { resolve, sep } from "node:path";
 import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
 
 const PORT = Number(Bun.env.PORT || 3001);
-const DATABASE = "BDR-TSE";
+// BDR-TSE-2026: banco na própria conta do painel — espelho do share BDR-TSE
+// mais a votação de Presidente por município (carga em scripts/motherduck/).
+const DATABASE = "BDR-TSE-2026";
 const UFS = new Set(["AC", "AL", "BA", "DF", "RO", "SP"]);
 const YEARS = new Set([2018, 2020, 2022, 2024]);
 let connection: DuckDBConnection | undefined;
@@ -14,11 +16,14 @@ async function db() {
     connectionPromise = (async () => {
       const token = Bun.env.MOTHERDUCK_TOKEN || Bun.env.motherduck_token;
       if (!token) throw new Error("Configure MOTHERDUCK_TOKEN no arquivo .env local.");
-      process.env.motherduck_token = token;
-      const instance = await DuckDBInstance.create(`md:${DATABASE}`);
-      const con = await instance.connect();
-      connection = con;
-      return con;
+      // o token vai na connection string: o node-api não lê variáveis de ambiente
+      // do DuckDB de forma confiável e sem vínculo explícito pode cair no SSO do
+      // navegador (conta errada) em vez de usar o token do painel.
+      const instancia = await DuckDBInstance.create(
+        `md:${DATABASE}?token=${encodeURIComponent(token)}&motherduck_open_browser=false`,
+      );
+      connection = await instancia.connect();
+      return connection;
     })();
   }
   return connectionPromise;
@@ -57,8 +62,11 @@ async function route(request: Request) {
     const year = Number(url.searchParams.get("year"));
     if (!UFS.has(uf) || !YEARS.has(year)) return json({ error: "UF ou ano inválido." }, 400);
     const [parties, spending] = await Promise.all([
+      // Presidente é eleito no Brasil inteiro (uf = "BR"): entra no painel dos
+      // anos de eleição geral para que o botão de cargo tenha nome de partido.
       rows(`SELECT nr_partido, sg_partido, nm_partido, ds_cargo, qt_eleitos
-            FROM public.v_partidos_eleitos WHERE uf = $1 AND ano_eleicao = $2
+            FROM public.v_partidos_eleitos
+            WHERE (uf = $1 OR uf = 'BR') AND ano_eleicao = $2
             ORDER BY qt_eleitos DESC, sg_partido`, [uf, year]),
       rows(`SELECT ds_cargo, faixa_financeira,
                    "piso_faixa_r$" AS piso_faixa, "teto_faixa_r$" AS teto_faixa,

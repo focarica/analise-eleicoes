@@ -2,6 +2,23 @@
 
 `carga_tse_motherduck_flight.py` é o script autocontido usado para adquirir dados públicos do TSE e carregar o modelo analítico no MotherDuck. Ele descobre os recursos pelo catálogo CKAN do TSE, baixa e normaliza temporariamente os arquivos e publica as tabelas do modelo e as views.
 
+## Complemento de Presidente (cargo 1)
+
+A votação de Presidente por município não constava da carga inicial: os ZIPs do TSE munzona por UF não trazem esse cargo — ele só aparece no arquivo BR incluído no próprio ZIP. O banco de referência (`BDR-TSE`) é um share somente leitura, e a escolha do projeto é manter uma cópia modificável do modelo (`BDR-TSE-2026`) na mesma conta do token do painel.
+
+Fluxo (reproduz a atualização; requer os ZIPs `votacao_partido_munzona_{2018,2022}.zip` e `votacao_candidato_munzona_{2018,2022}.zip` do TSE):
+
+```sh
+# 1. Extrai o cargo 1 dos arquivos BR e agrega pelo grão das tabelas publicadas
+python scripts/motherduck/complementar_presidente.py --zip-dir /tmp/opencode/tse --output /tmp/opencode/tse
+
+# 2. Copia as 11 tabelas do share, publica o cargo 1, atualiza os votos
+#    nacionais de 1º turno e recria as views (usa o token do painel)
+bun scripts/motherduck/copia_banco_presidente.ts   # com frontend/.env na raiz
+```
+
+`carga_presidente.ts` é a variante que só aplica o complemento num banco já copiado; rodar `--output` do passo 1 é o caminho canônico. Todos os scripts usam token por parâmetro de conexão e não abrem fluxo SSO ambíguo.
+
 ## Executar
 
 Execute o script em um Flight com Python e rede disponíveis. Configure o Flight para usar o banco MotherDuck `BDR-TSE`; o ambiente fornece a autenticação MotherDuck. O script não contém credenciais. Revise e ajuste no próprio arquivo os anos e estados do recorte antes de iniciar uma nova carga.

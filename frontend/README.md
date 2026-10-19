@@ -2,10 +2,14 @@
 
 O painel usa TypeScript, Vite e Bun. Seu markup, CSS, mapa e interações reproduzem o HTML da apresentação; o snapshot gzipado original foi removido. Os dados são consultados ao vivo no MotherDuck por uma API Bun, que mantém o token fora do navegador.
 
+### Banco `BDR-TSE-2026`
+
+O share original `BDR-TSE` é somente leitura e não podia receber a votação de Presidente por município (que faltava na carga inicial: os arquivos munzona por UF do TSE não trazem esse cargo; ele só está no arquivo BR). O banco `BDR-TSE-2026` foi copiado das 11 tabelas do DER para a mesma conta do token do painel, recebeu o complemento de Presidente (2018 e 2022, dos ZIPs oficiais `votacao_partido_munzona`/`votacao_candidato_munzona`, arquivo BR) e as mesmas views. `~/scripts` (`scripts/motherduck/complementar_presidente.py`, `carga_presidente.ts`, `copia_banco_presidente.ts`) reproduz a atualização.
+
 ## Requisitos
 
 - Bun instalado
-- Acesso ao banco MotherDuck `BDR-TSE`
+- Acesso ao banco MotherDuck `BDR-TSE-2026` (conta do painel; veja nota abaixo)
 - Token MotherDuck de leitura
 
 ## Executar localmente
