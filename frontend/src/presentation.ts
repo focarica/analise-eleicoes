@@ -619,14 +619,27 @@ async function abrirCandidato(id){
     </li>`;
   };
 
-  // evolução do patrimônio
-  const pat = cs.filter(c=>+c.patrimonio_declarado>0);
-  const anosUnicos = [...new Set(cs.map(c=>c.ano_eleicao))];
+  // evolução do patrimônio: pontos por eleição ligados em linha
+  const pat = cs.filter(c=>+c.patrimonio_declarado>0).sort((a,b)=>a.ano_eleicao-b.ano_eleicao);
   let evol = "";
-  if (anosUnicos.length > 1){
-    const porAno = d3.rollups(cs, v=>d3.max(v, c=>+c.patrimonio_declarado||0), c=>c.ano_eleicao);
+  if (pat.length > 1){
+    const porAno = [...d3.rollups(pat, v=>d3.max(v, c=>+c.patrimonio_declarado||0), c=>c.ano_eleicao)].sort((a,b)=>a[0]-b[0]);
     const mx = d3.max(porAno, d=>d[1]) || 1;
-    evol = `<h3>Patrimônio declarado ao longo das eleições</h3>` + porAno.map(([a,v]) => `<div class="hb"><span>${a}</span><i class="t" style="width:${v/mx*100}%"></i><span class="v">${brlc(v)}</span></div>`).join("");
+    const W = 640, H = 176, INI = 16, topo = 38, baixo = 34, LAT = 40;
+    const x = i => LAT + i*(W-2*LAT)/(porAno.length-1);
+    const y = v => topo + (1 - v/mx)*(H-topo-baixo);
+    const pts = porAno.map(([a,v],i)=>({a,v,i}));
+    const linha = d3.line().x(d=>x(d.i)).y(d=>y(d.v)).curve(d3.curveMonotoneX);
+    const txt = v => brlc(v).replace("R$ ","");
+    evol = `<h3>Patrimônio declarado ao longo das eleições</h3>
+      <svg class="pat-linha" viewBox="0 0 ${W} ${H}" role="img" aria-label="Patrimônio declarado em cada eleição, do ${porAno[0][0]} ao ${porAno[porAno.length-1][0]}">
+        <line x1="${LAT}" y1="${H-baixo}" x2="${W-LAT}" y2="${H-baixo}" class="eixo"/>
+        ${pts.map(d=>`<line x1="${x(d.i)}" y1="${y(d.v)}" x2="${x(d.i)}" y2="${H-baixo}" class="guia"/>`).join("")}
+        <path d="${linha(pts)}" class="trac"/>
+        ${pts.map(d=>`<circle cx="${x(d.i)}" cy="${y(d.v)}" r="4.5" class="pto" tabindex="0" aria-label="${d.a}: ${brlc(d.v)}"><title>${d.a}: ${brlc(d.v)}</title></circle>
+          <text x="${x(d.i)}" y="${y(d.v)-11}" class="val" text-anchor="middle">${txt(d.v)}</text>
+          <text x="${x(d.i)}" y="${H-10}" class="ano" text-anchor="middle">${d.a}</text>`).join("")}
+      </svg>`;
   }
 
   abrirGaveta(`
@@ -707,6 +720,7 @@ async function abrirMunicipio(cd, nomeMapa){
 
   if (faltam.length) h += `<p class="aviso-mini">Sem dados de ${faltam.join(", ").replace(/, ([^,]*)$/," e $1")} para este município na base.</p>`;
   abrirGaveta(h);
+
 
   const ligar = (selId, listaId, render) => { const s = document.getElementById(selId); if (!s) return; const f = () => { document.getElementById(listaId).innerHTML = render(s.value);
       document.getElementById(listaId).querySelectorAll("[data-cand]").forEach(b => b.onclick = () => abrirCandidato(+b.dataset.cand)); }; s.onchange = f; f(); };
