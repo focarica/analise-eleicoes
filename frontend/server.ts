@@ -7,6 +7,8 @@ const PORT = Number(Bun.env.PORT || 3001);
 const DATABASE = "BDR-TSE-2026";
 const UFS = new Set(["AC", "AL", "BA", "DF", "RO", "SP"]);
 const YEARS = new Set([2018, 2020, 2022, 2024]);
+const CARGOS: Record<number, string> = { 3: "Governador", 5: "Senador", 6: "Deputado federal", 7: "Deputado estadual", 8: "Deputado distrital", 11: "Prefeito", 13: "Vereador" };
+const UFS_LIST = ["AC", "AL", "BA", "DF", "RO", "SP"];
 let connection: DuckDBConnection | undefined;
 let connectionPromise: Promise<DuckDBConnection> | undefined;
 
@@ -136,6 +138,160 @@ async function route(request: Request) {
             ORDER BY MAX(c.ano_eleicao) DESC, ca.nm_candidato LIMIT 10`, [uf, pattern]),
     ]);
     return json({ municipalities, candidates });
+  }
+
+  // P10a — reeleição: fichas por cargo com os ciclos de eleição seguinte.
+  // uf vazio = TODOS as UFs da amostra, somado aqui; `estados` traz sempre os
+  // ciclos estaduais de cada UF (para o mapa-calor estado a estado) e `media`
+  // a média dos municípios por cargo municipal (11 e 13).
+  if (path === "/api/reeleicao") {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    if (uf && !UFS.has(uf)) return json({ error: "UF fora da amostra." }, 400);
+    const [estados, municipais] = await Promise.all([
+      rows(`SELECT cd_cargo, uf, ano_eleito, ano_disputa, eleitos, tentaram,
+                   reeleitos, taxa, ha_proxima
+            FROM public.v_reeleicao_linhas
+            WHERE cd_municipio_tse IS NULL
+            ORDER BY cd_cargo, ano_eleito`),
+      rows(`SELECT cd_cargo, uf, ano_eleito, ano_disputa,
+                   SUM(eleitos) AS eleitos, SUM(tentaram) AS tentaram, SUM(reeleitos) AS reeleitos,
+                   COUNT(*) AS municipios,
+                   ROUND(AVG(CASE WHEN tentaram > 0 THEN taxa END), 1) AS taxa_municipios,
+                   MAX(ha_proxima) AS ha_proxima
+            FROM public.v_reeleicao_linhas
+            WHERE cd_municipio_tse IS NOT NULL
+            GROUP BY 1, 2, 3, 4`),
+    ]);
+    const fechar = (r: any) => ({
+      cdCargo: Number(r.cd_cargo),
+      uf: r.uf ?? r.uf_state ?? null,
+      anoEleito: Number(r.ano_eleito),
+      anoDisputa: Number(r.ano_disputa),
+      eleitos: Number(r.eleitos),
+      tentaram: Number(r.tentaram),
+      reeleitos: Number(r.reeleitos),
+      taxa: r.taxa == null ? null : Number(r.taxa),
+      haProxima: r.ha_proxima === true,
+    });
+    const porCargo = (linhas: any) => {
+      const porAno = new Map();
+      for (const r of linhas) {
+        const chave = `${r.anoEleito}|${r.anoDisputa}`;
+        if (!porAno.has(chave)) porAno.set(chave, { ...r, eleitos: 0, tentaram: 0, reeleitos: 0 });
+        const c = porAno.get(chave);
+        c.eleitos += r.eleitos;
+        c.tentaram += r.tentaram;
+        c.reeleitos += r.reeleitos;
+        c.haProxima = c.haProxima || r.haProxima;
+        c.taxa = c.tentaram > 0 ? Math.round(c.reeleitos * 1000 / c.tentaram) / 10 : null;
+      }
+      return [...porAno.values()].sort((a, b) => a.anoEleito - b.anoEleito);
+    };
+    const municipaisFechados = municipais.map((r) => ({
+      ...fechar(r),
+      taxa: Number(r.tentaram) > 0 ? Math.round(Number(r.reeleitos) * 1000 / Number(r.tentaram)) / 10 : null,
+      municipios: Number(r.municipios),
+      taxaMunicipios: r.taxa_municipios == null ? null : Number(r.taxa_municipios),
+    }));
+    const cargos = [3, 5, 6, 7, 8, 11, 13].map((cd) => {
+      const estado = estados.filter((r) => (!uf || r.uf === uf) && Number(r.cd_cargo) === cd).map(fechar);
+      // prefeito e vereador só têm grão municipal: os ciclos saem da soma dos municípios
+      const municipaisCargo = municipaisFechados.filter((r) => r.cdCargo === cd && (!uf || r.uf === uf));
+      const fonte = estado.length > 0 ? estado : municipaisCargo;
+      return {
+        cdCargo: cd,
+        cargo: CARGOS[cd],
+        ciclos: fonte.map((r: any) => ({ ...r, municipios: r.municipios ?? null, taxaMunicipios: r.taxaMunicipios ?? null })).sort((a: any, b: any) => a.anoEleito - b.anoEleito),
+        media: municipaisCargo.sort((a, b) => a.anoEleito - b.anoEleito),
+      };
+    });
+    const gradas = [3, 5, 6, 7, 8].map((cd) => ({
+      cdCargo: cd,
+      cargo: CARGOS[cd],
+      porUf: UFS_LIST.map((u) => ({
+        uf: u,
+        ciclos: porCargo(estados.filter((r) => r.uf === u && Number(r.cd_cargo) === cd).map(fechar)),
+      })),
+    }));
+    return json({ uf, cargos, estados: gradas });
+  }
+
+  if (path === "/api/reeleicao/pessoas") {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    const cargo = Number(url.searchParams.get("cargo"));
+    const eleitosEm = Number(url.searchParams.get("eleitos_em"));
+    const grupo = url.searchParams.get("grupo") || "";
+    const q = (url.searchParams.get("q") || "").trim();
+    const limite = Math.min(Number(url.searchParams.get("limite")) || 60, 200);
+    const desde = Number(url.searchParams.get("desde")) || 0;
+    if (!UFS.has(uf) || !CARGOS[cargo]) return json({ error: "UF ou cargo inválido." }, 400);
+    if (!["voltou", "perderam", "nao"].includes(grupo)) return json({ error: "Grupo inválido." }, 400);
+    const pattern = `%${q}%`;
+    const pessoas = await rows(
+      `SELECT id_pessoa_projeto, sq_candidato, ano_foto, nm_urna_candidato,
+              sg_partido, nm_municipio, votos, grupo
+       FROM public.v_reeleicao_pessoas
+       WHERE uf = $1 AND cd_cargo = $2 AND ano_eleito = $3 AND grupo = $4
+         AND (nm_urna_candidato ILIKE $5 OR COALESCE(nm_municipio, '') ILIKE $5)
+       ORDER BY nm_urna_candidato
+       LIMIT $6 OFFSET $7`,
+      [uf, cargo, eleitosEm, grupo, pattern, limite + 1, desde],
+    );
+    const temMais = pessoas.length > limite;
+    if (temMais) pessoas.pop();
+    return json({ uf, cargo, eleitosEm, grupo, pessoas, temMais });
+  }
+
+  // Q8 — financiamento: peso dos fundos públicos por cargo, faixa e partido.
+  // uf vazio = TODOS as UFs da amostra, agregado aqui.
+  if (path === "/api/financiamento") {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    if (uf && !UFS.has(uf)) return json({ error: "UF fora da amostra." }, 400);
+    const condicaoUf = uf ? "WHERE uf = $1" : "";
+    const params = uf ? [uf] : [];
+    const [faixas, fontes, partidos] = await Promise.all([
+      rows(`SELECT cd_cargo, ano_eleicao, faixa,
+                   SUM(candidaturas) AS candidaturas, SUM(eleitas) AS eleitas,
+                   ROUND(SUM(eleitas) * 100.0 / NULLIF(SUM(candidaturas), 0), 1) AS taxa_eleicao
+            FROM public.v_financiamento_faixas ${condicaoUf}
+            GROUP BY 1, 2, 3`, params),
+      rows(`SELECT cd_cargo, ano_eleicao, ds_fonte_receita, SUM(total) AS total
+            FROM public.v_financiamento_fontes ${condicaoUf}
+            GROUP BY 1, 2, 3`, params),
+      rows(`SELECT cd_cargo, ano_eleicao, sg_partido,
+                   SUM(candidaturas) AS candidaturas, SUM(eleitas) AS eleitas,
+                   SUM(arrecadado) AS arrecadado, SUM(publicas) AS publicas
+            FROM public.v_financiamento_partidos ${condicaoUf}
+            GROUP BY 1, 2, 3`, params),
+    ]);
+    const partidosFechados = partidos.map((r) => ({
+      cdCargo: Number(r.cd_cargo),
+      ano: Number(r.ano_eleicao),
+      partido: r.sg_partido,
+      candidaturas: Number(r.candidaturas),
+      eleitas: Number(r.eleitas),
+      arrecadado: Number(r.arrecadado),
+      publicas: Number(r.publicas),
+      pctPublico: Number(r.arrecadado) > 0 ? Math.round(Number(r.publicas) * 1000 / Number(r.arrecadado)) / 10 : null,
+    }));
+    return json({
+      uf,
+      faixas: faixas.map((r) => ({
+        cdCargo: Number(r.cd_cargo),
+        ano: Number(r.ano_eleicao),
+        faixa: r.faixa,
+        candidaturas: Number(r.candidaturas),
+        eleitas: Number(r.eleitas),
+        taxaEleicao: r.taxa_eleicao == null ? null : Number(r.taxa_eleicao),
+      })),
+      fontes: fontes.map((r) => ({
+        cdCargo: Number(r.cd_cargo),
+        ano: Number(r.ano_eleicao),
+        fonte: r.ds_fonte_receita,
+        total: Number(r.total),
+      })),
+      partidos: partidosFechados,
+    });
   }
 
   const photoMatch = path.match(/^\/api\/photo\/(\d{4})\/(\d{1,20})$/);
