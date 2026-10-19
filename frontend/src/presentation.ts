@@ -639,8 +639,13 @@ function nuvemPropaganda(c, h){
 }
 
 async function abrirCandidato(id){
-  const h = await api.historico(id);
-  if (!h){ abrirGaveta(`<h2>Candidato não encontrado</h2><p class="sub">Não há registro para este identificador na base.</p>`); return; }
+  let h = null, erro = null;
+  try { h = await api.historico(id); } catch(e){ erro = e; console.error(e); }
+  if (!h){
+    const motivo = erro ? esc(erro.message) : "Não há registro para este identificador na base.";
+    abrirGaveta(`<h2>Não foi possível carregar este candidato</h2><p class="sub">${motivo}</p><p class="aviso-mini">Consultas do MotherDuck podem falhar quando a cota diária da conta se esgota; recarregue em alguns instantes.</p>`);
+    return;
+  }
   const cs = h.candidaturas.filter(c => c.cargo).sort((a,b)=>a.ano_eleicao-b.ano_eleicao || ordemCargo(a.cargo)-ordemCargo(b.cargo));
   const candidaturaRecente = cs[cs.length-1];
   const eleicoes = cs.filter(c=>ehEleito(c.situacao)).length;
