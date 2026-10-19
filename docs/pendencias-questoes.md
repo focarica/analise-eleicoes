@@ -27,9 +27,9 @@ Escopo da nossa carga (`BDR-TSE`): UFs **AC, AL, BA, DF, RO, SP** nos anos **201
 | P5 | **Parcial** | mapa soma nominais+legenda por partido (`server.ts:83`); não separa nem mede "eleitos por votos de legenda" |
 | P6 | **Falta** | idade derivável de `dt_nascimento`; sem alternância (não baixamos 1996–2016) |
 | P7 | **Falta** | não temos o dataset de notas de especialistas (Harvard Dataverse) |
-| P8 | **Parcial** | views de financiamento prontas (`sql/motherduck/05_views_financiamento.sql`) + endpoint `/api/financiamento` (server.ts); sem UI |
+| P8 | **Feita** | views de financiamento (`sql/motherduck/05_views_financiamento.sql`) + endpoints `/api/financiamento(.pessoas)` + UI na página: seção "Depender de fundo público se elege mais?" com barra segmentada por faixa (% da receita arrecadada vinda de fundos públicos), "quem são" por faixa, fontes e partidos; **gráfico de linhas com abas** (taxa de eleição por faixa × ano | verba por fonte × ano, com escala log opcional e legenda que liga/desliga séries) e **seletor multi-ano** (chips; "Todos os anos" por padrão; agregado no cliente com soma e taxa recalculada — nunca média de taxas; "quem são" usa `ano=all`, com coluna de ano) e seletor de cargo |
 | P9 | **Feita** | nuvens por valor/frequência na ficha (`vw_questao_9_nuvem_*`) |
-| P10 | **Parcial (p10a)** | views de reeleição prontas (`sql/motherduck/04_views_reeleicao.sql`) + endpoints `/api/reeleicao(.pessoas)` (server.ts); sem UI. Ficha com candidaturas 2018–2024 (votos, gasto, bens); P10b (carreira completa) pendente de anos históricos |
+| P10 | **Feita (P10a)** | reeleição com SQL + endpoints + UI na página (seção "Reeleição: quem volta?"); P10b (carreira completa) pendente de anos históricos |
 
 ## O que é possível fazer com os dados que já temos
 
@@ -79,11 +79,12 @@ Feasível **sem baixar nada** (apenas views SQL + endpoints + UI):
 
 ### P8 — Repasses públicos × outras fontes
 - SQL ✅: views de `sql/motherduck/05_views_financiamento.sql` — `v_financiamento_candidatura` (candidatura com total recebido e parcela de fundo especial, fundo partidário e outras fontes), `v_financiamento_faixas` (0–25%, 25–50%, 50–75%, 75–100% e sem receita), `v_financiamento_fontes` (total por fonte) e `v_financiamento_partidos` (agregado por partido). Aplicadas no `BDR-TSE-2026`.
-- Endpoint ✅: `/api/financiamento?uf` (`{faixas, fontes, partidos}`); uf vazio agrega todo o escopo.
-- UI (pendente): páginas por questão do - faixas de dependência (barra segmentada + lista "quem são"), fontes (barras R$) e partidos (barras de representação). Nota: `tp_origem_recurso` é todo null no escopo; só existem FUNDO ESPECIAL / FUNDO PARTIDARIO / OUTROS RECURSOS (+ null).
+- Endpoint ✅: `/api/financiamento?uf` (`{faixas, fontes, partidos}`; `cargo` opcional — o frontend usa `cargo=1` para o Presidente, nacional) e `/api/financiamento/pessoas?cargo&ano&faixa&(uf)`. uf vazio agrega todo o escopo.
+- UI ✅: seção "Depender de fundo público se elege mais?" na página: faixas de dependência (barra segmentada + lista "quem são" com fichas), fontes (barras R$) e partidos (tabela dos 10 maiores com % público). O indicador de cargo traz o Presidente nos anos gerais (busca também inclui Presidentes de qualquer estado). Nota: `tp_origem_recurso` é todo null no escopo; só existem FUNDO ESPECIAL / FUNDO PARTIDARIO / OUTROS RECURSOS (+ null). O `server.ts` cacheia consultas pesadas em memória+disco (`.cache-api`) por causa do limite diário de computação do plano.
 
 ### P10a — Reeleição no escopo
 - SQL ✅: views de `sql/motherduck/04_views_reeleicao.sql` — `v_reeleicao_linhas` (cada eleito em A ligado à disputa seguinte do cargo, com `havia_proxima`, `tentou`, `reeleita` e, para municipais, agregados do município) e `v_reeleicao_pessoas` (grupos voltou/perderam/nao com nome, CPF, partido, município e ciclos). Senador 2018 fica fora (`ha_proxima` falso — a próxima disputa é 2026); deputados agregam no grão municipal. Aplicadas no `BDR-TSE-2026`.
-- Endpoint ✅: `/api/reeleicao?uf` (fichas por cargo × ciclo + média do cargo e ranking por estado) e `/api/reeleicao/pessoas?uf&cargo&eleitos_em&grupo&q&limite&desde`.
-- UI (pendente): páginas por questão , em lugar da urna — fichas com barra segmentada "voltaram / tentaram e perderam / não tentaram" por ciclo, seção "quem são" por grupo e calor "estado a estado".
+- Endpoint ✅: `/api/reeleicao?uf` (fichas por cargo × ciclo + média do cargo e ranking por estado; municipais trazem `municipiosComTentativa` para ponderar a média) e `/api/reeleicao/pessoas?uf&cargo&eleitos_em&grupo&q&limite&desde`.
+- UI ✅: seção "Reeleição: quem volta?" — chips de cargo; **coluna empilhada por ciclo** (os 100% são os eleitos: voltou / tentou e perdeu / não tentou; número acima = taxa sobre quem tentou; "média mun." em prefeito/vereador — em vez de linha porque a amostra tem 1 ciclo por cargo); tabela por ciclo com **(% eleitos)** (tentaram/eleitos) e linha Total; **Resumo "todas as eleições somadas"** por cargo (com UF: do estado; sem UF: da amostra) + linha **municipais combinados (prefeito + vereador)** + lista **"fora do cálculo"** (ciclos sem eleição seguinte na base); ranking da taxa por UF quando nenhum estado está aberto; "quem são" por ciclo (voltaram/perderam/não tentaram, busca + mostrar mais, abre a ficha). Média municipal ponderada pelo nº de municípios com tentativa. Deputado distrital (8) entra na régua — divergência deliberada do grupo 7, que não o calcula.
+- Validação ✅: AC 2018→2022 bate com o txt do grupo 7 — Governador 1/1/1 (100%), Dep. Federal 8/5/0 (0%), Dep. Estadual 24/19/12 (63,2%, %eleitos 79,2%).
 - Nota: P10b completa só com anos históricos novos (1994+).
