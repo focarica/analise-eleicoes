@@ -469,7 +469,7 @@ const FAIXA_TXT = {
 const FIN = { cargo: null, sel: "todos", graf: "taxa", log: false, ocultas: new Set(), dados: null, cargaId: null };
 const FIN_COMPACTO = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
 const FIN_FAIXA_CURTO = { "[00,25)": "até 24%", "[25,50)": "25–49%", "[50,75)": "50–74%", "[75,100]": "75%+", "sem receita": "sem receita" };
-const FIN_FAIXA_COR = { "[00,25)": "var(--ink-2)", "[25,50)": "color-mix(in srgb, var(--ink) 72%, var(--bg))", "[50,75)": "color-mix(in srgb, var(--ink) 45%, var(--bg))", "[75,100]": "var(--ink)", "sem receita": "color-mix(in srgb, var(--ink) 25%, var(--bg))" };
+const FIN_FAIXA_COR = { "[00,25)": "var(--faixa-0)", "[25,50)": "var(--faixa-1)", "[50,75)": "var(--faixa-2)", "[75,100]": "var(--faixa-3)", "sem receita": "var(--faixa-4)" };
 const FIN_FONTE_SERIE = { "FUNDO ESPECIAL": ["Fundo especial (FEFC)", "var(--ink)"], "FUNDO PARTIDARIO": ["Fundo partidário", "color-mix(in srgb, var(--ink) 45%, var(--bg))"], "OUTROS RECURSOS": ["Outras fontes", "var(--ink-3)"] };
 const finFonteNome = f => f == null ? "Sem fonte informada" : (FIN_FONTE_SERIE[f]?.[0] || titulo(f));
 const finFonteCor = f => FIN_FONTE_SERIE[f]?.[1] || "var(--ink-2)";
@@ -486,7 +486,7 @@ function finAnosSel(c, cargo){
 
 // gráfico de linhas genérico: uma linha por série, pontos = anos marcados
 function grafFin(anos, series, { fixo0100=false, log=false, fmtV, eixoX = "ano", eixoY = "" }){
-  const W = 640, H = 234, L = 54, DR = 128, T = 12, B = 50;
+  const W = 640, H = 234, L = 54, DR = 16, T = 12, B = 50;
   const todas = series.flatMap(s=>s.pts).filter(p=>log ? p.v > 0 : true);
   if (!todas.length) return "";
   const y = fixo0100 ? d3.scaleLinear().domain([0, 100]).range([H - B, T])
@@ -510,9 +510,7 @@ function grafFin(anos, series, { fixo0100=false, log=false, fmtV, eixoX = "ano",
     const d = pts.map((p,j)=>`${j ? "L" : "M"}${x(String(p.ano)).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" ");
     const circ = pts.map(p => `<circle cx="${x(String(p.ano)).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3.2" fill="${s.cor}">
       <title>${esc(s.nome)}, ${p.ano}: ${fmtV(p.v)}${p.extra ? ` · ${esc(p.extra)}` : ""}</title></circle>`).join("");
-    const u = pts[pts.length - 1];
-    return `<path d="${d}" fill="none" stroke="${s.cor}" stroke-width="2"/>${circ}
-      <text x="${(W - DR + 8).toFixed(1)}" y="${(y(u.v) + 3).toFixed(1)}" font-size="9.5" fill="${s.cor}">${esc(s.nome)}</text>`;
+    return `<path d="${d}" fill="none" stroke="${s.cor}" stroke-width="2"/>${circ}`;
   }).join("");
   return `<svg class="fin-grafico" viewBox="0 0 ${W} ${H}" role="img" aria-label="Linhas de comparação por ano">${grade}${rotulosAnos}${titulos}${corpo}</svg>`;
 }

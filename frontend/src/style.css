@@ -2,12 +2,13 @@
   --bg:#E9EEF1; --surface:#F7F9FA; --raised:#FFFFFF; --ink:#17212B; --ink-2:#4A5866; --ink-3:#6F7C88;
   --line:#C9D2D9; --vazio:#CDD5DB; --focus:#17212B; --ok:#1F7A4D; --scrim:rgba(23,33,43,.35);
   --uf-base:#A9B4BD; --uf-fora:#DCE3E9;
+  --faixa-0:#4E79A7; --faixa-1:#59A14F; --faixa-2:#F28E2C; --faixa-3:#E15759; --faixa-4:#8D99A6;
   --font:"Schibsted Grotesk","Segoe UI",system-ui,-apple-system,sans-serif;
 }
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){ --bg:#121A21; --surface:#1A242D; --raised:#202C36; --ink:#E7ECEF; --ink-2:#A9B5BF; --ink-3:#8593A0; --line:#2D3A45; --vazio:#2E3943; --focus:#E7ECEF; --ok:#5CC08E; --scrim:rgba(0,0,0,.55); --uf-base:#1B2531; --uf-fora:#26323F; }
+  :root:not([data-theme="light"]){ --bg:#121A21; --surface:#1A242D; --raised:#202C36; --ink:#E7ECEF; --ink-2:#A9B5BF; --ink-3:#8593A0; --line:#2D3A45; --vazio:#2E3943; --focus:#E7ECEF; --ok:#5CC08E; --scrim:rgba(0,0,0,.55); --uf-base:#1B2531; --uf-fora:#26323F; --faixa-0:#6FA3D8; --faixa-1:#7CC574; --faixa-2:#F6AD52; --faixa-3:#F17B7E; --faixa-4:#A5B1BE; }
 }
-:root[data-theme="dark"]{ --bg:#121A21; --surface:#1A242D; --raised:#202C36; --ink:#E7ECEF; --ink-2:#A9B5BF; --ink-3:#8593A0; --line:#2D3A45; --vazio:#2E3943; --focus:#E7ECEF; --ok:#5CC08E; --scrim:rgba(0,0,0,.55); --uf-base:#1B2531; --uf-fora:#26323F; }
+:root[data-theme="dark"]{ --bg:#121A21; --surface:#1A242D; --raised:#202C36; --ink:#E7ECEF; --ink-2:#A9B5BF; --ink-3:#8593A0; --line:#2D3A45; --vazio:#2E3943; --focus:#E7ECEF; --ok:#5CC08E; --scrim:rgba(0,0,0,.55); --uf-base:#1B2531; --uf-fora:#26323F; --faixa-0:#6FA3D8; --faixa-1:#7CC574; --faixa-2:#F6AD52; --faixa-3:#F17B7E; --faixa-4:#A5B1BE; }
 :root{ box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); }
 html{ scroll-padding-top:env(safe-area-inset-top,0px); }
 *,*::before,*::after{ box-sizing:inherit; }
@@ -178,9 +179,9 @@ tr.reel-soma td{ border-top:1.5px solid var(--ink-3); }
 .fin-bloco h4{ margin:1.25rem 0 .4rem; font-size:.85rem; font-weight:700; }
 .fin-seg{ display:flex; height:1.15rem; border-radius:4px; overflow:hidden; background:var(--line); }
 .fin-seg i{ display:block; min-width:2px; }
-.fin-seg .fin-0{ background:var(--ink-2); } .fin-seg .fin-1{ background:color-mix(in srgb, var(--ink) 72%, var(--bg)); }
-.fin-seg .fin-2{ background:color-mix(in srgb, var(--ink) 45%, var(--bg)); } .fin-seg .fin-3{ background:var(--ink); }
-.fin-seg .fin-4{ background:var(--line); }
+.fin-seg .fin-0{ background:var(--faixa-0); } .fin-seg .fin-1{ background:var(--faixa-1); }
+.fin-seg .fin-2{ background:var(--faixa-2); } .fin-seg .fin-3{ background:var(--faixa-3); }
+.fin-seg .fin-4{ background:var(--faixa-4); }
 .fin-faixas{ list-style:none; margin:.75rem 0 0; padding:0; }
 .fin-faixas button{ display:grid; grid-template-columns:.9rem minmax(0,1fr) 3.2rem 6.5rem; gap:.55rem; align-items:center; width:100%; border:0; background:transparent; padding:.3rem 0; font:inherit; font-size:.85rem; text-align:left; cursor:pointer; border-bottom:1px solid var(--line); }
 .fin-faixas button:hover{ background:var(--surface); }
@@ -189,9 +190,9 @@ tr.reel-soma td{ border-top:1.5px solid var(--ink-3); }
 .fin-faixas span{ text-align:right; color:var(--ink-3); font-size:.78rem; }
 .fin-faixas button[aria-pressed="true"] span{ color:color-mix(in srgb, var(--bg) 80%, transparent); }
 .faixa-swatch{ width:.9rem; height:.9rem; border-radius:3px; }
-.faixa-swatch.fin-0{ background:var(--ink-2); } .faixa-swatch.fin-1{ background:color-mix(in srgb, var(--ink) 72%, var(--bg)); }
-.faixa-swatch.fin-2{ background:color-mix(in srgb, var(--ink) 45%, var(--bg)); } .faixa-swatch.fin-3{ background:var(--ink); }
-.faixa-swatch.fin-4{ background:var(--line); }
+.faixa-swatch.fin-0{ background:var(--faixa-0); } .faixa-swatch.fin-1{ background:var(--faixa-1); }
+.faixa-swatch.fin-2{ background:var(--faixa-2); } .faixa-swatch.fin-3{ background:var(--faixa-3); }
+.faixa-swatch.fin-4{ background:var(--faixa-4); }
 .fin-partidos summary{ cursor:pointer; color:var(--ink-3); font-size:.85rem; margin-top:.9rem; }
 .fin-partidos[open] summary{ margin-bottom:.3rem; }
 /* confirmação de atualização dos painéis da questão 8 (troca de cargo) */
