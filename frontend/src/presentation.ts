@@ -19,8 +19,8 @@ api = {
   async gasto(uf, ano) {
     return (await carregarPainel(uf, ano)).spending;
   },
-  async buscar(uf, termo) {
-    const d = await request(`/api/search?uf=${encodeURIComponent(uf)}&q=${encodeURIComponent(termo)}`);
+  async buscar(uf, termo, signal) {
+    const d = await request(`/api/search?uf=${encodeURIComponent(uf)}&q=${encodeURIComponent(termo)}`, { silencioso: true, signal });
     return {
       municipios: d.municipalities.map(m => ({ cd: m.id, nome: m.nome })),
       candidatos: d.candidates.map(c => ({
@@ -408,7 +408,7 @@ function montarQuartis(linhas){
 
 /* ===================== Busca ===================== */
 const inp = document.getElementById("busca"), res = document.getElementById("resultados");
-let tBusca = null, selIdx = -1;
+let tBusca = null, selIdx = -1, buscaAtual = null;
 inp.addEventListener("input", () => { clearTimeout(tBusca); tBusca = setTimeout(buscar, 180); });
 inp.addEventListener("keydown", ev => {
   const itens = [...res.querySelectorAll("button")]; if (res.hidden || !itens.length) return;
@@ -422,8 +422,21 @@ document.addEventListener("click", ev => { if (!ev.target.closest(".busca")) fec
 function fecharResultados(){ res.hidden = true; selIdx = -1; }
 
 async function buscar(){
-  const termo = inp.value; if (termo.trim().length < 2){ fecharResultados(); return; }
-  const r = await api.buscar(UF, termo); selIdx = -1;
+  const termo = inp.value;
+  // cancela a busca anterior: só a resposta do texto atual interessa
+  buscaAtual?.abort(); buscaAtual = null;
+  if (termo.trim().length < 2){ fecharResultados(); return; }
+  const controle = buscaAtual = new AbortController();
+  let r;
+  try {
+    r = await api.buscar(UF, termo, controle.signal);
+  } catch (erro) {
+    if (controle.signal.aborted) return;
+    res.innerHTML = `<div class="vazio">Não foi possível buscar agora. Tente de novo em instantes.</div>`;
+    res.hidden = false; return;
+  }
+  if (controle !== buscaAtual) return;
+  selIdx = -1;
   let h = "";
   if (r.municipios?.length) h += `<h3>Municípios</h3>` + r.municipios.map(m=>`<button data-tipo="m" data-id="${m.cd}"><span class="r-nm">${esc(titulo(m.nome))}</span></button>`).join("");
   if (r.candidatos?.length) h += `<h3>Candidatos</h3>` + r.candidatos.map(c=>`<button data-tipo="c" data-id="${c.id}"><span class="r-nm">${esc(titulo(c.urna||c.nome))}</span>

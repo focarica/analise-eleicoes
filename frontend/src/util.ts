@@ -42,15 +42,19 @@ export const sitTxt = s => s ? titulo(s).replace("Por Qp","por QP").replace("Por
 // indicador dinâmico de carga: aparece para qualquer requisição pendente e só some quando
 // a última responder (várias chamadas em paralelo compartilham o mesmo contador)
 let pendentes = 0;
-export const request = async (path) => {
-  pendentes++; sinalizaCarga();
+// opcoes.silencioso: não mostra o véu de carga (busca enquanto se digita);
+// opcoes.signal: AbortSignal para cancelar uma requisição que ficou velha.
+export const request = async (path, opcoes = {}) => {
+  const { silencioso = false, signal } = opcoes;
+  if (!silencioso){ pendentes++; sinalizaCarga(); }
   try {
-    const response = await fetch(path);
-    const data = await response.json();
+    const response = await fetch(path, { signal });
+    // quando o backend cai ou reinicia, o proxy do Vite responde com texto, não JSON
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Não foi possível consultar MotherDuck.");
     return data;
   } finally {
-    pendentes--; sinalizaCarga();
+    if (!silencioso){ pendentes--; sinalizaCarga(); }
   }
 };
 function sinalizaCarga(){
