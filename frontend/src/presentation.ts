@@ -675,10 +675,26 @@ async function abrirMunicipio(cd, nomeMapa){
   let h = `<h2 id="g-titulo">${esc(titulo(m.nome))}</h2><p class="sub">${esc(m.uf)}, código TSE ${esc(m.cd)}${m.ibge ? `, código IBGE ${esc(m.ibge)}` : ""}</p>`;
   const faltam = [];
 
-  // comparecimento
+  // comparecimento: tabela e gráfico alternáveis
   if (m.comparecimento.length){
-    h += `<h3>Comparecimento</h3><div class="tabw"><table class="tab"><thead><tr><th>Eleição</th><th class="v">Aptos</th><th class="v">Compareceram</th><th class="v">Abstenção</th></tr></thead><tbody>
-      ${m.comparecimento.map(c=>`<tr><td>${c.ano}, ${c.turno}º turno</td><td class="v">${fmt.format(c.aptos)}</td><td class="v">${fmt.format(c.comparecimento)}</td><td class="v">${(c.abstencao/c.aptos*100).toLocaleString("pt-BR",{maximumFractionDigits:1})}%</td></tr>`).join("")}</tbody></table></div>`;
+    h += `<h3>Comparecimento</h3>
+      <div class="comp-alt" role="group" aria-label="Alternar visão do comparecimento">
+        <button type="button" data-v="tabela" aria-pressed="true">Tabela</button>
+        <button type="button" data-v="graficos" aria-pressed="false">Gráficos</button>
+      </div>
+      <div class="comp-vis vis-tabela"><div class="tabw"><table class="tab"><thead><tr><th>Eleição</th><th class="v">Aptos</th><th class="v">Compareceram</th><th class="v">Abstenção</th></tr></thead><tbody>
+      ${m.comparecimento.map(c=>`<tr><td>${c.ano}, ${c.turno}º turno</td><td class="v">${fmt.format(c.aptos)}</td><td class="v">${fmt.format(c.comparecimento)}</td><td class="v">${(c.abstencao/c.aptos*100).toLocaleString("pt-BR",{maximumFractionDigits:1})}%</td></tr>`).join("")}</tbody></table></div></div>
+      <div class="comp-vis vis-graficos" hidden>
+        ${m.comparecimento.map(c=>{
+          const p = c.aptos ? c.comparecimento / c.aptos * 100 : 0;
+          return `<div class="cmp-linha">
+            <span class="cmp-ano">${c.ano}, ${c.turno}º turno</span>
+            <div class="cmp-seg"><i style="width:${p.toFixed(2)}%" title="Aptos ${fmt.format(c.aptos)} · Compareceram ${fmt.format(c.comparecimento)} · Abstenção ${(c.abstencao/c.aptos*100).toLocaleString("pt-BR",{maximumFractionDigits:1})}%"></i></div>
+            <span class="cmp-v">${p.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span>
+          </div>`;
+        }).join("")}
+        <p class="aviso-mini">Verde: compareceram; cinza: abstenção, em relação aos aptos de cada eleição.</p>
+      </div>`;
   } else faltam.push("comparecimento");
 
   // candidaturas locais (prefeito e vereador)
@@ -721,6 +737,12 @@ async function abrirMunicipio(cd, nomeMapa){
   if (faltam.length) h += `<p class="aviso-mini">Sem dados de ${faltam.join(", ").replace(/, ([^,]*)$/," e $1")} para este município na base.</p>`;
   abrirGaveta(h);
 
+  // alternador tabela × gráficos do comparecimento
+  const compAlt = document.querySelector(".comp-alt");
+  if (compAlt) compAlt.querySelectorAll("button").forEach(b => b.onclick = () => {
+    compAlt.querySelectorAll("button").forEach(o => o.setAttribute("aria-pressed", String(o === b)));
+    document.querySelectorAll(".comp-vis").forEach(v => v.hidden = !v.classList.contains("vis-" + b.dataset.v));
+  });
 
   const ligar = (selId, listaId, render) => { const s = document.getElementById(selId); if (!s) return; const f = () => { document.getElementById(listaId).innerHTML = render(s.value);
       document.getElementById(listaId).querySelectorAll("[data-cand]").forEach(b => b.onclick = () => abrirCandidato(+b.dataset.cand)); }; s.onchange = f; f(); };
