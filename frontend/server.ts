@@ -522,15 +522,20 @@ async function route(request: Request) {
     if (!cargo || !(cargo in CARGOS)) return json({ error: "Cargo inválido." }, 400);
     const ano = url.searchParams.get("ano") || "";
     const todosAnos = ano === "all";
-    if (!todosAnos && !YEARS.has(Number(ano))) return json({ error: "Ano inválido." }, 400);
+    const anosSel = todosAnos ? [] : ano.split(",").map(Number);
+    if (!todosAnos && (!anosSel.length || anosSel.some(a => !YEARS.has(a)))) return json({ error: "Ano inválido." }, 400);
     const faixa = url.searchParams.get("faixa") || "";
     if (!SEM_RECEITA_FAIXA.has(faixa) && !FAIXAS.has(faixa)) return json({ error: "Faixa inválida." }, 400);
     const limite = Math.min(Number(url.searchParams.get("limite") || 30), 100);
+    const desde = Math.max(Math.trunc(Number(url.searchParams.get("desde")) || 0), 0);
     const condicoes = ["v.cd_cargo = $1", "v.faixa = $2"];
     const params: (string | number)[] = [cargo, faixa];
-    if (!todosAnos) { condicoes.push(`v.ano_eleicao = $${params.length + 1}`); params.push(Number(ano)); }
+    if (!todosAnos) {
+      condicoes.push(`v.ano_eleicao IN (${anosSel.map((_, i) => `$${params.length + i + 1}`).join(", ")})`);
+      params.push(...anosSel);
+    }
     if (uf) { condicoes.push(`v.uf = $${params.length + 1}`); params.push(uf); }
-    const pessoas = await comCache(`finp:${uf || "*"}:${cargo}:${ano}:${faixa}`, () => rows(
+    const pessoas = await comCache(`finp:${uf || "*"}:${cargo}:${ano}:${faixa}:${limite}:${desde}`, () => rows(
       `SELECT ca.id_pessoa_projeto AS id, ca.nm_urna_candidato AS urna, pc.nm_candidato AS nome,
               v.sg_partido AS partido, v.ds_sit_tot_turno AS situacao, v.ano_eleicao AS ano,
               COALESCE(m.sg_uf, ca.sg_ue) AS uf, m.nm_municipio AS municipio,
@@ -541,8 +546,8 @@ async function route(request: Request) {
        JOIN public.candidato pc ON pc.id_pessoa_projeto = ca.id_pessoa_projeto
        LEFT JOIN public.municipio m ON m.cd_municipio_tse = ca.cd_municipio_tse
        WHERE ${condicoes.join(" AND ")}
-       ORDER BY v.total DESC LIMIT $${params.length + 1}`,
-      [...params, limite + 1],
+       ORDER BY v.total DESC, id LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limite + 1, desde],
     ));
     const temMais = pessoas.length > limite;
     if (temMais) pessoas.pop();

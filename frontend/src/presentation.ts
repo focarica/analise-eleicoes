@@ -466,7 +466,7 @@ const FAIXA_TXT = {
   "sem receita": "Sem receita declarada",
 };
 // sel: "todos" (padrão) ou Set de anos marcados nos chips; graf: aba do gráfico
-const FIN = { cargo: null, sel: "todos", graf: "taxa", log: false, ocultas: new Set(), dados: null, cargaId: null };
+const FIN = { cargo: null, sel: "todos", graf: "taxa", log: false, ocultas: new Set(), dados: null, cargaId: null, quemFaixa: null, quemLista: [], quemDesde: 0, quemTemMais: false };
 const FIN_COMPACTO = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
 const FIN_FAIXA_CURTO = { "[00,25)": "até 24%", "[25,50)": "25–49%", "[50,75)": "50–74%", "[75,100]": "75%+", "sem receita": "sem receita" };
 const FIN_FAIXA_COR = { "[00,25)": "var(--faixa-0)", "[25,50)": "var(--faixa-1)", "[50,75)": "var(--faixa-2)", "[75,100]": "var(--faixa-3)", "sem receita": "var(--faixa-4)" };
@@ -593,6 +593,7 @@ function aplicarFinanciamento(origemTxt){
 function renderFinanciamento(){
   const el = document.getElementById("fin-conteudo"), botAno = document.getElementById("fin-anos");
   if (!el) return;
+  FIN.quemFaixa = null; // o conteúdo refeito começa com a lista "quem são" fechada
   const cargo = FIN.cargo, c = FIN.dados;
   const { anos, marcados } = finAnosSel(c, cargo);
   const selSet = new Set(marcados);
@@ -679,7 +680,7 @@ function renderFinanciamento(){
         ${faixas.filter(q=>q.candidaturas).map(q => `<i class="fin-${FAIXA_ORDEM.indexOf(q.faixa)}" style="width:${(q.candidaturas/totalCand*100).toFixed(2)}%" title="${esc(FAIXA_TXT[q.faixa])}: fundo especial + fundo partidário como fração da receita recebida; ${q.candidaturas} candidaturas"></i>`).join("")}
       </div>
       <ol class="fin-faixas">${faixas.map(q => `<li>
-        <button type="button" data-faixa="${q.faixa}" aria-pressed="false" title="Fundos públicos (FEFC + fundo partidário) como fração da receita arrecadada da candidatura; clique para ver quem está na faixa">
+        <button type="button" data-faixa="${q.faixa}" aria-pressed="false" title="Fundos públicos (FEFC + fundo partidário) como fração da receita arrecadada da candidatura; clique para ver quem está na faixa, de novo para fechar">
           <i class="faixa-swatch fin-${FAIXA_ORDEM.indexOf(q.faixa)}"></i>${esc(FAIXA_TXT[q.faixa])}
           <b class="num">${q.candidaturas||""}</b>
           <span class="num">${q.candidaturas ? ((q.eleitas/q.candidaturas*100).toLocaleString("pt-BR",{maximumFractionDigits:1}) + "% eleitas") : ""}</span>
@@ -713,33 +714,43 @@ function renderFinanciamento(){
     renderFinanciamento();
   });
   el.querySelectorAll("[data-faixa]").forEach(b => b.onclick = () => {
+    const alvo = document.getElementById("fin-quem");
+    if (FIN.quemFaixa === b.dataset.faixa){ // de novo na mesma faixa: colapsa a lista
+      FIN.quemFaixa = null;
+      el.querySelectorAll("[data-faixa]").forEach(o => o.setAttribute("aria-pressed", "false"));
+      if (alvo) alvo.innerHTML = "";
+      return;
+    }
     el.querySelectorAll("[data-faixa]").forEach(o => o.setAttribute("aria-pressed", String(o===b)));
-    quemFinanciamento(b.dataset.faixa);
+    quemFinanciamento(b.dataset.faixa, false);
   });
   // confirmação visual de que o conteúdo mudou para o cargo/ano escolhido
   el.classList.remove("surge"); void el.offsetWidth; el.classList.add("surge");
 }
 
-// "quem são" na faixa escolhida: maiores arrecadações, clique abre a ficha
+// "quem são" na faixa escolhida: maiores arrecadações, clique abre a ficha.
+// A faixa escolhida de novo colapsa a lista; a lista entra de 10 em 10 em "Mostrar mais".
 // (pedido suave: o indicador de carga é o "Carregando…" desta lista)
-async function quemFinanciamento(faixa){
+async function quemFinanciamento(faixa, continuar){
   const alvo = document.getElementById("fin-quem");
   if (!alvo || !FIN.dados) return;
-  alvo.dataset.faixa = faixa;
-  alvo.innerHTML = `<p class="aviso-mini">Carregando…</p>`;
+  if (!continuar){
+    FIN.quemFaixa = faixa; FIN.quemLista = []; FIN.quemDesde = 0; FIN.quemTemMais = false;
+    alvo.innerHTML = `<p class="aviso-mini">Carregando…</p>`;
+  }
   // cargo 1 é nacional: o uf do pedido não vale a pena (a uf da candidatura é "BR")
   const ufParam = FIN.cargo === 1 || !UF ? "" : `&uf=${encodeURIComponent(UF)}`;
   const { marcados } = finAnosSel(FIN.dados, FIN.cargo);
-  const multi = marcados.length > 1 || FIN.sel === "todos";
-  const anoParam = multi ? "all" : marcados[0];
+  const multi = marcados.length > 1;
+  const anoParam = marcados.join(",");
   try {
-    const d = await request(`/api/financiamento/pessoas?cargo=${FIN.cargo}&ano=${anoParam}&faixa=${encodeURIComponent(faixa)}${ufParam}`, {silencioso: true});
-    if (alvo.dataset.faixa !== faixa) return;
-    const lista = multi ? d.pessoas.filter(p => marcados.includes(p.ano)) : d.pessoas;
-    if (!lista.length){ alvo.innerHTML = `<p class="aviso-mini">Nenhuma candidatura nesta faixa.</p>`; return; }
+    const d = await request(`/api/financiamento/pessoas?cargo=${FIN.cargo}&ano=${encodeURIComponent(anoParam)}&faixa=${encodeURIComponent(faixa)}${ufParam}&limite=10&desde=${FIN.quemDesde}`, {silencioso: true});
+    if (!alvo.isConnected || FIN.quemFaixa !== faixa) return;
+    FIN.quemLista.push(...d.pessoas); FIN.quemTemMais = d.temMais; FIN.quemDesde = FIN.quemLista.length;
+    if (!FIN.quemLista.length){ alvo.innerHTML = `<p class="aviso-mini">Nenhuma candidatura nesta faixa.</p>`; return; }
     alvo.innerHTML = `<h4>Maiores arrecadações na faixa “${esc(FAIXA_TXT[faixa])}”</h4>
       <div class="tabw"><table class="tab"><thead><tr><th>Candidato</th><th>Partido</th>${multi ? "<th>Ano</th>" : ""}<th>Local</th><th>Resultado</th><th class="v">Arrecadado</th><th class="v">Público</th></tr></thead><tbody>
-      ${lista.map(p => `<tr>
+      ${FIN.quemLista.map(p => `<tr>
         <td><button class="link" data-cand="${p.id}">${esc(titulo(p.urna || p.nome))}</button></td>
         <td><span class="chip" style="background:${corP(p.partido)}">${esc(p.partido)}</span></td>
         ${multi ? `<td>${p.ano}</td>` : ""}
@@ -748,9 +759,11 @@ async function quemFinanciamento(faixa){
         <td class="v num">${brlc(p.total)}</td>
         <td class="v">${p.pct_publico != null ? p.pct_publico.toLocaleString("pt-BR") + "%" : "–"}</td>
       </tr>`).join("")}</tbody></table>
-      ${d.temMais ? `<p class="aviso-mini">Somente as maiores arrecadações da faixa.</p>` : ""}</div>`;
+      ${FIN.quemTemMais ? `<p><button class="link" data-mais="1">Mostrar mais</button></p>` : ""}</div>`;
     alvo.querySelectorAll("[data-cand]").forEach(b => b.onclick = () => abrirCandidato(+b.dataset.cand));
-  } catch(e){ console.error(e); alvo.innerHTML = `<p class="aviso-mini">Não foi possível listar as candidaturas: ${esc(e.message)}</p>`; }
+    const mais = alvo.querySelector("[data-mais]");
+    if (mais) mais.onclick = () => quemFinanciamento(faixa, true);
+  } catch(e){ console.error(e); if (!continuar) alvo.innerHTML = `<p class="aviso-mini">Não foi possível listar as candidaturas: ${esc(e.message)}</p>`; }
 }
 
 /* ===================== Questão 10a: reeleição — quem volta ===================== */
@@ -759,7 +772,7 @@ async function quemFinanciamento(faixa){
 // sobre quem tentou; "(% eleitos)" é dos eleitos que tentaram; "média municípios" é a
 // média das taxas municipais, ponderada pelo nº de municípios em que alguém tentou.
 const REEL_GRUPO_TXT = { voltou: "Voltaram", perderam: "Perderam", nao: "Não tentaram" };
-const REEL = { cargo: null, dados: null, cargaId: null, ciclo: null, grupo: "voltou", desde: 0, busca: "", lista: [], temMais: false };
+const REEL = { cargo: null, dados: null, cargaId: null, ciclo: null, grupo: "voltou", aberto: true, desde: 0, busca: "", lista: [], temMais: false };
 const reelCache = new Map();
 
 // Carga suave: o agregado de reeleição demora e não deve prender o véu do mapa.
@@ -806,7 +819,7 @@ function aplicarReeleicao(origemTxt){
     REEL.cargo = cargos[0];
     const { ciclos } = ciclosReel(REEL.cargo);
     REEL.ciclo = ciclos.length ? ciclos[0].anoEleito : null;
-    REEL.grupo = "voltou"; REEL.desde = 0; REEL.busca = "";
+    REEL.grupo = "voltou"; REEL.aberto = true; REEL.desde = 0; REEL.busca = "";
   }
   botCargo.innerHTML = cargos.map(cdo => `<button data-c="${cdo}" aria-pressed="${REEL.cargo===cdo}">${CARGO_COD[cdo]}</button>`).join("");
   botCargo.querySelectorAll("button").forEach(b => b.onclick = () => {
@@ -814,7 +827,7 @@ function aplicarReeleicao(origemTxt){
     REEL.cargo = +b.dataset.c;
     const { ciclos } = ciclosReel(REEL.cargo);
     REEL.ciclo = ciclos.length ? ciclos[0].anoEleito : null;
-    REEL.grupo = "voltou"; REEL.desde = 0; REEL.busca = "";
+    REEL.grupo = "voltou"; REEL.aberto = true; REEL.desde = 0; REEL.busca = "";
     botCargo.querySelectorAll("button").forEach(o => o.setAttribute("aria-pressed", String(o===b)));
     renderReeleicao();
   });
@@ -992,7 +1005,7 @@ function renderReeleicao(){
     </div>
     ${UF ? `<div class="fin-bloco">
       <h3>Quem são${REEL.ciclo!=null ? ` (${REEL.ciclo})` : ""}</h3>
-      ${REEL.ciclo!=null ? `<div class="cargos">${["voltou","perderam","nao"].map(g=>`<button data-g="${g}" aria-pressed="${REEL.grupo===g}">${REEL_GRUPO_TXT[g]}</button>`).join("")}</div>
+      ${REEL.ciclo!=null ? `<div class="cargos">${["voltou","perderam","nao"].map(g=>`<button data-g="${g}" aria-pressed="${REEL.aberto && REEL.grupo===g}" title="Mostrar este grupo; clique de novo para recolher a lista">${REEL_GRUPO_TXT[g]}</button>`).join("")}</div>
       <input id="reel-busca" class="reel-busca" type="search" placeholder="Filtrar por nome ou município" value="${esc(REEL.busca)}" aria-label="Filtrar pessoas por nome ou município">
       <div id="reel-quem"></div>` : `<p class="aviso-mini">Sem ciclo selecionável para este cargo.</p>`}
     </div>` : (ufs.length ? `<div class="fin-bloco reel-linha">
@@ -1000,34 +1013,46 @@ function renderReeleicao(){
       ${ufs.map(u=>`<div class="hb"><span>${u.uf}</span><i class="t" style="width:${(u.taxa/ufMax*100).toFixed(1)}%"></i><span class="v">${u.taxa.toLocaleString("pt-BR")}% <small>(${fmt.format(u.tentaram)} tentaram)</small></span></div>`).join("")}
     </div>` : "")}`;
   el.querySelectorAll("[data-ciclo]").forEach(b => b.onclick = () => {
-    REEL.ciclo = +b.dataset.ciclo; REEL.desde = 0;
+    REEL.ciclo = +b.dataset.ciclo; REEL.aberto = true; REEL.desde = 0;
     renderReeleicao(); // a lista "quem são" recarrega junto
   });
   if (UF && REEL.ciclo != null){
     el.querySelectorAll("[data-g]").forEach(b => b.onclick = () => {
-      REEL.grupo = b.dataset.g; REEL.desde = 0;
+      const alvo = document.getElementById("reel-quem");
+      if (REEL.aberto && REEL.grupo === b.dataset.g){ // de novo no mesmo grupo: colapsa a lista
+        REEL.aberto = false;
+        el.querySelectorAll("[data-g]").forEach(o => o.setAttribute("aria-pressed", "false"));
+        if (alvo) alvo.innerHTML = "";
+        return;
+      }
+      REEL.grupo = b.dataset.g; REEL.aberto = true; REEL.desde = 0;
       el.querySelectorAll("[data-g]").forEach(o => o.setAttribute("aria-pressed", String(o===b)));
       quemReeleicao(false);
     });
     const inp = document.getElementById("reel-busca");
     let tBusca = null;
-    inp.addEventListener("input", () => { clearTimeout(tBusca); tBusca = setTimeout(() => { REEL.busca = inp.value.trim(); quemReeleicao(false); }, 250); });
-    quemReeleicao(false);
+    inp.addEventListener("input", () => { clearTimeout(tBusca); tBusca = setTimeout(() => {
+      REEL.busca = inp.value.trim();
+      if (!REEL.aberto){ REEL.aberto = true; el.querySelectorAll("[data-g]").forEach(o => o.setAttribute("aria-pressed", String(o.dataset.g===REEL.grupo))); }
+      quemReeleicao(false);
+    }, 250); });
+    if (REEL.aberto) quemReeleicao(false);
   }
   // confirmação visual de que o conteúdo mudou para o cargo/escolha
   el.classList.remove("surge"); void el.offsetWidth; el.classList.add("surge");
 }
 
-// "quem são" no ciclo: voltou / perdeu / não tentou; clique abre a ficha
+// "quem são" no ciclo: voltou / perdeu / não tentou; clique abre a ficha.
+// O grupo escolhido de novo colapsa a lista; ela entra de 10 em 10 em "Mostrar mais".
 // (pedido suave: o indicador de carga é o "Carregando…" desta lista)
 async function quemReeleicao(continuar){
   const alvo = document.getElementById("reel-quem");
-  if (!alvo || !UF || REEL.ciclo == null) return;
+  if (!alvo || !UF || REEL.ciclo == null || !REEL.aberto) return;
   const marca = [REEL.cargo, REEL.ciclo, REEL.grupo, REEL.busca].join("|");
   if (!continuar){ REEL.desde = 0; REEL.lista = []; REEL.temMais = false; alvo.innerHTML = `<p class="aviso-mini">Carregando…</p>`; }
   const q = REEL.busca ? `&q=${encodeURIComponent(REEL.busca)}` : "";
   try {
-    const d = await request(`/api/reeleicao/pessoas?uf=${encodeURIComponent(UF)}&cargo=${REEL.cargo}&eleitos_em=${REEL.ciclo}&grupo=${REEL.grupo}${q}&limite=60&desde=${REEL.desde}`, {silencioso: true});
+    const d = await request(`/api/reeleicao/pessoas?uf=${encodeURIComponent(UF)}&cargo=${REEL.cargo}&eleitos_em=${REEL.ciclo}&grupo=${REEL.grupo}${q}&limite=10&desde=${REEL.desde}`, {silencioso: true});
     if (!alvo.isConnected || [REEL.cargo, REEL.ciclo, REEL.grupo, REEL.busca].join("|") !== marca) return;
     REEL.lista.push(...d.pessoas); REEL.temMais = d.temMais; REEL.desde = REEL.lista.length;
     if (!REEL.lista.length){ alvo.innerHTML = `<p class="aviso-mini">Ninguém neste grupo.</p>`; return; }
@@ -1038,7 +1063,7 @@ async function quemReeleicao(continuar){
         <td>${esc(titulo(p.nm_municipio || ""))}</td>
         <td class="v num">${fmt.format(p.votos)}</td>
       </tr>`).join("")}</tbody></table>
-      ${REEL.temMais ? `<p><button class="link" data-mais="1">Mostrar mais</button></p>` : `<p class="aviso-mini">Somente os primeiros da lista.</p>`}</div>`;
+      ${REEL.temMais ? `<p><button class="link" data-mais="1">Mostrar mais</button></p>` : ""}</div>`;
     alvo.querySelectorAll("[data-cand]").forEach(b => b.onclick = () => abrirCandidato(+b.dataset.cand));
     const mais = alvo.querySelector("[data-mais]");
     if (mais) mais.onclick = () => quemReeleicao(true);
