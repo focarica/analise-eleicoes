@@ -12,7 +12,7 @@ Repositório com scripts de carga, SQLs do modelo eleitoral e painel de apresent
 
 ## Visão geral
 
-A carga analítica de referência no banco `BDR-TSE` cobre AC, AL, BA, DF, RO e SP nos anos 2018, 2020, 2022 e 2024. Publica as 11 tabelas do DER e quatro views. O fluxo PostgreSQL local é documentado separadamente e serve para preparar e validar uma carga.
+A carga analítica de referência está no banco `BDR-TSE` (share somente leitura) e a imagem de operação do painel, no `BDR-TSE-2026` — cópia modificável na mesma conta do token do painel, criada para receber a votação de Presidente por município (2018 e 2022) que o share não podia alterar. O painel consulta `BDR-TSE-2026`, devidamente identificado no server. A carga cobre AC, AL, BA, DF, RO e SP nos anos 2018, 2020, 2022 e 2024. Publica as 11 tabelas do DER e quatro views. O fluxo PostgreSQL local é documentado separadamente e serve para preparar e validar uma carga.
 
 O painel mantém o visual do HTML de apresentação, mas consulta o MotherDuck por uma API Bun. A credencial fica no backend; GitHub Pages sozinho não executa essa API.
 
