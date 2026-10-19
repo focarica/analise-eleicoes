@@ -36,11 +36,21 @@ const ordemCargo = c => { const i = ORDEM_CARGO.indexOf(c); return i<0?99:i; };
 // A apresentação conserva o markup, a folha de estilos, o mapa e as interações originais.
 // Os dados são consultados por uma API local que mantém o token do MotherDuck no servidor.
 let api;
+// indicador dinâmico de carga: aparece para qualquer requisição pendente e só some quando
+// a última responder (várias chamadas em paralelo compartilham o mesmo contador)
+const carga = document.getElementById("carga");
+let pendentes = 0;
+const sinalizaCarga = () => { carga.classList.toggle("on", pendentes > 0); };
 const request = async (path) => {
-  const response = await fetch(path);
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "Não foi possível consultar MotherDuck.");
-  return data;
+  pendentes++; sinalizaCarga();
+  try {
+    const response = await fetch(path);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Não foi possível consultar MotherDuck.");
+    return data;
+  } finally {
+    pendentes--; sinalizaCarga();
+  }
 };
 const painelCache = new Map(), mapaCache = new Map();
 const carregarPainel = (uf, ano) => {
@@ -115,7 +125,12 @@ api = {
 /* ===================== Geometria ===================== */
 const geoTodos = topojson.feature(TOPO, TOPO.objects[Object.keys(TOPO.objects)[0]]);
 const GEO = Object.fromEntries(geoTodos.features.filter(f=>UFS.includes(f.properties.sigla)).map(f=>[f.properties.sigla, f]));
+const AMOSTRA = new Set(UFS);
 const W = 600, H = 520;
+// Uma única projeção para o Brasil todo: estados e malhas municipais (mesmo espaço lon/lat)
+// ficam no mesmo plano, então aproximar de um estado ou município é só mover a câmera (zoom).
+const proj = d3.geoConicEqualArea().parallels([-2,-22]).rotate([54,0]).fitExtent([[8,8],[W-8,H-8]], geoTodos);
+const path = d3.geoPath(proj);
 
 document.getElementById("estados").innerHTML = UFS.map(uf => {
   const p = d3.geoPath(d3.geoMercator().fitExtent([[1,1],[33,29]], GEO[uf]));
@@ -125,10 +140,14 @@ document.getElementById("estados").innerHTML = UFS.map(uf => {
 /* ===================== Estado da página ===================== */
 let UF = "SP", ANO = 2022, CARGO = null, LINHAS = [], VENCEDORES = new Map();
 const svg = d3.select("#forma"), tip = document.getElementById("tip");
+// câmera: que parte do mapa está enquadrada — todo o Brasil (sigla null), um estado ou um município
+let VISTA = { sigla: null, mun: null };
+// estado demarcado na camada do mapa: os fora da amostra são selecionáveis, mas não voam
+let SELECIONADA = null;
 
 /* ===================== Municípios: malha, zoom e seleção ===================== */
 // Malhas geradas por scripts/malhas.ts (IBGE simplificado, com o código TSE em cada feição).
-let MALHA = null, MUN_SEL = null, gMapa = null, pathAtual = null;
+let MALHA = null, MALHA_ERRO = false, MUN_SEL = null, gMapa = null;
 const malhaCache = new Map();
 function carregarMalha(uf){
   if (!malhaCache.has(uf)) malhaCache.set(uf, fetch(`${import.meta.env.BASE_URL}geo/municipios-${uf}.json`)
@@ -142,12 +161,12 @@ function carregarMalha(uf){
         divisas: topojson.mesh(t, o, (a, b) => a !== b),
       };
     })
-    // sem malha, o mapa volta ao comportamento original (só o contorno do estado)
+    // sem malha, o mapa fica só na camada de estados (câmera segue funcionando)
     .catch(e => { console.error(e); malhaCache.delete(uf); return null; }));
   return malhaCache.get(uf);
 }
 
-const ZOOM_MAX = 12;
+const ZOOM_MAX = 80;
 const formaBox = document.querySelector(".forma-box");
 const zoom = d3.zoom().scaleExtent([1, ZOOM_MAX]).extent([[0,0],[W,H]]).translateExtent([[0,0],[W,H]])
   // a roda do mouse sozinha rola a página; com Ctrl/⌘ (ou pinça no trackpad) dá zoom.
@@ -157,19 +176,44 @@ const zoom = d3.zoom().scaleExtent([1, ZOOM_MAX]).extent([[0,0],[W,H]]).translat
     if (ev.type === "touchstart") return ev.touches.length > 1 || d3.zoomTransform(svg.node()).k > 1;
     return !ev.button;
   })
-  .on("zoom", ev => { gMapa?.attr("transform", ev.transform); estadoZoom(ev.transform.k); });
+  .on("zoom", ev => {
+    gMapa?.attr("transform", ev.transform); estadoZoom(ev.transform.k);
+  });
 svg.call(zoom).on("dblclick.zoom", null);
+// Hachura dos estados sem dados removida: eles agora se distinguem por tom (style.css).
 
-const btnMais = document.getElementById("zoom-mais"), btnMenos = document.getElementById("zoom-menos"), btnAjustar = document.getElementById("zoom-ajustar");
+const btnMais = document.getElementById("zoom-mais"), btnMenos = document.getElementById("zoom-menos"), btnAjustar = document.getElementById("zoom-ajustar"), btnBrasil = document.getElementById("zoom-brasil");
 function estadoZoom(k){
   formaBox.classList.toggle("ampliado", k > 1.001);
   btnMais.disabled = k >= ZOOM_MAX - 0.01;
   btnMenos.disabled = btnAjustar.disabled = k <= 1.001;
+  btnBrasil.hidden = !VISTA.sigla;
 }
 const duracao = ms => matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : ms;
-btnMais.onclick = () => svg.transition().duration(duracao(300)).call(zoom.scaleBy, 1.8);
-btnMenos.onclick = () => svg.transition().duration(duracao(300)).call(zoom.scaleBy, 1/1.8);
-btnAjustar.onclick = () => svg.transition().duration(duracao(500)).call(zoom.transform, d3.zoomIdentity);
+btnMais.onclick = () => svg.interrupt().transition().duration(duracao(300)).call(zoom.scaleBy, 1.8);
+btnMenos.onclick = () => svg.interrupt().transition().duration(duracao(300)).call(zoom.scaleBy, 1/1.8);
+// reenquadra o alvo corrente: o Brasil, um estado ou um município
+btnAjustar.onclick = () => enquadrar(duracao(500));
+btnBrasil.onclick = () => verBrasil(duracao(500));
+
+// voo da câmera até o alvo da vista, pela interpolação suave do d3-zoom
+function alvoVista(){
+  if (VISTA.mun){ const f = MALHA?.porTse.get(VISTA.mun); if (f) return { caixa: path.bounds(f), preenche: .35 }; }
+  if (VISTA.sigla && GEO[VISTA.sigla]) return { caixa: path.bounds(GEO[VISTA.sigla]), preenche: .9 };
+  return { caixa: [[8,8],[W-8,H-8]], preenche: 1 };
+}
+function enquadrar(ms){
+  const { caixa, preenche } = alvoVista();
+  const [[x0,y0],[x1,y1]] = caixa;
+  const k = Math.max(1, Math.min(ZOOM_MAX, preenche / Math.max((x1-x0)/W, (y1-y0)/H)));
+  const t = d3.zoomIdentity.translate(W/2, H/2).scale(k).translate(-(x0+x1)/2, -(y0+y1)/2);
+  svg.interrupt().transition().duration(ms).call(zoom.transform, t);
+}
+function verBrasil(ms){
+  VISTA.sigla = null; VISTA.mun = null;
+  desenharForma(false);
+  enquadrar(ms);
+}
 
 const dica = document.getElementById("zoom-dica");
 dica.textContent = `Use ${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl"} + roda do mouse para dar zoom no mapa`;
@@ -182,29 +226,44 @@ svg.on("wheel.dica", ev => {
 function marcarMunicipio(tse){
   MUN_SEL = tse ? String(tse) : null;
   const f = MUN_SEL && MALHA?.porTse.get(MUN_SEL);
-  gMapa?.select(".mun-sel").attr("d", f && pathAtual ? pathAtual(f) : null);
+  gMapa?.select(".mun-sel").attr("d", f ? path(f) : null);
 }
-// aproxima o mapa até o município (usado ao escolher um município na busca)
+// aproxima o mapa até o município (clicar nele ou escolhê-lo na busca monta a câmera do município)
 function focarMunicipio(tse){
-  const f = MALHA?.porTse.get(String(tse)); if (!f || !pathAtual) return;
-  const [[x0,y0],[x1,y1]] = pathAtual.bounds(f);
-  const k = Math.max(1, Math.min(ZOOM_MAX, 0.55 / Math.max((x1-x0)/W, (y1-y0)/H)));
-  const t = d3.zoomIdentity.translate(W/2, H/2).scale(k).translate(-(x0+x1)/2, -(y0+y1)/2);
-  svg.transition().duration(duracao(750)).call(zoom.transform, t);
+  const f = MALHA?.porTse.get(String(tse)); if (!f) return;
+  VISTA.sigla = UF; VISTA.mun = String(tse);
+  desenharForma(false); marcarMunicipio(tse);
+  enquadrar(duracao(750));
 }
 
 function anosDisponiveis(uf){ return uf === "DF" ? [2018, 2022] : ANOS; }
 
-async function abrirEstado(uf){
-  UF = uf; CARGO = null; MALHA = null; MUN_SEL = null;
-  svg.call(zoom.transform, d3.zoomIdentity);
+async function abrirEstado(uf, voar){
+  UF = uf; CARGO = null; MALHA = null; MALHA_ERRO = false; MUN_SEL = null;
+  VISTA.mun = null;
+  if (voar) VISTA.sigla = uf; // a carga inicial da página abre no mapa do Brasil inteiro
   if (!anosDisponiveis(uf).includes(ANO)) ANO = 2022;
   document.querySelectorAll("#estados a").forEach(a => a.setAttribute("aria-current", a.dataset.uf===uf ? "page" : "false"));
   document.getElementById("uf-nome").textContent = GEO[uf].properties.nome;
   document.title = GEO[uf].properties.nome + ": partido vencedor por município";
   document.getElementById("busca").value = ""; fecharResultados();
   document.getElementById("busca").placeholder = "Buscar município ou candidato"; document.getElementById("busca").setAttribute("aria-label", `Buscar município ou candidato em ${GEO[uf].properties.nome}`);
-  montarAnos(); await carregarAno();
+  // redesenha já (só camada de estados) e inicia o voo da câmera antes do dado chegar;
+  // quando carregarAno pousa, a malha municipal entra
+  desenharForma(false); montarAnos();
+  if (voar) enquadrar(duracao(900));
+  await carregarAno();
+}
+// escolhe um estado pela camada do mapa ou pelo menu: voa até ele
+function escolherUF(sigla){
+  if (location.hash === `#/${sigla}`){ VISTA.sigla = sigla; desenharForma(false); enquadrar(duracao(900)); return; }
+  location.hash = `#/${sigla}`;
+}
+// pelo mapa: os da amostra voam; os fora dela só são marcados (2º clique desmarca)
+function escolherNoMapa(sigla){
+  if (AMOSTRA.has(sigla)) return escolherUF(sigla);
+  SELECIONADA = SELECIONADA === sigla ? null : sigla;
+  desenharForma(false);
 }
 
 function montarAnos(){
@@ -215,7 +274,7 @@ function montarAnos(){
 
 async function carregarAno(){
   const [linhas, gasto, malha, vencedores] = await Promise.all([api.partidos(UF, ANO), api.gasto(UF, ANO), carregarMalha(UF), api.mapa(UF, ANO)]);
-  LINHAS = linhas; MALHA = malha; VENCEDORES = vencedores;
+  LINHAS = linhas; MALHA = malha; MALHA_ERRO = !malha; VENCEDORES = vencedores;
   montarCargos(); desenharForma(true); montarQuartis(gasto);
 }
 
@@ -243,10 +302,35 @@ function agregados(){
 }
 
 function desenharForma(animar){
-  // o contorno do estado é a união dos municípios (alinhamento exato com a malha)
-  const f = MALHA?.contorno || GEO[UF];
-  const proj = d3.geoMercator().fitExtent([[12,12],[W-12,H-12]], f), path = d3.geoPath(proj), d = path(f);
-  pathAtual = path;
+  svg.selectAll("*").remove();
+  // tudo que é desenhado fica num grupo que recebe a transformação do zoom (a "câmera")
+  gMapa = svg.append("g").attr("class","mapa").attr("transform", d3.zoomTransform(svg.node()));
+
+  // camada de estados: cores pela classe (os da amostra claros, os demais escuros em style.css)
+  const gUfs = gMapa.append("g").attr("class","ufs");
+  gUfs.selectAll("path").data(geoTodos.features).join("path")
+    .attr("d", path)
+    .attr("class", f => `uf${AMOSTRA.has(f.properties.sigla) ? " na-base" : " fora"}`)
+    .attr("tabindex", 0)
+    .attr("aria-pressed", f => f.properties.sigla === SELECIONADA ? "true" : null)
+    .attr("aria-label", f => AMOSTRA.has(f.properties.sigla)
+      ? `${f.properties.nome}: abrir os dados por município`
+      : `${f.properties.nome}: sem dados na amostra; clique para demarcar${f.properties.sigla === SELECIONADA ? " ou de novo para desmarcar" : ""}`)
+    .attr("title", f => f.properties.nome)
+    .on("keydown", (ev,f) => { if (ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); escolherNoMapa(f.properties.sigla); } })
+    .on("mouseenter", (ev,f) => tipEstado(ev, f))
+    .on("mousemove", ev => posicionarTip(ev))
+    .on("mouseleave", () => tip.classList.remove("on"))
+    .on("click", (ev,f) => { tip.classList.remove("on"); escolherNoMapa(f.properties.sigla); });
+
+  // demarcação de estados: sólida no estado em uso, tracejada no demarcado fora da amostra;
+  // ambas por cima das demais camadas (desenhadas no fim também)
+  const desenharDemarcacoes = () => {
+    if (SELECIONADA && SELECIONADA !== UF)
+      gMapa.append("path").attr("class","uf-sel uf-demarcada").attr("d", path(GEO[SELECIONADA]));
+    gMapa.append("path").attr("class","uf-sel").attr("d", path(MALHA?.contorno || GEO[UF]));
+  };
+
   const partes = agregados(), total = d3.sum(partes, p=>p.qt);
   const cargosTxt = [...new Set(LINHAS.map(r=>r.ds_cargo))].sort((a,b)=>ordemCargo(a)-ordemCargo(b)).map(c=>cargoNome(c).toLowerCase());
   const totAno = d3.sum(LINHAS, r=>+r.qt_eleitos);
@@ -254,18 +338,21 @@ function desenharForma(animar){
     ? `${fmt.format(totAno)} eleitos na base em ${ANO}, de ${new Set(LINHAS.map(r=>r.sg_partido)).size} partidos, para ${cargosTxt.join(", ").replace(/, ([^,]*)$/," e $1")}.`
     : `Nenhum eleito na base para ${ANO}.`;
 
-  svg.selectAll("*").remove();
-  // tudo que é desenhado fica num grupo que recebe a transformação do zoom
-  gMapa = svg.append("g").attr("class","mapa").attr("transform", d3.zoomTransform(svg.node()));
-  gMapa.append("path").attr("d", d).style("fill", "var(--vazio)");
   const vazio = document.getElementById("forma-vazia");
-  vazio.hidden = !!(MALHA && total);
-  if (!MALHA) vazio.textContent = "Não foi possível carregar os limites dos municípios.";
-  else if (!total) vazio.textContent = UF==="DF" && (ANO===2020||ANO===2024) ? "O Distrito Federal não tem eleições municipais." : "Sem votação por município na base para este ano.";
+  const noEstado = VISTA.sigla === UF;
+  if (!noEstado) vazio.hidden = true;
+  else if (MALHA_ERRO){
+    vazio.hidden = false;
+    vazio.textContent = "Não foi possível carregar os limites dos municípios.";
+  } else if (MALHA && !total){
+    vazio.hidden = false;
+    vazio.textContent = UF==="DF" && (ANO===2020||ANO===2024) ? "O Distrito Federal não tem eleições municipais." : "Sem votação por município na base para este ano.";
+  } else vazio.hidden = true;
   montarLegenda(partes, total);
-  if (!MALHA){ gMapa.append("path").attr("class","contorno").attr("d", d); return; }
+  btnBrasil.hidden = !VISTA.sigla;
+  if (!noEstado || !MALHA){ desenharDemarcacoes(); return; }
 
-  const [[x0],[x1]] = path.bounds(f), animado = animar && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const [[x0],[x1]] = path.bounds(GEO[UF]), animado = animar && !matchMedia("(prefers-reduced-motion: reduce)").matches;
   const gm = gMapa.append("g").attr("class","municipios");
   const realce = () => gm.select(".mun-realce");
   gm.selectAll("path.mun").data(MALHA.municipios).join("path")
@@ -274,16 +361,30 @@ function desenharForma(animar){
     .on("mouseenter", (ev,f) => realce().attr("d", path(f)))
     .on("mousemove", (ev,f) => tipMunicipio(ev, f))
     .on("mouseleave", () => { realce().attr("d", null); tip.classList.remove("on"); realcar(null); })
-    .on("click", (ev,f) => { tip.classList.remove("on"); abrirMunicipio(f.properties.tse, f.properties.nome); })
+    .on("click", (ev,f) => { tip.classList.remove("on"); focarMunicipio(f.properties.tse); abrirMunicipio(f.properties.tse, f.properties.nome); })
     // entrada da esquerda para a direita, lembrando as faixas do mapa original
     .call(s => { if (!animado) return;
       s.attr("fill-opacity", 0).transition().duration(450).ease(d3.easeCubicOut)
         .delay(f => (path.centroid(f)[0] - x0) / (x1 - x0 || 1) * 500).attr("fill-opacity", 1); });
   gm.append("path").attr("class","divisas").attr("d", path(MALHA.divisas));
-  gm.append("path").attr("class","contorno").attr("d", d);
   gm.append("path").attr("class","mun-realce");
   const sel = MUN_SEL && MALHA.porTse.get(MUN_SEL);
   gm.append("path").attr("class","mun-sel").attr("d", sel ? path(sel) : null);
+  // as demarcações ficam por cima de tudo, inclusive da malha municipal;
+  // quando há malha, a demarcação do estado em uso vale a união dos municípios
+  // (alinhamento exato com as divisas)
+  desenharDemarcacoes();
+}
+
+function tipEstado(ev, f){
+  const sigla = f.properties.sigla;
+  const base = AMOSTRA.has(sigla);
+  const acao = base ? "Clique para aproximar"
+    : sigla === SELECIONADA ? "Clique de novo para desmarcar" : "Clique para demarcar";
+  tip.innerHTML = `<b>${esc(f.properties.nome)}</b>`
+    + (base ? "" : `<span class="tip-faixa">Fora da amostra: sem dados.</span>`)
+    + `<span class="tip-acao">${acao}</span>`;
+  posicionarTip(ev);
 }
 
 function posicionarTip(ev){
@@ -393,7 +494,11 @@ function abrirGaveta(html){
   prepararNuvens(corpo);
   prepararFotos(corpo);
 }
-function fecharGaveta(){ gaveta.classList.remove("on"); scrim.classList.remove("on"); ultimoFoco?.focus?.(); }
+function fecharGaveta(){
+  gaveta.classList.remove("on"); scrim.classList.remove("on"); ultimoFoco?.focus?.();
+  // a gaveta pode ter sido aberta por um município focado: volta o enquadramento para o estado
+  if (VISTA.mun){ VISTA.mun = null; enquadrar(duracao(600)); }
+}
 document.getElementById("fechar").onclick = fecharGaveta; scrim.onclick = fecharGaveta;
 document.addEventListener("keydown", ev => { if (ev.key==="Escape" && gaveta.classList.contains("on")) fecharGaveta(); });
 
@@ -678,7 +783,13 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rotularTem
 rotularTema();
 
 /* ===================== Rotas e início ===================== */
-function rota(){ const uf = (location.hash.match(/#\/([A-Z]{2})/)||[])[1]; abrirEstado(UFS.includes(uf) ? uf : "SP"); }
+// a primeira rota abre a página no mapa do Brasil inteiro; navegar depois voa para o estado
+let primeiraRota = true;
+function rota(){
+  const uf = (location.hash.match(/#\/([A-Z]{2})/)||[])[1];
+  abrirEstado(UFS.includes(uf) ? uf : "SP", !primeiraRota);
+  primeiraRota = false;
+}
 window.addEventListener("hashchange", rota);
 (async () => {
   const origem = document.getElementById("origem");

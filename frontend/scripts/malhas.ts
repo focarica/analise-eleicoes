@@ -57,7 +57,7 @@ for (const [uf, cod] of Object.entries(UFS)) {
     f.geometry = corrigirAneis(f.geometry);
   }
   // Simplificação que preserva a topologia (fronteiras compartilhadas não se separam)
-  // e mantém detalhe suficiente para zoom de até ~12x.
+  // e mantém detalhe suficiente para o zoom da câmera (até ~80x no município).
   const out = await mapshaper.applyCommands(
     `-i entrada.json name=municipios -simplify weighted 12% keep-shapes -o saida.json format=topojson quantization=60000`,
     { "entrada.json": JSON.stringify(geo) },
