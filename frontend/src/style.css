@@ -104,7 +104,9 @@ h1{ margin:0; font-weight:800; font-size:clamp(2.3rem,6vw,4.2rem); line-height:.
 .forma-vazia{ position:absolute; inset:0; pointer-events:none; display:grid; place-items:center; text-align:center; padding:2rem; color:var(--ink-2); }
 .forma-vazia[hidden]{ display:none; }
 .cargos{ display:flex; flex-wrap:wrap; gap:.35rem; margin-bottom:.9rem; }
-.cargos button{ border:1.5px solid var(--line); background:transparent; border-radius:999px; padding:.25rem .7rem; font-size:.82rem; cursor:pointer; }
+.cargos button{ border:1.5px solid var(--line); background:transparent; border-radius:999px; padding:.25rem .7rem; font-size:.82rem; cursor:pointer; transition:background .15s, color .15s, border-color .15s, transform .08s; }
+.cargos button:hover{ border-color:var(--ink); }
+.cargos button:active{ transform:scale(.94); }
 .cargos button[aria-pressed="true"]{ background:var(--ink); color:var(--bg); border-color:var(--ink); }
 .leg h2, .sec h2{ margin:0 0 .2rem; font-size:1.15rem; font-weight:700; letter-spacing:-0.01em; }
 .nota{ margin:0 0 .9rem; color:var(--ink-3); font-size:.85rem; }
@@ -149,6 +151,40 @@ h1{ margin:0; font-weight:800; font-size:clamp(2.3rem,6vw,4.2rem); line-height:.
 
 /* financiamento (Q8): tudo escondido enquanto não há estado aberto */
 .leg[hidden]{ display:none; }
+#fin-cargos:empty, #fin-anos:empty{ display:none; }
+.fin-largo{ grid-column:1 / -1; }
+.fin-grafico{ display:block; width:100%; height:auto; margin-top:.35rem; }
+.fin-legenda{ display:flex; flex-wrap:wrap; gap:.35rem; margin:.45rem 0 .2rem; }
+.fin-legenda button{ display:inline-flex; align-items:center; gap:.35rem; border:1.5px solid var(--line); background:transparent; border-radius:999px; padding:.2rem .6rem; font:inherit; font-size:.78rem; cursor:pointer; color:inherit; }
+.fin-legenda button i{ width:.85rem; height:.55rem; border-radius:2px; display:inline-block; }
+.fin-legenda button[aria-pressed="false"]{ opacity:.4; text-decoration:line-through; }
+.fin-log{ display:inline-flex; gap:.35rem; align-items:center; font-size:.78rem; color:var(--ink-3); margin-top:.3rem; }
+.fin-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr)); gap:1.25rem 2.5rem; }
+.fin-bloco h3{ margin:0 0 .6rem; font-size:.95rem; font-weight:700; }
+.fin-bloco h4{ margin:1.25rem 0 .4rem; font-size:.85rem; font-weight:700; }
+.fin-seg{ display:flex; height:1.15rem; border-radius:4px; overflow:hidden; background:var(--line); }
+.fin-seg i{ display:block; min-width:2px; }
+.fin-seg .fin-0{ background:var(--ink-2); } .fin-seg .fin-1{ background:color-mix(in srgb, var(--ink) 72%, var(--bg)); }
+.fin-seg .fin-2{ background:color-mix(in srgb, var(--ink) 45%, var(--bg)); } .fin-seg .fin-3{ background:var(--ink); }
+.fin-seg .fin-4{ background:var(--line); }
+.fin-faixas{ list-style:none; margin:.75rem 0 0; padding:0; }
+.fin-faixas button{ display:grid; grid-template-columns:.9rem minmax(0,1fr) 3.2rem 6.5rem; gap:.55rem; align-items:center; width:100%; border:0; background:transparent; padding:.3rem 0; font:inherit; font-size:.85rem; text-align:left; cursor:pointer; border-bottom:1px solid var(--line); }
+.fin-faixas button:hover{ background:var(--surface); }
+.fin-faixas button[aria-pressed="true"]{ background:var(--ink); color:var(--bg); }
+.fin-faixas b{ text-align:right; }
+.fin-faixas span{ text-align:right; color:var(--ink-3); font-size:.78rem; }
+.fin-faixas button[aria-pressed="true"] span{ color:color-mix(in srgb, var(--bg) 80%, transparent); }
+.faixa-swatch{ width:.9rem; height:.9rem; border-radius:3px; }
+.faixa-swatch.fin-0{ background:var(--ink-2); } .faixa-swatch.fin-1{ background:color-mix(in srgb, var(--ink) 72%, var(--bg)); }
+.faixa-swatch.fin-2{ background:color-mix(in srgb, var(--ink) 45%, var(--bg)); } .faixa-swatch.fin-3{ background:var(--ink); }
+.faixa-swatch.fin-4{ background:var(--line); }
+.fin-partidos summary{ cursor:pointer; color:var(--ink-3); font-size:.85rem; margin-top:.9rem; }
+.fin-partidos[open] summary{ margin-bottom:.3rem; }
+/* confirmação de atualização dos painéis da questão 8 (troca de cargo) */
+@media (prefers-reduced-motion:no-preference){
+  .fin-grid.surge{ animation: fin-surge .4s ease-out both; }
+}
+@keyframes fin-surge{ from{ opacity:.35; } to{ opacity:1; } }
 
 
 /* gaveta de detalhe */

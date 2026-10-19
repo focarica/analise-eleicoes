@@ -71,6 +71,14 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
     <div class="quartis" id="quartis"></div>
   </section>
 
+  <section class="sec" aria-labelledby="fin-t"><a id="financiamento"></a>
+    <h2 id="fin-t">Depender de fundo público se elege mais?</h2>
+    <p class="nota">Cada candidatura é classificada pela fração <b>da receita que arrecadou</b> que veio de fundos públicos — fundo eleitoral (FEFC) + fundo partidário somados, divididos pelo total recebido; o resto veio de outras fontes, como recursos próprios e doadores privados. Não é a fração do gasto: é a das entradas. No escopo, o TSE só publica as fontes FUNDO ESPECIAL, FUNDO PARTIDARIO e OUTROS RECURSOS. <span id="fin-origem"></span> Clique em uma faixa para ver quem são.</p>
+    <div class="cargos" id="fin-cargos" role="group" aria-label="Cargo da seção de financiamento"></div>
+    <div class="cargos" id="fin-anos" role="group" aria-label="Anos considerados nesta questão"></div>
+    <div class="fin-grid" id="fin-conteudo"></div>
+  </section>
+
   <footer>
     <span>Fonte: TSE, tabelas do projeto BD Relacionais (UFPI). A amostra não contém todos os candidatos de cada disputa.</span>
     <span id="origem"></span>
