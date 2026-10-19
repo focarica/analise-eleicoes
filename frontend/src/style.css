@@ -117,6 +117,17 @@ h1{ margin:0; font-weight:800; font-size:clamp(2.3rem,6vw,4.2rem); line-height:.
 .leg li .q small{ color:var(--ink-3); }
 .leg li:hover{ background:var(--surface); }
 
+/* aparição da seção "partido vencedor por município": o painel desliza e as
+   linhas da legenda entram em cascata, cada barra crescendo para o lado */
+@media (prefers-reduced-motion:no-preference){
+  .leg.surge{ animation: leg-surge .5s cubic-bezier(.16,.84,.36,1) both; }
+  .leg.surge li{ animation: leg-item .45s ease-out both; animation-delay: calc(var(--i, 0) * 45ms); }
+  .leg.surge li .bar{ animation: leg-bar .6s cubic-bezier(.16,.84,.36,1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+}
+@keyframes leg-surge{ from{ opacity:0; transform:translateX(14px); } to{ opacity:1; transform:none; } }
+@keyframes leg-item{ from{ opacity:0; transform:translateX(-10px); } to{ opacity:1; transform:none; } }
+@keyframes leg-bar{ from{ transform:scaleX(0); transform-origin:left; } to{ transform:scaleX(1); } }
+
 .tip{ position:absolute; pointer-events:none; background:var(--ink); color:var(--bg); padding:.5rem .65rem; border-radius:6px; font-size:.85rem; line-height:1.35; max-width:240px; opacity:0; transition:opacity .12s; z-index:3; }
 .tip.on{ opacity:1; }
 .tip b{ display:block; }

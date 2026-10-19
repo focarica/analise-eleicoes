@@ -294,6 +294,18 @@ function desenharForma(animar){
   // tudo que é desenhado fica num grupo que recebe a transformação do zoom (a "câmera")
   gMapa = svg.append("g").attr("class","mapa").attr("transform", d3.zoomTransform(svg.node()));
 
+  // a coluna "partido vencedor por município" só existe com um estado aberto
+  // e enquadrado; no mapa do Brasil inteiro some, sem deixar buraco;
+  // quando surge (ou é reaberta), entra deslizando com a lista em cascata
+  const leg = document.querySelector(".leg");
+  if (leg){
+    const mostrar = !!(UF && VISTA.sigla === UF);
+    const antes = leg.hidden;
+    leg.hidden = !mostrar;
+    if (mostrar && antes){ leg.classList.remove("surge"); void leg.offsetWidth; leg.classList.add("surge"); }
+    else if (!mostrar) leg.classList.remove("surge");
+  }
+
   // camada de estados: cores pela classe (os da amostra claros, os demais escuros em style.css)
   const gUfs = gMapa.append("g").attr("class","ufs");
   gUfs.selectAll("path").data(geoTodos.features).join("path")
@@ -408,7 +420,7 @@ function realcar(sg){
 function montarLegenda(partes, total){
   const max = d3.max(partes, p=>p.qt) || 1;
   const ol = document.getElementById("legenda");
-  ol.innerHTML = partes.map(p => `<li data-sg="${esc(p.sg)}" title="${esc(titulo(p.nm||p.sg))}: ${p.qt} ${p.qt===1?"município":"municípios"}">
+  ol.innerHTML = partes.map((p, i) => `<li data-sg="${esc(p.sg)}" style="--i:${Math.min(i, 12)}" title="${esc(titulo(p.nm||p.sg))}: ${p.qt} ${p.qt===1?"município":"municípios"}">
       <i class="sw" style="background:${corP(p.sg)}"></i><span class="sg">${esc(p.sg)}</span>
       <i class="bar" style="width:${(p.qt/max*100).toFixed(1)}%;background:${corP(p.sg)}"></i>
       <span class="q num">${p.qt} <small>${Math.round(p.qt/total*100)}%</small></span></li>`).join("");
