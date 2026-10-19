@@ -167,6 +167,7 @@ function enquadrar(ms){
 }
 function verBrasil(ms){
   VISTA.sigla = null; VISTA.mun = null;
+  document.getElementById("estados").classList.add("escondido");
   desenharForma(false);
   enquadrar(ms);
 }
@@ -197,6 +198,7 @@ function anosDisponiveis(uf){ return uf === "DF" ? [2018, 2022] : ANOS; }
 async function abrirEstado(uf, voar){
   UF = uf; CARGO = null; MALHA = null; MALHA_ERRO = false; MUN_SEL = null;
   VISTA.mun = null;
+  document.getElementById("estados").classList.remove("escondido");
   if (voar) VISTA.sigla = uf; // a carga inicial da página abre no mapa do Brasil inteiro
   if (!anosDisponiveis(uf).includes(ANO)) ANO = 2022;
   document.querySelectorAll("#estados a").forEach(a => a.setAttribute("aria-current", a.dataset.uf===uf ? "page" : "false"));
