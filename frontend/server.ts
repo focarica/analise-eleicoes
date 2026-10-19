@@ -9,33 +9,202 @@ const UFS = new Set(["AC", "AL", "BA", "DF", "RO", "SP"]);
 const YEARS = new Set([2018, 2020, 2022, 2024]);
 const CARGOS: Record<number, string> = { 3: "Governador", 5: "Senador", 6: "Deputado federal", 7: "Deputado estadual", 8: "Deputado distrital", 11: "Prefeito", 13: "Vereador" };
 const UFS_LIST = ["AC", "AL", "BA", "DF", "RO", "SP"];
-let connection: DuckDBConnection | undefined;
-let connectionPromise: Promise<DuckDBConnection> | undefined;
+// Várias conexões da mesma instância: as consultas rodam em paralelo no
+// MotherDuck em vez de esperarem numa fila única (a busca dispara uma requisição
+// por pausa na digitação e travava o resto do painel).
+const POOL_SIZE = Math.max(1, Number(Bun.env.DB_CONNECTIONS || 4));
+// Consulta mais lenta que isso é interrompida e vira erro 504 (em vez de a
+// conexão HTTP ser derrubada sem resposta).
+const QUERY_TIMEOUT_MS = Number(Bun.env.QUERY_TIMEOUT_MS || 60_000);
+let instancePromise: Promise<DuckDBInstance> | undefined;
+const livres: DuckDBConnection[] = [];
+const aguardando: ((con: DuckDBConnection) => void)[] = [];
+let criadas = 0;
 
-async function db() {
-  if (connection) return connection;
-  if (!connectionPromise) {
-    connectionPromise = (async () => {
-      const token = Bun.env.MOTHERDUCK_TOKEN || Bun.env.motherduck_token;
-      if (!token) throw new Error("Configure MOTHERDUCK_TOKEN no arquivo .env local.");
-      // o token vai na connection string: o node-api não lê variáveis de ambiente
-      // do DuckDB de forma confiável e sem vínculo explícito pode cair no SSO do
-      // navegador (conta errada) em vez de usar o token do painel.
-      const instancia = await DuckDBInstance.create(
-        `md:${DATABASE}?token=${encodeURIComponent(token)}&motherduck_open_browser=false`,
-      );
-      connection = await instancia.connect();
-      return connection;
-    })();
+function instance() {
+  instancePromise ??= (async () => {
+    const token = Bun.env.MOTHERDUCK_TOKEN || Bun.env.motherduck_token;
+    if (!token) throw new Error("Configure MOTHERDUCK_TOKEN no arquivo .env local.");
+    // o token vai na connection string: o node-api não lê variáveis de ambiente
+    // do DuckDB de forma confiável e sem vínculo explícito pode cair no SSO do
+    // navegador (conta errada) em vez de usar o token do painel.
+    return DuckDBInstance.create(
+      `md:${DATABASE}?token=${encodeURIComponent(token)}&motherduck_open_browser=false`,
+    );
+  })().catch((error) => { instancePromise = undefined; throw error; });
+  return instancePromise;
+}
+
+async function acquire(): Promise<DuckDBConnection> {
+  const livre = livres.pop();
+  if (livre) return livre;
+  if (criadas < POOL_SIZE) {
+    criadas++;
+    try {
+      return await (await instance()).connect();
+    } catch (error) {
+      criadas--;
+      throw error;
+    }
   }
-  return connectionPromise;
+  return new Promise((resolve) => aguardando.push(resolve));
+}
+
+function release(con: DuckDBConnection) {
+  const proximo = aguardando.shift();
+  if (proximo) proximo(con);
+  else livres.push(con);
 }
 
 async function rows(sql: string, values: (string | number)[] = []) {
-  const con = await db();
-  const reader = await con.runAndReadAll(sql, values);
-  return reader.getRowObjectsJson() as Record<string, unknown>[];
+  const con = await acquire();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let estourou = false;
+  try {
+    timer = setTimeout(() => { estourou = true; con.interrupt(); }, QUERY_TIMEOUT_MS);
+    const reader = await con.runAndReadAll(sql, values);
+    return reader.getRowObjectsJson() as Record<string, unknown>[];
+  } catch (error) {
+    if (estourou) throw new ConsultaLenta();
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    release(con);
+  }
 }
+
+class ConsultaLenta extends Error {
+  constructor() { super("A consulta ao MotherDuck demorou demais. Tente de novo."); }
+}
+
+// A busca é chamada a cada pausa na digitação e os dados não mudam durante o
+// uso: guarda as respostas (e reaproveita a mesma consulta se já estiver em curso).
+const BUSCA_CACHE_MAX = 500;
+const buscaCache = new Map<string, Promise<unknown>>();
+function buscaEmCache(chave: string, consulta: () => Promise<unknown>) {
+  let resposta = buscaCache.get(chave);
+  if (!resposta) {
+    resposta = consulta().catch((error) => { buscaCache.delete(chave); throw error; });
+    buscaCache.set(chave, resposta);
+    if (buscaCache.size > BUSCA_CACHE_MAX) buscaCache.delete(buscaCache.keys().next().value!);
+  }
+  return resposta;
+}
+
+// Mesma regra da view v_historico_candidato (sql/motherduck/01_views_analiticas.sql),
+// mas com as candidaturas da pessoa ($1) filtradas antes de agregar receitas,
+// despesas e bens. Se a view mudar, mude aqui também.
+const SQL_HISTORICO_CANDIDATO = `
+WITH alvo AS (
+    SELECT ano_eleicao, sq_candidato
+    FROM public.candidatura
+    WHERE id_pessoa_projeto = $1
+),
+receita_linhas AS (
+    SELECT
+        rc.ano_eleicao,
+        rc.sq_candidato,
+        rc.ds_fonte_receita AS fonte,
+        COALESCE(
+            NULLIF(rc.tp_origem_recurso, ''),
+            CASE
+                WHEN rc.ds_fonte_receita IN ('FUNDO ESPECIAL', 'FUNDO PARTIDARIO') THEN 'PÚBLICO'
+                WHEN rc.ds_fonte_receita = 'OUTROS RECURSOS' THEN 'PRIVADO'
+                ELSE 'INDEFINIDO'
+            END
+        ) AS origem,
+        SUM(rc.vr_receita) AS valor,
+        COUNT(*) AS qtd
+    FROM public.receitas_campanha rc
+    JOIN alvo USING (ano_eleicao, sq_candidato)
+    GROUP BY 1, 2, 3, 4
+),
+receitas AS (
+    SELECT
+        ano_eleicao,
+        sq_candidato,
+        SUM(valor) AS total_receitas,
+        SUM(valor) FILTER (WHERE origem = 'PÚBLICO') AS receitas_publicas,
+        SUM(valor) FILTER (WHERE origem = 'PRIVADO') AS receitas_privadas,
+        TO_JSON(LIST(
+            STRUCT_PACK(fonte := fonte, origem := origem, valor := valor, qtd := qtd)
+            ORDER BY valor DESC
+        )) AS receitas
+    FROM receita_linhas
+    GROUP BY 1, 2
+),
+despesa_linhas AS (
+    SELECT
+        dp.ano_eleicao,
+        dp.sq_candidato,
+        dp.ds_despesa,
+        dp.vr_pago,
+        ROW_NUMBER() OVER (
+            PARTITION BY dp.ano_eleicao, dp.sq_candidato
+            ORDER BY dp.vr_pago DESC NULLS LAST
+        ) AS rn
+    FROM public.despesas_pagas dp
+    JOIN alvo USING (ano_eleicao, sq_candidato)
+),
+despesas AS (
+    SELECT
+        ano_eleicao,
+        sq_candidato,
+        SUM(vr_pago) AS total_despesas,
+        COUNT(*) AS qt_despesas,
+        TO_JSON(LIST(
+            STRUCT_PACK(despesa := ds_despesa, valor := vr_pago)
+            ORDER BY vr_pago DESC NULLS LAST
+        ) FILTER (WHERE rn <= 8)) AS despesas
+    FROM despesa_linhas
+    GROUP BY 1, 2
+),
+bens AS (
+    SELECT
+        bd.ano_eleicao,
+        bd.sq_candidato,
+        SUM(bd.vr_bem) AS total_bens,
+        TO_JSON(LIST(
+            STRUCT_PACK(
+                tipo := bd.ds_tipo_bem,
+                descricao := NULLIF(bd.ds_bem, '#NULO#'),
+                valor := bd.vr_bem
+            ) ORDER BY bd.vr_bem DESC NULLS LAST
+        )) AS bens
+    FROM public.bens_declarados bd
+    JOIN alvo USING (ano_eleicao, sq_candidato)
+    GROUP BY 1, 2
+)
+SELECT
+    c.ano_eleicao,
+    c.sq_candidato,
+    ca.nm_candidato,
+    c.nm_urna_candidato,
+    c.sg_partido AS partido,
+    c.ds_cargo AS cargo,
+    COALESCE(m.sg_uf, c.sg_ue) AS uf,
+    c.cd_municipio_tse AS municipio,
+    m.nm_municipio,
+    c.nr_turno_resultado AS turno,
+    c.ds_sit_tot_turno AS situacao,
+    c.qt_votos_totais AS votos,
+    COALESCE(r.total_receitas, 0) AS total_receitas,
+    COALESCE(r.receitas_publicas, 0) AS receitas_publicas,
+    COALESCE(r.receitas_privadas, 0) AS receitas_privadas,
+    COALESCE(r.receitas, '[]'::JSON) AS receitas,
+    COALESCE(d.total_despesas, 0) AS total_despesas,
+    COALESCE(d.qt_despesas, 0) AS qt_despesas,
+    COALESCE(d.despesas, '[]'::JSON) AS despesas,
+    COALESCE(b.total_bens, 0) AS patrimonio_declarado,
+    COALESCE(b.bens, '[]'::JSON) AS bens
+FROM public.candidatura c
+JOIN alvo USING (ano_eleicao, sq_candidato)
+JOIN public.candidato ca ON ca.id_pessoa_projeto = c.id_pessoa_projeto
+LEFT JOIN public.municipio m ON m.cd_municipio_tse = c.cd_municipio_tse
+LEFT JOIN receitas r USING (ano_eleicao, sq_candidato)
+LEFT JOIN despesas d USING (ano_eleicao, sq_candidato)
+LEFT JOIN bens b USING (ano_eleicao, sq_candidato)
+ORDER BY c.ano_eleicao, c.ds_cargo`;
 
 const json = (data: unknown, status = 200) => Response.json(data, { status });
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Erro ao consultar MotherDuck.";
@@ -120,6 +289,7 @@ async function route(request: Request) {
     if (!UFS.has(uf)) return json({ error: "UF inválida." }, 400);
     if (term.length < 2) return json({ municipalities: [], candidates: [] });
     const pattern = `%${term}%`;
+    return json(await buscaEmCache(`${uf}|${term.toLowerCase()}`, async () => {
     const [municipalities, candidates] = await Promise.all([
       rows(`SELECT cd_municipio_tse AS id, nm_municipio AS nome
             FROM public.municipio
@@ -137,7 +307,8 @@ async function route(request: Request) {
             GROUP BY ca.id_pessoa_projeto, ca.nm_candidato
             ORDER BY MAX(c.ano_eleicao) DESC, ca.nm_candidato LIMIT 10`, [uf, pattern]),
     ]);
-    return json({ municipalities, candidates });
+    return { municipalities, candidates };
+    }));
   }
 
   // P10a — reeleição: fichas por cargo com os ciclos de eleição seguinte.
@@ -314,36 +485,36 @@ async function route(request: Request) {
   const candidateMatch = path.match(/^\/api\/candidate\/(\d+)$/);
   if (candidateMatch) {
     const id = Number(candidateMatch[1]);
+    // As views v_historico_candidato e vw_questao_9_* agregam a base inteira e só
+    // depois filtram a pessoa: ~30 s por ficha no MotherDuck, ocupando conexões
+    // que a busca e o mapa esperavam. Por isso a ficha resolve antes as
+    // candidaturas da pessoa e filtra por (ano, sq) — o que o README das views da
+    // Q9 já recomenda —, e o histórico usa a mesma regra da view com o filtro no
+    // início (SQL_HISTORICO_CANDIDATO). Resultado idêntico, em menos de 1 s.
+    const chaves = await rows(`SELECT ano_eleicao, sq_candidato FROM public.candidatura
+                               WHERE id_pessoa_projeto = $1 ORDER BY 1, 2`, [id]);
+    const filtroChaves = chaves
+      .map((_, k) => `(ano_eleicao = CAST($${2 * k + 1} AS INTEGER) AND sq_candidato = CAST($${2 * k + 2} AS BIGINT))`)
+      .join(" OR ");
+    const valoresChaves = chaves.flatMap((c) => [String(c.ano_eleicao), String(c.sq_candidato)]);
+    const nuvem = (ordem: string, peso: string) => chaves.length
+      ? rows(`SELECT ano_eleicao, sq_candidato, ds_cargo, termo, ${peso},
+                     valor_pago_associado, qt_lancamentos
+              FROM public.vw_questao_9_nuvem_valor
+              WHERE ${filtroChaves}
+              QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY ano_eleicao, ds_cargo ORDER BY ${ordem} DESC, termo
+              ) <= 35
+              ORDER BY ano_eleicao, ds_cargo, ${ordem} DESC, termo`, valoresChaves)
+      : Promise.resolve([]);
     const [personRows, candidacies, propagandaValor, propagandaFrequencia] = await Promise.all([
       rows(`SELECT nm_candidato, dt_nascimento, ds_grau_instrucao,
                    ds_genero, ds_cor_raca
             FROM public.candidato WHERE id_pessoa_projeto = $1`, [id]),
-      rows(`SELECT ano_eleicao, sq_candidato, nm_candidato, nm_urna_candidato,
-                   partido, cargo, uf, municipio, nm_municipio,
-                   turno, situacao, votos, total_receitas,
-                   receitas_publicas, receitas_privadas, receitas,
-                   total_despesas, qt_despesas, despesas,
-                   patrimonio_declarado, bens
-            FROM public.v_historico_candidato
-            WHERE id_pessoa_projeto = $1
-            ORDER BY ano_eleicao, cargo`, [id]),
-      rows(`SELECT ano_eleicao, sq_candidato, ds_cargo, termo, peso,
-                   valor_pago_associado, qt_lancamentos
-            FROM public.vw_questao_9_nuvem_valor
-            WHERE id_pessoa_projeto = $1
-            QUALIFY ROW_NUMBER() OVER (
-              PARTITION BY ano_eleicao, ds_cargo ORDER BY peso DESC, termo
-            ) <= 35
-            ORDER BY ano_eleicao, ds_cargo, peso DESC, termo`, [id]),
+      rows(SQL_HISTORICO_CANDIDATO, [id]),
+      nuvem("peso", "peso"),
       // Deriva frequência da mesma base de termos para evitar divergência entre as duas views.
-      rows(`SELECT ano_eleicao, sq_candidato, ds_cargo, termo,
-                   qt_lancamentos AS peso, valor_pago_associado, qt_lancamentos
-            FROM public.vw_questao_9_nuvem_valor
-            WHERE id_pessoa_projeto = $1
-            QUALIFY ROW_NUMBER() OVER (
-              PARTITION BY ano_eleicao, ds_cargo ORDER BY qt_lancamentos DESC, termo
-            ) <= 35
-            ORDER BY ano_eleicao, ds_cargo, qt_lancamentos DESC, termo`, [id]),
+      nuvem("qt_lancamentos", "qt_lancamentos AS peso"),
     ]);
     const person = personRows[0];
     if (!person) return json({ error: "Candidato não encontrado." }, 404);
@@ -398,6 +569,9 @@ async function route(request: Request) {
 
 Bun.serve({
   port: PORT,
+  // Padrão do Bun: 10 s. Uma resposta mais demorada que isso era derrubada sem
+  // resposta, e o proxy do Vite mostrava "socket hang up". 255 é o máximo.
+  idleTimeout: 120,
   async fetch(request) {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/api/")) {
@@ -405,7 +579,7 @@ Bun.serve({
         return await route(request);
       } catch (error) {
         console.error(error);
-        return json({ error: errorMessage(error) }, 503);
+        return json({ error: errorMessage(error) }, error instanceof ConsultaLenta ? 504 : 503);
       }
     }
 
