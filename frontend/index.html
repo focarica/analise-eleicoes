@@ -79,6 +79,13 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
     <div class="fin-grid" id="fin-conteudo"></div>
   </section>
 
+  <section class="sec" aria-labelledby="reel-t"><a id="reeleicao"></a>
+    <h2 id="reel-t">Reeleição: quem volta?</h2>
+    <p class="nota">Dos eleitos em cada pleito, quantos voltaram a disputar o mesmo cargo, na mesma unidade, na eleição ordinária seguinte (senador, 8 anos depois) e quantos ganharam. <b>(% eleitos)</b> = dos eleitos, quantos tentaram de novo; <b>taxa</b> = dos que tentaram, quantos venceram; a <b>média municípios</b> só considera municípios em que alguém tentou. A ligação entre pleitos usa o mesmo identificador de pessoa do painel; candidaturas indeferidas contam como tentativa; Presidente (disputa nacional) e suplentes ficam fora; ciclos sem eleição seguinte na base ficam fora da conta (e aparecem listados). Deputado distrital (DF) entra na régua. <span id="reel-origem"></span></p>
+    <div class="cargos" id="reel-cargos" role="group" aria-label="Cargo da seção de reeleição"></div>
+    <div class="fin-grid" id="reel-conteudo"></div>
+  </section>
+
   <footer>
     <span>Fonte: TSE, tabelas do projeto BD Relacionais (UFPI). A amostra não contém todos os candidatos de cada disputa.</span>
     <span id="origem"></span>
