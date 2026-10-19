@@ -233,13 +233,19 @@ async function carregarAno(){
 }
 
 function montarCargos(){
-  const cargos = ORDEM_COD.filter(c => VENCEDORES.get(c)?.size);
+  let cargos = ORDEM_COD.filter(c => VENCEDORES.get(c)?.size);
+  // Presidente é da federação: incluído nos anos de eleição geral mesmo sem
+  // vencedor municipal carregado (a cor por município vem de votacao_partido, cd_cargo 1)
+  if (ANOS_PRESIDENTE.has(ANO) && !cargos.includes(1)) cargos.push(1);
+  cargos.sort((a,b) => ORDEM_COD.indexOf(a) - ORDEM_COD.indexOf(b));
   if (!cargos.includes(CARGO)) CARGO = cargos[0] ?? null;
   const el = document.getElementById("cargos");
   el.innerHTML = cargos.map(c => `<button data-c="${c}" aria-pressed="${CARGO===c}">${CARGO_COD[c]}</button>`).join("");
   el.querySelectorAll("button").forEach(b => b.onclick = () => { CARGO = +b.dataset.c; montarCargos(); desenharForma(true); });
   document.getElementById("leg-nota").textContent = CARGO === 11
     ? "Cor de cada município: partido do prefeito eleito. Onde o eleito não está na base, vale o partido mais votado no 1º turno. A lista conta em quantos municípios cada partido venceu."
+    : CARGO === 1
+    ? "Cor de cada município: partido mais votado para Presidente no 1º turno, somando votos nominais e de legenda. A lista conta em quantos municípios cada partido venceu."
     : "Cor de cada município: partido mais votado no 1º turno para o cargo, somando votos nominais e de legenda. A lista conta em quantos municípios cada partido venceu.";
 }
 
