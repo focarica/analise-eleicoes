@@ -92,7 +92,9 @@ document.getElementById("estados").innerHTML = UFS.map(uf => {
 }).join("");
 
 /* ===================== Estado da página ===================== */
-let UF = "SP", ANO = 2022, CARGO = null, LINHAS = [], VENCEDORES = new Map();
+// UF null = nenhum estado escolhido: a página abre no mapa do Brasil e os
+// filtros (estado no topo, busca, cargos) só valem depois de uma escolha.
+let UF = null, ANO = 2022, CARGO = null, LINHAS = [], VENCEDORES = new Map();
 const svg = d3.select("#forma"), tip = document.getElementById("tip");
 // câmera: que parte do mapa está enquadrada — todo o Brasil (sigla null), um estado ou um município
 let VISTA = { sigla: null, mun: null };
@@ -200,13 +202,39 @@ async function abrirEstado(uf, voar){
   document.querySelectorAll("#estados a").forEach(a => a.setAttribute("aria-current", a.dataset.uf===uf ? "page" : "false"));
   document.getElementById("uf-nome").textContent = GEO[uf].properties.nome;
   document.title = GEO[uf].properties.nome + ": partido vencedor por município";
-  document.getElementById("busca").value = ""; fecharResultados();
-  document.getElementById("busca").placeholder = "Buscar município ou candidato"; document.getElementById("busca").setAttribute("aria-label", `Buscar município ou candidato em ${GEO[uf].properties.nome}`);
+  prepararFiltros(uf);
   // redesenha já (só camada de estados) e inicia o voo da câmera antes do dado chegar;
   // quando carregarAno pousa, a malha municipal entra
   desenharForma(false); montarAnos();
   if (voar) enquadrar(duracao(900));
   await carregarAno();
+}
+
+// habilita busca e resumo; chamado ao abrir um estado
+function prepararFiltros(uf){
+  const busca = document.getElementById("busca");
+  busca.disabled = false;
+  busca.value = ""; fecharResultados();
+  busca.placeholder = "Buscar município ou candidato"; busca.setAttribute("aria-label", `Buscar município ou candidato em ${GEO[uf].properties.nome}`);
+}
+
+// estado nenhum: mapa do Brasil inteiro, nada selecionado no switch e nos filtros;
+// as seções dependentes de estado mostram um convite à escolha
+function nenhumEstado(voar){
+  UF = null; CARGO = null; MALHA = null; MALHA_ERRO = false; MUN_SEL = null; LINHAS = []; VENCEDORES = new Map();
+  VISTA.sigla = null; VISTA.mun = null;
+  document.querySelectorAll("#estados a").forEach(a => a.setAttribute("aria-current", "false"));
+  document.getElementById("uf-nome").textContent = "Brasil";
+  document.title = "Partido vencedor por município nos estados da amostra";
+  const busca = document.getElementById("busca");
+  busca.disabled = true;
+  busca.value = ""; fecharResultados();
+  busca.placeholder = "Escolha um estado para buscar";
+  document.getElementById("anos").innerHTML = "";
+  document.getElementById("cargos").innerHTML = "";
+  document.getElementById("legenda").innerHTML = "";
+  desenharForma(false);
+  if (voar) enquadrar(duracao(500));
 }
 // escolhe um estado pela camada do mapa ou pelo menu: voa até ele
 function escolherUF(sigla){
@@ -283,23 +311,27 @@ function desenharForma(animar){
     .on("mouseleave", () => tip.classList.remove("on"))
     .on("click", (ev,f) => { tip.classList.remove("on"); escolherNoMapa(f.properties.sigla); });
 
-  // demarcação de estados: sólida no estado em uso, tracejada no demarcado fora da amostra;
+  // demarcação de estados: sólida no estado em uso (nenhuma sem estado aberto),
+  // tracejada no demarcado fora da amostra;
   // ambas por cima das demais camadas (desenhadas no fim também)
   const desenharDemarcacoes = () => {
     if (SELECIONADA && SELECIONADA !== UF)
       gMapa.append("path").attr("class","uf-sel uf-demarcada").attr("d", path(GEO[SELECIONADA]));
-    gMapa.append("path").attr("class","uf-sel").attr("d", path(MALHA?.contorno || GEO[UF]));
+    if (UF) gMapa.append("path").attr("class","uf-sel").attr("d", path(MALHA?.contorno || GEO[UF]));
   };
 
   const partes = agregados(), total = d3.sum(partes, p=>p.qt);
-  const cargosTxt = [...new Set(LINHAS.map(r=>r.ds_cargo))].sort((a,b)=>ordemCargo(a)-ordemCargo(b)).map(c=>cargoNome(c).toLowerCase());
-  const totAno = d3.sum(LINHAS, r=>+r.qt_eleitos);
-  document.getElementById("resumo").textContent = totAno
-    ? `${fmt.format(totAno)} eleitos na base em ${ANO}, de ${new Set(LINHAS.map(r=>r.sg_partido)).size} partidos, para ${cargosTxt.join(", ").replace(/, ([^,]*)$/," e $1")}.`
-    : `Nenhum eleito na base para ${ANO}.`;
-
   const vazio = document.getElementById("forma-vazia");
-  const noEstado = VISTA.sigla === UF;
+  const noEstado = UF && VISTA.sigla === UF;
+  document.getElementById("resumo").textContent = !UF
+    ? "Escolha um estado da amostra — no switch acima, no mapa ou na busca — para aproximar e ver as votações."
+    : (() => {
+        const cargosTxt = [...new Set(LINHAS.map(r=>r.ds_cargo))].sort((a,b)=>ordemCargo(a)-ordemCargo(b)).map(c=>cargoNome(c).toLowerCase());
+        const totAno = d3.sum(LINHAS, r=>+r.qt_eleitos);
+        return totAno
+          ? `${fmt.format(totAno)} eleitos na base em ${ANO}, de ${new Set(LINHAS.map(r=>r.sg_partido)).size} partidos, para ${cargosTxt.join(", ").replace(/, ([^,]*)$/," e $1")}.`
+          : `Nenhum eleito na base para ${ANO}.`;
+      })();
   if (!noEstado) vazio.hidden = true;
   else if (MALHA_ERRO){
     vazio.hidden = false;
@@ -788,11 +820,13 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rotularTem
 rotularTema();
 
 /* ===================== Rotas e início ===================== */
-// a primeira rota abre a página no mapa do Brasil inteiro; navegar depois voa para o estado
+// rota sem estado (# ou hash inválido): mapa do Brasil com nenhum estado selecionado;
+// uma rota de estado voa até ele — inclusive na carga inicial, direto no estado hash
 let primeiraRota = true;
 function rota(){
   const uf = (location.hash.match(/#\/([A-Z]{2})/)||[])[1];
-  abrirEstado(UFS.includes(uf) ? uf : "SP", !primeiraRota);
+  if (UFS.includes(uf)) abrirEstado(uf, true);
+  else nenhumEstado(!primeiraRota);
   primeiraRota = false;
 }
 window.addEventListener("hashchange", rota);
