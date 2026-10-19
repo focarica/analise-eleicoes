@@ -58,7 +58,15 @@ Para regenerar as malhas (IBGE via `tbrugz/geodata-br`, correspondência TSE x I
 bun run malhas
 ```
 
-A API consulta `v_partidos_eleitos`, `vw_questao_2_despesas`, `v_historico_candidato` e tabelas municipais. A view oficial da questão 2 é `vw_questao_2_despesas`. O identificador de pessoa não é prova de identidade entre pleitos quando o título eleitoral não está disponível.
+A API consulta `v_partidos_eleitos`, `vw_questao_2_despesas`, `v_historico_candidato`, as views de reeleição (`v_reeleicao_*`) e de financiamento (`v_financiamento_*`) e tabelas municipais. A view oficial da questão 2 é `vw_questao_2_despesas`. O identificador de pessoa não é prova de identidade entre pleitos quando o título eleitoral não está disponível.
+
+As views de `sql/motherduck/04_views_reeleicao.sql` e `05_views_financiamento.sql` (P10a e P8) ainda não têm UI no painel; os endpoints `/api/reeleicao(.pessoas)` e `/api/financiamento` já as expõem. Para aplicá-las no `BDR-TSE-2026` sem abrir o editor SQL:
+
+```sh
+bun run scripts/aplicar-views.ts ../sql/motherduck/04_views_reeleicao.sql ../sql/motherduck/05_views_financiamento.sql
+```
+
+O script usa o `MOTHERDUCK_TOKEN` do `.env` (a conta do painel, a única com escrita no `BDR-TSE-2026`) e executa os statements individualmente; as views de `01` e `03` são reaplicáveis da mesma forma.
 
 `server.ts` contém as rotas e consultas; `src/presentation.ts` preserva o comportamento do HTML original; `src/style.css` contém os estilos originais; `dev.ts` inicia os dois servidores em desenvolvimento; `scripts/malhas.ts` gera as malhas municipais. O arquivo `.env` é local e ignorado pelo Git: nunca coloque o token em código frontend, `VITE_*`, issues ou commits.
 
