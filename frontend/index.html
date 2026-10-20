@@ -50,10 +50,12 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
       <div class="zoom" role="group" aria-label="Zoom do mapa">
         <button type="button" id="zoom-mais" aria-label="Aproximar" title="Aproximar">+</button>
         <button type="button" id="zoom-menos" aria-label="Afastar" title="Afastar" disabled>−</button>
-        <button type="button" id="zoom-ajustar" aria-label="Ver o estado inteiro" title="Ver o estado inteiro" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
+        <button type="button" id="zoom-ajustar" aria-label="Enquadrar de novo" title="Enquadrar de novo" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
+        <button type="button" id="zoom-brasil" aria-label="Ver o Brasil inteiro" title="Ver o Brasil inteiro" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.3 3.8 5.2 3.8 8.5s-1.3 6.2-3.8 8.5m0-17C9.5 5.8 8.2 8.7 8.2 12s1.3 6.2 3.8 8.5"/></svg></button>
       </div>
       <div class="zoom-dica" id="zoom-dica" aria-hidden="true"></div>
-      <p class="nota mapa-ajuda">Clique em um município para ver os dados dele. Arraste para mover o mapa; aproxime pelos botões, com Ctrl + roda do mouse ou com dois dedos.</p>
+      <div class="carga" id="carga" role="status" aria-label="Carregando dados"><i></i><i></i><i></i></div>
+      <p class="nota mapa-ajuda">Clique em um estado da amostra (os escuros) para aproximar e em um município para ver os dados dele; os demais, mais claros, só podem ser demarcados. Arraste para mover o mapa; aproxime pelos botões, com Ctrl + roda do mouse ou com dois dedos. Enquanto os dados carregam, um indicador gira no mapa.</p>
     </div>
     <div class="leg">
       <h2>Partido vencedor por município</h2>
@@ -67,6 +69,21 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
     <h2 id="gs-t">Quem gasta mais se elege mais?</h2>
     <p class="nota">Candidatos que prestaram contas, em quatro faixas de despesa paga do mesmo tamanho em reais, de R$ 0 até o maior gasto de cada cargo. A barra mostra a parcela de eleitos em cada faixa; abaixo dela, o limite da faixa e quantos candidatos caíram nela.</p>
     <div class="quartis" id="quartis"></div>
+  </section>
+
+  <section class="sec" aria-labelledby="fin-t"><a id="financiamento"></a>
+    <h2 id="fin-t">Depender de fundo público se elege mais?</h2>
+    <p class="nota">Cada candidatura é classificada pela fração <b>da receita que arrecadou</b> que veio de fundos públicos — fundo eleitoral (FEFC) + fundo partidário somados, divididos pelo total recebido; o resto veio de outras fontes, como recursos próprios e doadores privados. Não é a fração do gasto: é a das entradas. No escopo, o TSE só publica as fontes FUNDO ESPECIAL, FUNDO PARTIDARIO e OUTROS RECURSOS. <span id="fin-origem"></span> Clique em uma faixa para ver quem são.</p>
+    <div class="cargos" id="fin-cargos" role="group" aria-label="Cargo da seção de financiamento"></div>
+    <div class="cargos" id="fin-anos" role="group" aria-label="Anos considerados nesta questão"></div>
+    <div class="fin-grid" id="fin-conteudo"></div>
+  </section>
+
+  <section class="sec" aria-labelledby="reel-t"><a id="reeleicao"></a>
+    <h2 id="reel-t">Reeleição: quem volta?</h2>
+    <p class="nota">Dos eleitos em cada pleito, quantos voltaram a disputar o mesmo cargo, na mesma unidade, na eleição ordinária seguinte (senador, 8 anos depois) e quantos ganharam. <b>(% eleitos)</b> = dos eleitos, quantos tentaram de novo; <b>taxa</b> = dos que tentaram, quantos venceram; a <b>média municípios</b> só considera municípios em que alguém tentou. A ligação entre pleitos usa o mesmo identificador de pessoa do painel; candidaturas indeferidas contam como tentativa; Presidente (disputa nacional) e suplentes ficam fora; ciclos sem eleição seguinte na base ficam fora da conta (e aparecem listados). Deputado distrital (DF) entra na régua. <span id="reel-origem"></span></p>
+    <div class="cargos" id="reel-cargos" role="group" aria-label="Cargo da seção de reeleição"></div>
+    <div class="fin-grid" id="reel-conteudo"></div>
   </section>
 
   <footer>

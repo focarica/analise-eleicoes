@@ -36,6 +36,28 @@ Frequência não é quantidade de produtos nem número comprovado de compras: os
 
 Para recuperar categorias em um banco já carregado sem trocar valores ou IDs, veja [o script de atualização](../../scripts/motherduck/README.md#recuperar-categorias-e-criar-as-views-da-questão-9).
 
+## Views de reeleição e financiamento (P10a e P8)
+
+`04_views_reeleicao.sql` cria as views da taxa de reeleição (P10a):
+
+- `v_reeleicao_linhas`: cada candidatura eleita ligada à disputa seguinte do mesmo cargo, com flags `havia_proxima`, `tentou`, `reeleita` e, para cargos municipais, os agregados do município.
+- `v_reeleicao_pessoas`: as pessoas por grupo `voltou` / `perderam` / `nao`, com nome, CPF, partido, município e anos em que estejam no escopo.
+
+`05_views_financiamento.sql` cria as views da questão das fontes de dinheiro (P8):
+
+- `v_financiamento_candidatura`: total recebido por candidatura e parcela de fundo especial, fundo partidário e outras fontes.
+- `v_financiamento_faixas`: candidatos agrupados por faixa de dependência de fundos (0–25%, 25–50%, 50–75%, 75–100% e sem receita declarada).
+- `v_financiamento_fontes`: total por fonte de receita.
+- `v_financiamento_partidos`: agregado por partido (candidatos, eleitos e receita por tipo).
+
+Para aplicar `04` e `05` no banco do painel (`BDR-TSE-2026`), sem abrir o editor SQL:
+
+```bash
+bun run scripts/aplicar-views.ts ../sql/motherduck/04_views_reeleicao.sql ../sql/motherduck/05_views_financiamento.sql
+```
+
+O script usa `MOTHERDUCK_TOKEN` do `.env` do frontend (a conta do painel, que é a que tem escrita no `BDR-TSE-2026`) e executa cada statement individualmente. As views de `01` e `03` podem ser reaplicadas da mesma forma.
+
 ## Transformação do modelo
 
 `02_carga_modelo.sql` carrega as 11 tabelas do modelo a partir das tabelas temporárias criadas pelo Flight. Ele depende desse staging, por isso não deve ser executado isoladamente. O fluxo completo está em [scripts/motherduck/README.md](../../scripts/motherduck/README.md).
