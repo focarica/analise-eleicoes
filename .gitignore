@@ -16,3 +16,5 @@ __pycache__/
 /frontend/node_modules/
 /frontend/dist/
 /frontend/.vite/
+.cache-api/
+/frontend/.cache-api/
