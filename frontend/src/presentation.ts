@@ -757,7 +757,7 @@ async function quemFinanciamento(faixa, continuar){
         <td><span class="chip" style="background:${corP(p.partido)}">${esc(p.partido)}</span></td>
         ${multi ? `<td>${p.ano}</td>` : ""}
         <td>${esc(titulo(p.municipio || p.uf || ""))}</td>
-        <td>${sitTxt(p.situacao)}</td>
+        <td class="${!ehEleito(p.situacao) ? "dim" : ""}">${sitTxt(p.situacao)}</td>
         <td class="v num">${brlc(p.total)}</td>
         <td class="v">${p.pct_publico != null ? p.pct_publico.toLocaleString("pt-BR") + "%" : "–"}</td>
       </tr>`).join("")}</tbody></table>
@@ -1271,7 +1271,9 @@ async function abrirCandidato(id){
   const cs = h.candidaturas.filter(c => c.cargo).sort((a,b)=>a.ano_eleicao-b.ano_eleicao || ordemCargo(a.cargo)-ordemCargo(b.cargo));
   const candidaturaRecente = cs[cs.length-1];
   const eleicoes = cs.filter(c=>ehEleito(c.situacao)).length;
-  const urna = [...new Set(cs.map(c=>c.nm_urna_candidato))].map(titulo).join(" / ");
+  // nome de urna: o da candidatura mais recente (variantes antigas ficam no tooltip)
+  const urna = candidaturaRecente?.nm_urna_candidato ? titulo(candidaturaRecente.nm_urna_candidato) : "";
+  const urnas = [...new Set(cs.map(c=>c.nm_urna_candidato).filter(Boolean))].map(titulo);
   const ultimaIdade = cs.length ? idade(h.nascimento, cs[cs.length-1].ano_eleicao) : null;
 
   const item = c => {
@@ -1279,8 +1281,13 @@ async function abrirCandidato(id){
     const local = c.nm_municipio ? `${titulo(c.nm_municipio)} (${c.uf})` : c.uf;
     const rp = +c.receitas_publicas||0, rv = +c.receitas_privadas||0, rt = +c.total_receitas||0;
     const custoVoto = c.votos > 0 && c.total_despesas > 0 ? c.total_despesas / c.votos : null;
+    const cardVotos = c.votos!=null ? `<div><small>Votos (1º turno)</small><b class="num">${fmt.format(c.votos)}</b></div>` : "";
+    // receitas por fonte: só as fontes com entrada; as sem lançamentos vão para um expander à parte
+    const fontesCom = c.receitas.filter(r=>+r.valor>0), fontesZero = c.receitas.filter(r=>+r.valor<=0);
+    const linhaFonte = r=>`<tr><td>${esc(titulo(r.fonte))}</td><td>${esc(titulo(r.origem))}</td><td class="v num">${r.qtd}</td><td class="v">${brl(r.valor||0)}</td></tr>`;
     const receitas = c.receitas.length ? `<details><summary>Receitas por fonte</summary><div class="tabw"><table class="tab"><thead><tr><th>Fonte</th><th>Origem</th><th class="v">Lançamentos</th><th class="v">Valor</th></tr></thead><tbody>
-      ${c.receitas.map(r=>`<tr><td>${esc(titulo(r.fonte))}</td><td>${esc(titulo(r.origem))}</td><td class="v">${r.qtd}</td><td class="v">${brl(r.valor)}</td></tr>`).join("")}</tbody></table></div></details>` : "";
+      ${fontesCom.map(linhaFonte).join("")}</tbody></table></div>
+      ${fontesZero.length ? `<details class="fontes-zero"><summary>${fontesZero.length} ${fontesZero.length===1?"fonte sem lançamentos":"fontes sem lançamentos"}</summary><div class="tabw"><table class="tab"><thead><tr><th>Fonte</th><th>Origem</th></tr></thead><tbody>${fontesZero.map(r=>`<tr><td>${esc(titulo(r.fonte))}</td><td>${esc(titulo(r.origem))}</td></tr>`).join("")}</tbody></table></div></details>` : ""}</details>` : "";
     const despesas = c.despesas.length ? `<details><summary>Maiores despesas (${Math.min(c.despesas.length, c.qt_despesas)} de ${fmt.format(c.qt_despesas)})</summary><div class="tabw"><table class="tab"><tbody>
       ${c.despesas.map(d=>`<tr><td>${esc(d.despesa ? d.despesa.toLowerCase().replace(/^./,x=>x.toUpperCase()) : "Sem descrição")}</td><td class="v">${brl(d.valor)}</td></tr>`).join("")}</tbody></table></div></details>` : "";
     const bens = c.bens.length ? `<details><summary>Bens declarados (${c.bens.length})</summary><div class="tabw"><table class="tab"><tbody>
@@ -1292,7 +1299,7 @@ async function abrirCandidato(id){
       <div class="lt-ano">${c.ano_eleicao}</div>
       <div class="lt-cargo">${cargoNome(c.cargo)}, ${esc(local)} <span class="chip" style="background:${corP(c.partido)}">${esc(c.partido)}</span><span class="sit ${el?"el":""}">${sitTxt(c.situacao)}</span></div>
       <div class="grade">
-        <div><small>Votos (1º turno)</small><b class="num">${c.votos!=null ? fmt.format(c.votos) : "–"}</b></div>
+        ${cardVotos}
         <div><small>Receitas</small><b class="num">${brlc(rt)}</b>${rt ? `<div class="split"><i style="width:${rp/rt*100}%;background:var(--ink)"></i><i style="width:${rv/rt*100}%;background:var(--ink-3)"></i></div><div class="legenda-split">${Math.round(rp/rt*100)}% público, ${Math.round(rv/rt*100)}% privado</div>` : ""}</div>
         <div><small>Despesas pagas</small><b class="num">${brlc(+c.total_despesas)}</b>${custoVoto ? `<div class="legenda-split">${brl(custoVoto)} por voto</div>` : ""}</div>
         <div><small>Patrimônio declarado</small><b class="num">${brlc(+c.patrimonio_declarado)}</b></div>
@@ -1331,7 +1338,7 @@ async function abrirCandidato(id){
       ${candidaturaRecente?.sq_candidato ? `<span class="foto-frame foto-topo"><img src="/api/photo/${candidaturaRecente.ano_eleicao}/${candidaturaRecente.sq_candidato}" alt="Foto oficial de ${esc(titulo(candidaturaRecente.nm_candidato||h.nome))} na eleição ${candidaturaRecente.ano_eleicao}" decoding="async"></span>` : ""}
       <div class="perfil-info">
       <h2 id="g-titulo">${esc(titulo(h.nome))}</h2>
-      <p class="sub">${urna ? "Na urna: " + esc(urna) : ""}</p>
+      <p class="sub"${urnas.length > 1 ? ` title="Variantes do nome de urna na base: ${esc(urnas.join(" / "))}"` : ""}>${urna ? "Na urna: " + esc(urna) : ""}</p>
       <ul class="fatos">
       <li><b>${cs.length}</b> ${cs.length===1?"candidatura":"candidaturas"} na base</li>
       <li><b>${eleicoes}</b> ${eleicoes===1?"vez eleito":"vezes eleito"}</li>
@@ -1392,7 +1399,7 @@ async function abrirMunicipio(cd, nomeMapa){
       const verTot = loc.filter(c=>c.ano===a && c.cargo==="VEREADOR").length;
       const porPart = d3.rollups(ver, v=>v.length, c=>c.partido).sort((x,y)=>y[1]-x[1]);
       h += `<p style="margin:.8rem 0 .3rem;font-weight:700">${a}</p>`;
-      if (pref.length) h += `<div class="tabw"><table class="tab"><thead><tr><th>Prefeito</th><th>Partido</th><th>Resultado</th><th class="v">Votos</th></tr></thead><tbody>${pref.map(c=>`<tr><td><button class="link" data-cand="${c.id}">${esc(titulo(c.nome))}</button></td><td>${esc(c.partido)}</td><td>${sitTxt(c.situacao)}</td><td class="v">${c.votos!=null?fmt.format(c.votos):"–"}</td></tr>`).join("")}</tbody></table></div>`;
+      if (pref.length) h += `<div class="tabw"><table class="tab"><thead><tr><th>Prefeito</th><th>Partido</th><th>Resultado</th><th class="v">Votos</th></tr></thead><tbody>${pref.map(c=>`<tr><td><button class="link" data-cand="${c.id}">${esc(titulo(c.nome))}</button></td><td>${esc(c.partido)}</td><td class="${!ehEleito(c.situacao) ? "dim" : ""}">${sitTxt(c.situacao)}</td><td class="v">${c.votos!=null?fmt.format(c.votos):"–"}</td></tr>`).join("")}</tbody></table></div>`;
       if (verTot) h += `<p class="aviso-mini">${ver.length} vereadores eleitos entre ${verTot} candidatos na base${porPart.length ? ": " + porPart.map(([p,n])=>`<span class="chip" style="background:${corP(p)}">${esc(p)} ${n}</span>`).join(" ") : ""}</p>`;
       if (ver.length) h += `<details><summary>Ver vereadores eleitos</summary><div class="tabw"><table class="tab"><tbody>${ver.map(c=>`<tr><td><button class="link" data-cand="${c.id}">${esc(titulo(c.nome))}</button></td><td>${esc(c.partido)}</td><td class="v">${c.votos!=null?fmt.format(c.votos):"–"}</td></tr>`).join("")}</tbody></table></div></details>`;
     }

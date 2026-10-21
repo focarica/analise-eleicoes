@@ -262,6 +262,8 @@ tr.reel-soma td{ border-top:1.5px solid var(--ink-3); }
 .split{ display:flex; height:.45rem; border-radius:2px; overflow:hidden; margin-top:.25rem; background:var(--line); }
 .split i{ display:block; height:100%; }
 .legenda-split{ font-size:.72rem; color:var(--ink-3); margin-top:.1rem; }
+/* sem o card de votos, o último card da grade ocupa a linha inteira */
+.grade > div:last-child:nth-child(odd){ grid-column: 1 / -1; }
 /* ficha do candidato: expansores compactados dentro da gaveta */
 .gaveta details{ margin:.4rem 0 0; font-size:.88rem; }
 .gaveta details summary{ padding:.35rem 0; }
@@ -283,6 +285,9 @@ summary{ cursor:pointer; color:var(--ink-2); font-weight:600; }
 .aviso-mini{ font-size:.82rem; color:var(--ink-3); margin:.3rem 0 0; }
 /* chips de partido nos avisos: menores, para a linha respirar */
 .aviso-mini .chip{ font-size:.68rem; padding:.06rem .38rem; vertical-align:1px; }
+.tab td.dim{ color:var(--ink-3); }
+.gaveta details.fontes-zero{ margin-top:.45rem; font-size:.8rem; }
+.gaveta details.fontes-zero summary{ color:var(--ink-3); padding:.15rem 0; }
 .q9{ margin-top:.65rem; font-size:.88rem; }
 .q9 summary{ color:var(--ink-2); }
 .q9-conteudo{ margin-top:.6rem; }
