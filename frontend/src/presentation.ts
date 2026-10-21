@@ -235,6 +235,8 @@ function nenhumEstado(voar){
   document.getElementById("anos").innerHTML = "";
   document.getElementById("cargos").innerHTML = "";
   document.getElementById("legenda").innerHTML = "";
+  // quartis dependem de estado+ano: na visão Brasil, convite claro no lugar dos cartões
+  document.getElementById("quartis").innerHTML = `<p class="aviso-mini">Escolha um estado da amostra para ver as faixas de gasto por cargo daquele ano.</p>`;
   montarFinanciamento();
   montarReeleicao();
   desenharForma(false);
@@ -447,11 +449,11 @@ function montarQuartis(linhas){
     // média geral de eleitos e não eleitos, recomposta a partir das médias de cada faixa
     const pond = (campo, qtd) => { const v = rows.filter(q=>q[campo]!=null); const w = d3.sum(v, qtd); return w ? d3.sum(v, q=>+q[campo]*qtd(q))/w : null; };
     const mEl = pond("media_gasto_eleitos", q=>+q.qtd_eleitos), mNao = pond("media_gasto_nao_eleitos", q=>+q.qtd_candidatos_na_faixa - q.qtd_eleitos);
-    return `<div class="qc"><h3>${cargoNome(c)}</h3><p class="nota" style="margin:-.4rem 0 0">${n} ${n===1?"candidato":"candidatos"}, ${el_} ${el_===1?"eleito":"eleitos"}</p>
+    return `<div class="qc"><h3>${cargoNome(c)}</h3><p class="nota" style="margin:-.4rem 0 0">${fmt.format(n)} ${n===1?"candidato":"candidatos"}, ${fmt.format(el_)} ${el_===1?"eleito":"eleitos"}</p>
       <div class="barras">${faixas.map(q => q.vazia
         ? `<div class="b vazia" title="Nenhum candidato nesta faixa"><span>–</span></div>`
         : `<div class="b" style="height:${Math.max(2,+q.taxa_sucesso_pct)}%" title="${q.qtd_eleitos} de ${q.qtd_candidatos_na_faixa} eleitos; gastos de ${brl(+q.piso_faixa)} a ${brl(+q.teto_faixa)}"><span>${(+q.taxa_sucesso_pct).toLocaleString("pt-BR",{maximumFractionDigits:0})}%</span></div>`).join("")}</div>
-      <div class="eixo num">${faixas.map(q=>`<span>até<br>${brlc(+q.limite_superior_faixa)}<br><em>${q.vazia ? "ninguém" : q.qtd_candidatos_na_faixa + (+q.qtd_candidatos_na_faixa===1?" cand.":" cand.")}</em></span>`).join("")}</div>
+      <div class="eixo num">${faixas.map(q=>`<span>até<br>${brlc(+q.limite_superior_faixa)}<br><em>${q.vazia ? "ninguém" : fmt.format(+q.qtd_candidatos_na_faixa) + (+q.qtd_candidatos_na_faixa===1?" cand.":" cand.")}</em></span>`).join("")}</div>
       <p class="med">Gasto médio: eleitos <b>${brlc(mEl)}</b>, não eleitos <b>${brlc(mNao)}</b></p></div>`;
   }).join("");
 }
@@ -472,9 +474,40 @@ const FIN = { cargo: null, sel: "todos", graf: "taxa", log: false, ocultas: new 
 const FIN_COMPACTO = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
 const FIN_FAIXA_CURTO = { "[00,25)": "até 24%", "[25,50)": "25–49%", "[50,75)": "50–74%", "[75,100]": "75%+", "sem receita": "sem receita" };
 const FIN_FAIXA_COR = { "[00,25)": "var(--faixa-0)", "[25,50)": "var(--faixa-1)", "[50,75)": "var(--faixa-2)", "[75,100]": "var(--faixa-3)", "sem receita": "var(--faixa-4)" };
-const FIN_FONTE_SERIE = { "FUNDO ESPECIAL": ["Fundo especial (FEFC)", "var(--ink)"], "FUNDO PARTIDARIO": ["Fundo partidário", "color-mix(in srgb, var(--ink) 45%, var(--bg))"], "OUTROS RECURSOS": ["Outras fontes", "var(--ink-3)"] };
-const finFonteNome = f => f == null ? "Sem fonte informada" : (FIN_FONTE_SERIE[f]?.[0] || titulo(f));
-const finFonteCor = f => FIN_FONTE_SERIE[f]?.[1] || "var(--ink-2)";
+const FIN_FONTE_SERIE = { "Fundo especial (FEFC)": "var(--ink)", "Fundo partidário": "color-mix(in srgb, var(--ink) 45%, var(--bg))", "Outros recursos": "var(--ink-3)" };
+// A TSE escreve a mesma fonte com maiúsculas e acentos variando (e typos: "Fundo
+// Partidáo", "Recursos Proprios"); sem essa redução a lista fica com uma linha
+// por grafia em vez de uma linha por fonte.
+const finFonteNome = f => {
+  if (f == null) return "Sem fonte informada";
+  const n = norm(f).replace(/\s+/g," ").trim();
+  return ({
+    "FUNDO ESPECIAL": "Fundo especial (FEFC)",
+    "FUNDO ESPECIAL (FEFC)": "Fundo especial (FEFC)",
+    "SEM FONTE INFORMADA": "Sem fonte informada",
+    "FUNDO PARTIDARIO": "Fundo partidário",
+    "FUNDO PARTIDO": "Fundo partidário",
+    "FUNDO PARTIDAO": "Fundo partidário",
+    "RECURSOS DO FUNDO PARTIDARIO": "Fundo partidário",
+    "OUTROS RECURSOS": "Outros recursos",
+    "OUTROS RECURSOS NAO DESCRITOS": "Outros recursos não descritos",
+    "NAO ESPECIFICADO": "Não especificado",
+    "NAO INFORMADO": "Não especificado",
+    "RECURSOS DE OUTROS CANDIDATOS/COMITES": "Recursos de outros candidatos/comitês",
+    "RECURSOS DE PESSOAS FISICAS": "Recursos de pessoas físicas",
+    "RECURSOS DE PESSOAS JURIDICAS": "Recursos de pessoas jurídicas",
+    "RECURSOS PROPRIOS": "Recursos próprios",
+    "RECURSOS DE PARTIDO POLITICO": "Recursos de partido político",
+    "RECURSOS DE ORIGENS NAO IDENTIFICADAS": "Recursos de origens não identificadas",
+    "RECURSOS DE ORIGENS NAO IDENTIFICADA": "Recursos de origens não identificadas",
+    "RENDIMENTOS DE APLICACOES FINANCEIRAS": "Rendimentos de aplicações financeiras",
+    "RECEITAS DIVERSAS A ESPECIFICAR": "Receitas diversas a especificar",
+    "COMERCIALIZACAO DE BENS OU REALIZACAO DE EVENTOS": "Comercialização de bens ou realização de eventos",
+    "DESCRICAO DAS DOACOES RELATIVAS A COMERCIALIZACAO": "Descrição das doações relativas à comercialização",
+    "DESCRICOES DAS DOACOES RELATIVAS A COMERCIALIZACAO OU EVENTO": "Descrição das doações relativas à comercialização",
+  })[n] || titulo(f);
+};
+const finFonteCor = f => FIN_FONTE_SERIE[f] || "var(--ink-2)";
 
 // anos disponíveis do cargo (só existem os anos em que o cargo foi disputado)
 // e os que estão marcados; desmarcar tudo volta ao padrão
@@ -625,12 +658,20 @@ function renderFinanciamento(){
           return { ano: a, v: q.candidaturas ? q.eleitas * 100 / q.candidaturas : 0, extra: `${fmt.format(q.candidaturas)} candidaturas, ${fmt.format(q.eleitas)} eleitas` }; });
         return pts.length ? [{ nome: FIN_FAIXA_CURTO[fi], cor: FIN_FAIXA_COR[fi], pts }] : [];
       })
-    : [...new Set(c.fontes.filter(junto).map(r=>r.fonte))].map(f => {
-        const porAno = new Map();
-        for (const r of c.fontes.filter(r => junto(r) && r.fonte===f)) porAno.set(r.ano, (porAno.get(r.ano)||0) + r.total);
-        const pts = marcados.filter(a=>(porAno.get(a)||0)>0).map(a=>({ ano:a, v: porAno.get(a) }));
-        return pts.length ? { nome: finFonteNome(f), cor: finFonteCor(f), pts } : null;
-      }).filter(Boolean).sort((a,b)=> d3.max(b.pts,p=>p.v) - d3.max(a.pts,p=>p.v));
+    : (() => {
+        // agrupa por fonte canônica (reduce grafias) antes de abrir as séries por ano
+        const fams = new Map();
+        for (const r of c.fontes.filter(junto)){
+          const f = finFonteNome(r.fonte);
+          const porAno = fams.get(f) || new Map();
+          porAno.set(r.ano, (porAno.get(r.ano)||0) + r.total);
+          fams.set(f, porAno);
+        }
+        return [...fams.entries()].map(([f, porAno]) => {
+          const pts = marcados.filter(a=>(porAno.get(a)||0)>0).map(a=>({ ano:a, v: porAno.get(a) }));
+          return pts.length ? { nome: f, cor: finFonteCor(f), pts } : null;
+        }).filter(Boolean);
+      })().sort((a,b)=> d3.max(b.pts,p=>p.v) - d3.max(a.pts,p=>p.v));
 
   // agregados dos cards: soma só dos anos marcados, taxa recalculada
   const faixas = FAIXA_ORDEM.map(fi => {
@@ -643,10 +684,12 @@ function renderFinanciamento(){
 
   const porFonte = new Map();
   for (const r of c.fontes.filter(junto)){
-    const o = porFonte.get(r.fonte) || { fonte: r.fonte, total: 0 };
-    o.total += r.total; porFonte.set(r.fonte, o);
+    const fd = finFonteNome(r.fonte);
+    const o = porFonte.get(fd) || { fonte: fd, total: 0 };
+    o.total += r.total; porFonte.set(fd, o);
   }
-  const fontes = [...porFonte.values()].sort((a,b)=>b.total-a.total);
+  // listagem: só fontes com verba; as zeradas ficam ruido visual
+  const fontes = [...porFonte.values()].filter(r=>r.total>0).sort((a,b)=>b.total-a.total);
   const fonteMax = d3.max(fontes, r=>r.total) || 1;
 
   const porPartido = new Map();
@@ -684,14 +727,14 @@ function renderFinanciamento(){
       <ol class="fin-faixas">${faixas.map(q => `<li>
         <button type="button" data-faixa="${q.faixa}" aria-pressed="false" title="Fundos públicos (FEFC + fundo partidário) como fração da receita arrecadada da candidatura; clique para ver quem está na faixa, de novo para fechar">
           <i class="faixa-swatch fin-${FAIXA_ORDEM.indexOf(q.faixa)}"></i>${esc(FAIXA_TXT[q.faixa])}
-          <b class="num">${q.candidaturas||""}</b>
+          <b class="num">${q.candidaturas ? fmt.format(q.candidaturas) : ""}</b>
           <span class="num">${q.candidaturas ? ((q.eleitas/q.candidaturas*100).toLocaleString("pt-BR",{maximumFractionDigits:1}) + "% eleitas") : ""}</span>
         </button></li>`).join("")}</ol>
       <div id="fin-quem"></div>
     </div>
     <div class="fin-bloco">
       <h3>Receita por fonte (verba que a campanha recebeu)</h3>
-      ${fontes.length ? fontes.map(r => `<div class="hb"><span>${esc(finFonteNome(r.fonte))}</span><i class="t" style="width:${r.total/fonteMax*100}%"></i><span class="v">${brlc(r.total)}</span></div>`).join("")
+      ${fontes.length ? fontes.map(r => `<div class="hb"><span>${esc(r.fonte)}</span><i class="t" style="width:${r.total/fonteMax*100}%"></i><span class="v">${brlc(r.total)}</span></div>`).join("")
         : `<p class="aviso-mini">Sem receita lançada na base.</p>`}
       <details class="fin-partidos"><summary>Partidos <small>(10 que mais arrecadaram)</small></summary>
       <div class="tabw"><table class="tab"><thead><tr><th>Partido</th><th class="v">Candidaturas</th><th class="v">Eleitas</th><th class="v">Arrecadado</th><th class="v">Público</th></tr></thead><tbody>
