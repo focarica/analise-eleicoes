@@ -182,7 +182,14 @@ tr.reel-soma td{ border-top:1.5px solid var(--ink-3); }
 .reel-leg i{ display:inline-block; width:.9rem; height:.65rem; border-radius:2px; margin-right:.35rem; vertical-align:-1px; }
 .reel-leg i.volt{ background:var(--ink); }
 .reel-leg i.perd{ background:color-mix(in srgb, var(--ink) 45%, var(--bg)); }
-.reel-leg i.nao{ background:var(--line); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ink) 28%, transparent); }
+.reel-leg i.nao{ background:repeating-linear-gradient(55deg, color-mix(in srgb, var(--ink) 22%, var(--bg)) 0 2px, transparent 2px 5px); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ink) 28%, transparent); }
+
+/* linha da hachura dentro do padrão SVG do gráfico de reeleição */
+.reel-grafico .hach{ stroke:color-mix(in srgb, var(--ink) 22%, transparent); stroke-width:1.1; }
+.reel-grafico .hachura{ pointer-events:none; }
+
+/* nota de escala do gráfico de patrimônio */
+.pat-nota{ font-size:.82rem; color:var(--ink-3); margin:-.25rem 0 .5rem; }
 .reel-busca{ width:100%; box-sizing:border-box; margin:.35rem 0 .6rem; padding:.35rem .6rem; border:1.5px solid var(--line); border-radius:8px; font:inherit; font-size:.85rem; background:transparent; color:inherit; }
 .fin-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr)); gap:1.25rem 2.5rem; }
 .fin-bloco h3{ margin:0 0 .6rem; font-size:.95rem; font-weight:700; }

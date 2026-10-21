@@ -930,15 +930,20 @@ function grafReel(ciclos, municipal){
     const p = n => n * 100 / (c.eleitos || 1);
     const seg = (de, ate, cor, txt) => ate > de
       ? `<rect x="${(cx - larg/2).toFixed(1)}" y="${y(ate).toFixed(1)}" width="${larg.toFixed(1)}" height="${(y(de) - y(ate)).toFixed(1)}" fill="${cor}"><title>${esc(txt)}</title></rect>` : "";
+    // "não tentaram" leva hachura: lê como categoria própria, não como vazio ou dado faltante
+    const naoSeg = (de, ate, txt) => ate > de
+      ? `${seg(de, ate, "var(--line)", txt)}<rect x="${(cx - larg/2).toFixed(1)}" y="${y(ate).toFixed(1)}" width="${larg.toFixed(1)}" height="${(y(de) - y(ate)).toFixed(1)}" fill="url(#hach-reel)" class="hachura"><title>${esc(txt)}</title></rect>` : "";
     const taxaTxt = c.taxa != null ? `${c.taxa.toLocaleString("pt-BR")}%` : "–";
     return `${seg(0, p(c.reeleitos), "var(--ink)", `Voltaram: ${c.reeleitos} de ${c.eleitos} eleitos em ${c.anoEleito} (${taxaTxt} de quem tentou)`)}` +
       `${seg(p(c.reeleitos), p(c.reeleitos + tp), "color-mix(in srgb, var(--ink) 45%, var(--bg))", `Tentaram e perderam: ${tp}`)}` +
-      `${seg(p(c.reeleitos + tp), 100, "var(--line)", `Não tentaram de novo: ${nt}`)}` +
+      `${naoSeg(p(c.reeleitos + tp), 100, `Não tentaram de novo: ${nt}`)}` +
       `<text x="${cx.toFixed(1)}" y="${(T - 8).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--ink)">${taxaTxt}</text>` +
       `${municipal && c.taxaMunicipios != null ? `<text x="${cx.toFixed(1)}" y="${(T - 20).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--ink-3)">média mun. ${c.taxaMunicipios.toLocaleString("pt-BR")}%</text>` : ""}` +
       `<text x="${cx.toFixed(1)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="var(--ink-3)">${c.anoEleito}→${c.anoDisputa}</text>`;
   }).join("");
-  return `<svg class="reel-grafico" viewBox="0 0 ${W} ${H}" role="img" aria-label="Composição da reeleição por ciclo: voltaram, tentaram e perderam, não tentaram">${grade}${cols}</svg>`;
+  return `<svg class="reel-grafico" viewBox="0 0 ${W} ${H}" role="img" aria-label="Composição da reeleição por ciclo: voltaram, tentaram e perderam, não tentaram">
+    <defs><pattern id="hach-reel" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" class="hach"/></pattern></defs>
+    ${grade}${cols}</svg>`;
 }
 
 function renderReeleicao(){
@@ -1322,6 +1327,13 @@ async function abrirCandidato(id){
     const pts = porAno.map(([a,v],i)=>({a,v,i}));
     const linha = d3.line().x(d=>x(d.i)).y(d=>y(d.v)).curve(d3.curveMonotoneX);
     const txt = v => brlc(v).replace("R$ ","");
+    // quando o menor valor é esmagado pelo maior (4×+), o ponto do início fica rente à
+    // base — isso é efeito da escala partindo de zero, não patrimônio zero; avisa o leitor
+    const vmin = d3.min(porAno, d=>d[1]);
+    const anoMin = porAno.find(d=>d[1]===vmin)[0];
+    const nota = vmin > 0 && mx / vmin >= 4
+      ? `<p class="aviso-mini pat-nota">Escala a partir de zero: o menor valor declarado (${brlc(vmin)}, em ${anoMin}) fica rente à base, mas isso é a diferença em relação a ${brlc(mx)} — não significa patrimônio zero.</p>`
+      : "";
     evol = `<h3>Patrimônio declarado ao longo das eleições</h3>
       <svg class="pat-linha" viewBox="0 0 ${W} ${H}" role="img" aria-label="Patrimônio declarado em cada eleição, do ${porAno[0][0]} ao ${porAno[porAno.length-1][0]}">
         <line x1="${LAT}" y1="${H-baixo}" x2="${W-LAT}" y2="${H-baixo}" class="eixo"/>
@@ -1330,7 +1342,7 @@ async function abrirCandidato(id){
         ${pts.map(d=>`<circle cx="${x(d.i)}" cy="${y(d.v)}" r="4.5" class="pto" tabindex="0" aria-label="${d.a}: ${brlc(d.v)}"><title>${d.a}: ${brlc(d.v)}</title></circle>
           <text x="${x(d.i)}" y="${y(d.v)-11}" class="val" text-anchor="middle">${txt(d.v)}</text>
           <text x="${x(d.i)}" y="${H-10}" class="ano" text-anchor="middle">${d.a}</text>`).join("")}
-      </svg>`;
+      </svg>${nota}`;
   }
 
   abrirGaveta(`
