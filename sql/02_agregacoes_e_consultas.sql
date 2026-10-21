@@ -58,22 +58,22 @@ HAVING count(DISTINCT (qt_aptos, qt_comparecimento, qt_abstencao)) > 1;
 -- 3) Reconciliação de carga: contagens por ano nas tabelas de destino.
 SELECT 'candidatura' AS tabela, ano_eleicao, count(*) AS linhas
 FROM candidatura
-WHERE ano_eleicao IN (2018, 2020, 2022, 2024)
+WHERE ano_eleicao IN (2004, 2006, 2008, 2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024)
 GROUP BY ano_eleicao
 UNION ALL
 SELECT 'bens_declarados', ano_eleicao, count(*)
 FROM bens_declarados
-WHERE ano_eleicao IN (2018, 2020, 2022, 2024)
+WHERE ano_eleicao IN (2004, 2006, 2008, 2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024)
 GROUP BY ano_eleicao
 UNION ALL
 SELECT 'receitas_campanha', ano_eleicao, count(*)
 FROM receitas_campanha
-WHERE ano_eleicao IN (2018, 2020, 2022, 2024)
+WHERE ano_eleicao IN (2004, 2006, 2008, 2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024)
 GROUP BY ano_eleicao
 UNION ALL
 SELECT 'despesas_pagas', ano_eleicao, count(*)
 FROM despesas_pagas
-WHERE ano_eleicao IN (2018, 2020, 2022, 2024)
+WHERE ano_eleicao IN (2004, 2006, 2008, 2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024)
 GROUP BY ano_eleicao
 ORDER BY ano_eleicao, tabela;
 

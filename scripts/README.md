@@ -5,7 +5,7 @@ Esta pasta contém o pipeline local de aquisição e preparação dos dados do T
 ## Requisitos e entrada
 
 - Python 3.10 ou superior; os scripts usam a biblioteca padrão.
-- Oito conjuntos CSV compactados de cada ano 2018, 2020, 2022 e 2024: candidaturas, complemento, bens, votos por candidato, votos por partido, comparecimento por zona, perfil do eleitorado e prestação de contas de candidatos.
+- O banco publicado em MotherDuck cobre os pleitos de 2004–2024. Para reproduzir essa carga, use o fluxo autocontido documentado em [`motherduck/README.md`](motherduck/README.md). O pipeline PostgreSQL desta pasta é uma alternativa local com escopo configurado no normalizador.
 - Os ZIPs devem estar em `data/raw/` com nomes `<conjunto>_<ano>.zip`. Exemplos: `consulta_cand_2024.zip`, `perfil_eleitorado_2020.zip`.
 
 Obtenha os arquivos no [Portal de Dados Abertos do TSE](https://dadosabertos.tse.jus.br/). A disponibilidade, os nomes internos e os cabeçalhos variam por edição. Não descompacte manualmente.
