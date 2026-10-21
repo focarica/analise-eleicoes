@@ -231,11 +231,12 @@ tr.reel-soma td{ border-top:1.5px solid var(--ink-3); }
 .perfil-topo.sem-foto{ grid-template-columns:minmax(0,1fr); }
 .perfil-topo.sem-foto .perfil-info{ grid-column:1; }
 .perfil-info{ min-width:0; }
-.fatos{ display:flex; flex-wrap:wrap; gap:.4rem 1.4rem; margin:1rem 0 0; padding:0; list-style:none; font-size:.88rem; color:var(--ink-2); }
+.fatos{ display:flex; flex-wrap:wrap; gap:.4rem .5rem; margin:1rem 0 0; padding:0; list-style:none; font-size:.85rem; color:var(--ink-2); }
+.fatos li{ background:var(--surface); border-radius:999px; padding:.28rem .7rem; line-height:1.4; }
 .fatos b{ color:var(--ink); font-weight:600; }
 .gaveta h3{ margin:1.75rem 0 .6rem; font-size:1rem; font-weight:700; }
 .linha-tempo{ list-style:none; margin:1.25rem 0 0; padding:0; border-left:2px solid var(--line); }
-.linha-tempo > li{ position:relative; display:grid; grid-template-columns:68px minmax(0,1fr); gap:.8rem; padding:0 0 1.5rem 1.25rem; }
+.linha-tempo > li{ position:relative; display:grid; grid-template-columns:68px minmax(0,1fr); gap:.8rem; padding:0 0 1.15rem 1.25rem; }
 .linha-tempo > li::before{ content:""; position:absolute; left:-7px; top:.45rem; width:12px; height:12px; border-radius:50%; background:var(--bg); border:2px solid var(--ink-3); }
 .linha-tempo > li.el::before{ background:var(--ok); border-color:var(--ok); }
 .linha-tempo > li.sem-foto{ grid-template-columns:minmax(0,1fr); }
@@ -246,18 +247,23 @@ tr.reel-soma td{ border-top:1.5px solid var(--ink-3); }
 .foto-frame img{ display:block; width:100%; height:100%; object-fit:cover; object-position:top; }
 .foto-topo{ width:92px; height:120px; }
 .foto-candidatura{ grid-column:1; width:68px; height:88px; }
-.lt-ano{ font-weight:800; font-size:1.6rem; letter-spacing:-0.03em; line-height:1; }
-.lt-cargo{ font-weight:600; margin-top:.2rem; }
+.lt-ano{ font-weight:800; font-size:1.5rem; letter-spacing:-0.03em; line-height:1; }
+.lt-cargo{ font-weight:600; margin-top:.25rem; display:flex; flex-wrap:wrap; align-items:center; gap:.3rem .45rem; line-height:1.35; }
+.lt-cargo .chip, .lt-cargo .sit{ vertical-align:baseline; margin-left:0; }
 .sit{ display:inline-block; font-size:.75rem; font-weight:700; padding:.1rem .45rem; border-radius:999px; border:1.5px solid var(--ink-3); color:var(--ink-2); margin-left:.3rem; vertical-align:2px; }
 .sit.el{ border-color:var(--ok); color:var(--ok); }
 .chip{ display:inline-block; font-size:.75rem; font-weight:700; color:#fff; padding:.1rem .45rem; border-radius:999px; vertical-align:2px; }
-.grade{ display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:.5rem 1rem; margin-top:.7rem; }
-.grade > div{ background:var(--surface); border-radius:8px; padding:.5rem .65rem; }
-.grade small{ display:block; color:var(--ink-3); font-size:.75rem; }
-.grade b{ font-size:1.02rem; font-weight:700; }
-.split{ display:flex; height:.45rem; border-radius:2px; overflow:hidden; margin-top:.35rem; background:var(--line); }
+.grade{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.45rem; margin-top:.7rem; }
+.grade > div{ background:var(--surface); border-radius:8px; padding:.5rem .65rem; display:flex; flex-direction:column; gap:.15rem; min-width:0; }
+.grade small{ display:block; color:var(--ink-3); font-size:.75rem; line-height:1.3; }
+.grade b{ font-size:1.05rem; font-weight:700; line-height:1.2; }
+.split{ display:flex; height:.45rem; border-radius:2px; overflow:hidden; margin-top:.25rem; background:var(--line); }
 .split i{ display:block; height:100%; }
-.legenda-split{ font-size:.75rem; color:var(--ink-3); margin-top:.2rem; }
+.legenda-split{ font-size:.72rem; color:var(--ink-3); margin-top:.1rem; }
+/* ficha do candidato: expansores compactados dentro da gaveta */
+.gaveta details{ margin:.4rem 0 0; font-size:.88rem; }
+.gaveta details summary{ padding:.35rem 0; }
+.gaveta details[open] summary{ margin-bottom:.35rem; }
 details{ margin-top:.6rem; font-size:.88rem; }
 summary{ cursor:pointer; color:var(--ink-2); font-weight:600; }
 .tab{ width:100%; border-collapse:collapse; font-size:.85rem; margin-top:.4rem; }
