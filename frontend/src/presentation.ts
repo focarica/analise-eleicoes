@@ -235,6 +235,8 @@ function nenhumEstado(voar){
   document.getElementById("anos").innerHTML = "";
   document.getElementById("cargos").innerHTML = "";
   document.getElementById("legenda").innerHTML = "";
+  // quartis dependem de estado+ano: na visão Brasil, convite claro no lugar dos cartões
+  document.getElementById("quartis").innerHTML = `<p class="aviso-mini">Escolha um estado da amostra para ver as faixas de gasto por cargo daquele ano.</p>`;
   montarFinanciamento();
   montarReeleicao();
   desenharForma(false);
@@ -447,11 +449,11 @@ function montarQuartis(linhas){
     // média geral de eleitos e não eleitos, recomposta a partir das médias de cada faixa
     const pond = (campo, qtd) => { const v = rows.filter(q=>q[campo]!=null); const w = d3.sum(v, qtd); return w ? d3.sum(v, q=>+q[campo]*qtd(q))/w : null; };
     const mEl = pond("media_gasto_eleitos", q=>+q.qtd_eleitos), mNao = pond("media_gasto_nao_eleitos", q=>+q.qtd_candidatos_na_faixa - q.qtd_eleitos);
-    return `<div class="qc"><h3>${cargoNome(c)}</h3><p class="nota" style="margin:-.4rem 0 0">${n} ${n===1?"candidato":"candidatos"}, ${el_} ${el_===1?"eleito":"eleitos"}</p>
+    return `<div class="qc"><h3>${cargoNome(c)}</h3><p class="nota" style="margin:-.4rem 0 0">${fmt.format(n)} ${n===1?"candidato":"candidatos"}, ${fmt.format(el_)} ${el_===1?"eleito":"eleitos"}</p>
       <div class="barras">${faixas.map(q => q.vazia
         ? `<div class="b vazia" title="Nenhum candidato nesta faixa"><span>–</span></div>`
         : `<div class="b" style="height:${Math.max(2,+q.taxa_sucesso_pct)}%" title="${q.qtd_eleitos} de ${q.qtd_candidatos_na_faixa} eleitos; gastos de ${brl(+q.piso_faixa)} a ${brl(+q.teto_faixa)}"><span>${(+q.taxa_sucesso_pct).toLocaleString("pt-BR",{maximumFractionDigits:0})}%</span></div>`).join("")}</div>
-      <div class="eixo num">${faixas.map(q=>`<span>até<br>${brlc(+q.limite_superior_faixa)}<br><em>${q.vazia ? "ninguém" : q.qtd_candidatos_na_faixa + (+q.qtd_candidatos_na_faixa===1?" cand.":" cand.")}</em></span>`).join("")}</div>
+      <div class="eixo num">${faixas.map(q=>`<span>até<br>${brlc(+q.limite_superior_faixa)}<br><em>${q.vazia ? "ninguém" : fmt.format(+q.qtd_candidatos_na_faixa) + (+q.qtd_candidatos_na_faixa===1?" cand.":" cand.")}</em></span>`).join("")}</div>
       <p class="med">Gasto médio: eleitos <b>${brlc(mEl)}</b>, não eleitos <b>${brlc(mNao)}</b></p></div>`;
   }).join("");
 }
@@ -472,9 +474,40 @@ const FIN = { cargo: null, sel: "todos", graf: "taxa", log: false, ocultas: new 
 const FIN_COMPACTO = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
 const FIN_FAIXA_CURTO = { "[00,25)": "até 24%", "[25,50)": "25–49%", "[50,75)": "50–74%", "[75,100]": "75%+", "sem receita": "sem receita" };
 const FIN_FAIXA_COR = { "[00,25)": "var(--faixa-0)", "[25,50)": "var(--faixa-1)", "[50,75)": "var(--faixa-2)", "[75,100]": "var(--faixa-3)", "sem receita": "var(--faixa-4)" };
-const FIN_FONTE_SERIE = { "FUNDO ESPECIAL": ["Fundo especial (FEFC)", "var(--ink)"], "FUNDO PARTIDARIO": ["Fundo partidário", "color-mix(in srgb, var(--ink) 45%, var(--bg))"], "OUTROS RECURSOS": ["Outras fontes", "var(--ink-3)"] };
-const finFonteNome = f => f == null ? "Sem fonte informada" : (FIN_FONTE_SERIE[f]?.[0] || titulo(f));
-const finFonteCor = f => FIN_FONTE_SERIE[f]?.[1] || "var(--ink-2)";
+const FIN_FONTE_SERIE = { "Fundo especial (FEFC)": "var(--ink)", "Fundo partidário": "color-mix(in srgb, var(--ink) 45%, var(--bg))", "Outros recursos": "var(--ink-3)" };
+// A TSE escreve a mesma fonte com maiúsculas e acentos variando (e typos: "Fundo
+// Partidáo", "Recursos Proprios"); sem essa redução a lista fica com uma linha
+// por grafia em vez de uma linha por fonte.
+const finFonteNome = f => {
+  if (f == null) return "Sem fonte informada";
+  const n = norm(f).replace(/\s+/g," ").trim();
+  return ({
+    "FUNDO ESPECIAL": "Fundo especial (FEFC)",
+    "FUNDO ESPECIAL (FEFC)": "Fundo especial (FEFC)",
+    "SEM FONTE INFORMADA": "Sem fonte informada",
+    "FUNDO PARTIDARIO": "Fundo partidário",
+    "FUNDO PARTIDO": "Fundo partidário",
+    "FUNDO PARTIDAO": "Fundo partidário",
+    "RECURSOS DO FUNDO PARTIDARIO": "Fundo partidário",
+    "OUTROS RECURSOS": "Outros recursos",
+    "OUTROS RECURSOS NAO DESCRITOS": "Outros recursos não descritos",
+    "NAO ESPECIFICADO": "Não especificado",
+    "NAO INFORMADO": "Não especificado",
+    "RECURSOS DE OUTROS CANDIDATOS/COMITES": "Recursos de outros candidatos/comitês",
+    "RECURSOS DE PESSOAS FISICAS": "Recursos de pessoas físicas",
+    "RECURSOS DE PESSOAS JURIDICAS": "Recursos de pessoas jurídicas",
+    "RECURSOS PROPRIOS": "Recursos próprios",
+    "RECURSOS DE PARTIDO POLITICO": "Recursos de partido político",
+    "RECURSOS DE ORIGENS NAO IDENTIFICADAS": "Recursos de origens não identificadas",
+    "RECURSOS DE ORIGENS NAO IDENTIFICADA": "Recursos de origens não identificadas",
+    "RENDIMENTOS DE APLICACOES FINANCEIRAS": "Rendimentos de aplicações financeiras",
+    "RECEITAS DIVERSAS A ESPECIFICAR": "Receitas diversas a especificar",
+    "COMERCIALIZACAO DE BENS OU REALIZACAO DE EVENTOS": "Comercialização de bens ou realização de eventos",
+    "DESCRICAO DAS DOACOES RELATIVAS A COMERCIALIZACAO": "Descrição das doações relativas à comercialização",
+    "DESCRICOES DAS DOACOES RELATIVAS A COMERCIALIZACAO OU EVENTO": "Descrição das doações relativas à comercialização",
+  })[n] || titulo(f);
+};
+const finFonteCor = f => FIN_FONTE_SERIE[f] || "var(--ink-2)";
 
 // anos disponíveis do cargo (só existem os anos em que o cargo foi disputado)
 // e os que estão marcados; desmarcar tudo volta ao padrão
@@ -625,12 +658,20 @@ function renderFinanciamento(){
           return { ano: a, v: q.candidaturas ? q.eleitas * 100 / q.candidaturas : 0, extra: `${fmt.format(q.candidaturas)} candidaturas, ${fmt.format(q.eleitas)} eleitas` }; });
         return pts.length ? [{ nome: FIN_FAIXA_CURTO[fi], cor: FIN_FAIXA_COR[fi], pts }] : [];
       })
-    : [...new Set(c.fontes.filter(junto).map(r=>r.fonte))].map(f => {
-        const porAno = new Map();
-        for (const r of c.fontes.filter(r => junto(r) && r.fonte===f)) porAno.set(r.ano, (porAno.get(r.ano)||0) + r.total);
-        const pts = marcados.filter(a=>(porAno.get(a)||0)>0).map(a=>({ ano:a, v: porAno.get(a) }));
-        return pts.length ? { nome: finFonteNome(f), cor: finFonteCor(f), pts } : null;
-      }).filter(Boolean).sort((a,b)=> d3.max(b.pts,p=>p.v) - d3.max(a.pts,p=>p.v));
+    : (() => {
+        // agrupa por fonte canônica (reduce grafias) antes de abrir as séries por ano
+        const fams = new Map();
+        for (const r of c.fontes.filter(junto)){
+          const f = finFonteNome(r.fonte);
+          const porAno = fams.get(f) || new Map();
+          porAno.set(r.ano, (porAno.get(r.ano)||0) + r.total);
+          fams.set(f, porAno);
+        }
+        return [...fams.entries()].map(([f, porAno]) => {
+          const pts = marcados.filter(a=>(porAno.get(a)||0)>0).map(a=>({ ano:a, v: porAno.get(a) }));
+          return pts.length ? { nome: f, cor: finFonteCor(f), pts } : null;
+        }).filter(Boolean);
+      })().sort((a,b)=> d3.max(b.pts,p=>p.v) - d3.max(a.pts,p=>p.v));
 
   // agregados dos cards: soma só dos anos marcados, taxa recalculada
   const faixas = FAIXA_ORDEM.map(fi => {
@@ -643,10 +684,12 @@ function renderFinanciamento(){
 
   const porFonte = new Map();
   for (const r of c.fontes.filter(junto)){
-    const o = porFonte.get(r.fonte) || { fonte: r.fonte, total: 0 };
-    o.total += r.total; porFonte.set(r.fonte, o);
+    const fd = finFonteNome(r.fonte);
+    const o = porFonte.get(fd) || { fonte: fd, total: 0 };
+    o.total += r.total; porFonte.set(fd, o);
   }
-  const fontes = [...porFonte.values()].sort((a,b)=>b.total-a.total);
+  // listagem: só fontes com verba; as zeradas ficam ruido visual
+  const fontes = [...porFonte.values()].filter(r=>r.total>0).sort((a,b)=>b.total-a.total);
   const fonteMax = d3.max(fontes, r=>r.total) || 1;
 
   const porPartido = new Map();
@@ -684,14 +727,14 @@ function renderFinanciamento(){
       <ol class="fin-faixas">${faixas.map(q => `<li>
         <button type="button" data-faixa="${q.faixa}" aria-pressed="false" title="Fundos públicos (FEFC + fundo partidário) como fração da receita arrecadada da candidatura; clique para ver quem está na faixa, de novo para fechar">
           <i class="faixa-swatch fin-${FAIXA_ORDEM.indexOf(q.faixa)}"></i>${esc(FAIXA_TXT[q.faixa])}
-          <b class="num">${q.candidaturas||""}</b>
+          <b class="num">${q.candidaturas ? fmt.format(q.candidaturas) : ""}</b>
           <span class="num">${q.candidaturas ? ((q.eleitas/q.candidaturas*100).toLocaleString("pt-BR",{maximumFractionDigits:1}) + "% eleitas") : ""}</span>
         </button></li>`).join("")}</ol>
       <div id="fin-quem"></div>
     </div>
     <div class="fin-bloco">
       <h3>Receita por fonte (verba que a campanha recebeu)</h3>
-      ${fontes.length ? fontes.map(r => `<div class="hb"><span>${esc(finFonteNome(r.fonte))}</span><i class="t" style="width:${r.total/fonteMax*100}%"></i><span class="v">${brlc(r.total)}</span></div>`).join("")
+      ${fontes.length ? fontes.map(r => `<div class="hb"><span>${esc(r.fonte)}</span><i class="t" style="width:${r.total/fonteMax*100}%"></i><span class="v">${brlc(r.total)}</span></div>`).join("")
         : `<p class="aviso-mini">Sem receita lançada na base.</p>`}
       <details class="fin-partidos"><summary>Partidos <small>(10 que mais arrecadaram)</small></summary>
       <div class="tabw"><table class="tab"><thead><tr><th>Partido</th><th class="v">Candidaturas</th><th class="v">Eleitas</th><th class="v">Arrecadado</th><th class="v">Público</th></tr></thead><tbody>
@@ -757,7 +800,7 @@ async function quemFinanciamento(faixa, continuar){
         <td><span class="chip" style="background:${corP(p.partido)}">${esc(p.partido)}</span></td>
         ${multi ? `<td>${p.ano}</td>` : ""}
         <td>${esc(titulo(p.municipio || p.uf || ""))}</td>
-        <td>${sitTxt(p.situacao)}</td>
+        <td class="${!ehEleito(p.situacao) ? "dim" : ""}">${sitTxt(p.situacao)}</td>
         <td class="v num">${brlc(p.total)}</td>
         <td class="v">${p.pct_publico != null ? p.pct_publico.toLocaleString("pt-BR") + "%" : "–"}</td>
       </tr>`).join("")}</tbody></table>
@@ -930,15 +973,20 @@ function grafReel(ciclos, municipal){
     const p = n => n * 100 / (c.eleitos || 1);
     const seg = (de, ate, cor, txt) => ate > de
       ? `<rect x="${(cx - larg/2).toFixed(1)}" y="${y(ate).toFixed(1)}" width="${larg.toFixed(1)}" height="${(y(de) - y(ate)).toFixed(1)}" fill="${cor}"><title>${esc(txt)}</title></rect>` : "";
+    // "não tentaram" leva hachura: lê como categoria própria, não como vazio ou dado faltante
+    const naoSeg = (de, ate, txt) => ate > de
+      ? `${seg(de, ate, "var(--line)", txt)}<rect x="${(cx - larg/2).toFixed(1)}" y="${y(ate).toFixed(1)}" width="${larg.toFixed(1)}" height="${(y(de) - y(ate)).toFixed(1)}" fill="url(#hach-reel)" class="hachura"><title>${esc(txt)}</title></rect>` : "";
     const taxaTxt = c.taxa != null ? `${c.taxa.toLocaleString("pt-BR")}%` : "–";
     return `${seg(0, p(c.reeleitos), "var(--ink)", `Voltaram: ${c.reeleitos} de ${c.eleitos} eleitos em ${c.anoEleito} (${taxaTxt} de quem tentou)`)}` +
       `${seg(p(c.reeleitos), p(c.reeleitos + tp), "color-mix(in srgb, var(--ink) 45%, var(--bg))", `Tentaram e perderam: ${tp}`)}` +
-      `${seg(p(c.reeleitos + tp), 100, "var(--line)", `Não tentaram de novo: ${nt}`)}` +
+      `${naoSeg(p(c.reeleitos + tp), 100, `Não tentaram de novo: ${nt}`)}` +
       `<text x="${cx.toFixed(1)}" y="${(T - 8).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--ink)">${taxaTxt}</text>` +
       `${municipal && c.taxaMunicipios != null ? `<text x="${cx.toFixed(1)}" y="${(T - 20).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--ink-3)">média mun. ${c.taxaMunicipios.toLocaleString("pt-BR")}%</text>` : ""}` +
       `<text x="${cx.toFixed(1)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="var(--ink-3)">${c.anoEleito}→${c.anoDisputa}</text>`;
   }).join("");
-  return `<svg class="reel-grafico" viewBox="0 0 ${W} ${H}" role="img" aria-label="Composição da reeleição por ciclo: voltaram, tentaram e perderam, não tentaram">${grade}${cols}</svg>`;
+  return `<svg class="reel-grafico" viewBox="0 0 ${W} ${H}" role="img" aria-label="Composição da reeleição por ciclo: voltaram, tentaram e perderam, não tentaram">
+    <defs><pattern id="hach-reel" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" class="hach"/></pattern></defs>
+    ${grade}${cols}</svg>`;
 }
 
 function renderReeleicao(){
@@ -1271,7 +1319,9 @@ async function abrirCandidato(id){
   const cs = h.candidaturas.filter(c => c.cargo).sort((a,b)=>a.ano_eleicao-b.ano_eleicao || ordemCargo(a.cargo)-ordemCargo(b.cargo));
   const candidaturaRecente = cs[cs.length-1];
   const eleicoes = cs.filter(c=>ehEleito(c.situacao)).length;
-  const urna = [...new Set(cs.map(c=>c.nm_urna_candidato))].map(titulo).join(" / ");
+  // nome de urna: o da candidatura mais recente (variantes antigas ficam no tooltip)
+  const urna = candidaturaRecente?.nm_urna_candidato ? titulo(candidaturaRecente.nm_urna_candidato) : "";
+  const urnas = [...new Set(cs.map(c=>c.nm_urna_candidato).filter(Boolean))].map(titulo);
   const ultimaIdade = cs.length ? idade(h.nascimento, cs[cs.length-1].ano_eleicao) : null;
 
   const item = c => {
@@ -1279,8 +1329,13 @@ async function abrirCandidato(id){
     const local = c.nm_municipio ? `${titulo(c.nm_municipio)} (${c.uf})` : c.uf;
     const rp = +c.receitas_publicas||0, rv = +c.receitas_privadas||0, rt = +c.total_receitas||0;
     const custoVoto = c.votos > 0 && c.total_despesas > 0 ? c.total_despesas / c.votos : null;
+    const cardVotos = c.votos!=null ? `<div><small>Votos (1º turno)</small><b class="num">${fmt.format(c.votos)}</b></div>` : "";
+    // receitas por fonte: só as fontes com entrada; as sem lançamentos vão para um expander à parte
+    const fontesCom = c.receitas.filter(r=>+r.valor>0), fontesZero = c.receitas.filter(r=>+r.valor<=0);
+    const linhaFonte = r=>`<tr><td>${esc(titulo(r.fonte))}</td><td>${esc(titulo(r.origem))}</td><td class="v num">${r.qtd}</td><td class="v">${brl(r.valor||0)}</td></tr>`;
     const receitas = c.receitas.length ? `<details><summary>Receitas por fonte</summary><div class="tabw"><table class="tab"><thead><tr><th>Fonte</th><th>Origem</th><th class="v">Lançamentos</th><th class="v">Valor</th></tr></thead><tbody>
-      ${c.receitas.map(r=>`<tr><td>${esc(titulo(r.fonte))}</td><td>${esc(titulo(r.origem))}</td><td class="v">${r.qtd}</td><td class="v">${brl(r.valor)}</td></tr>`).join("")}</tbody></table></div></details>` : "";
+      ${fontesCom.map(linhaFonte).join("")}</tbody></table></div>
+      ${fontesZero.length ? `<details class="fontes-zero"><summary>${fontesZero.length} ${fontesZero.length===1?"fonte sem lançamentos":"fontes sem lançamentos"}</summary><div class="tabw"><table class="tab"><thead><tr><th>Fonte</th><th>Origem</th></tr></thead><tbody>${fontesZero.map(r=>`<tr><td>${esc(titulo(r.fonte))}</td><td>${esc(titulo(r.origem))}</td></tr>`).join("")}</tbody></table></div></details>` : ""}</details>` : "";
     const despesas = c.despesas.length ? `<details><summary>Maiores despesas (${Math.min(c.despesas.length, c.qt_despesas)} de ${fmt.format(c.qt_despesas)})</summary><div class="tabw"><table class="tab"><tbody>
       ${c.despesas.map(d=>`<tr><td>${esc(d.despesa ? d.despesa.toLowerCase().replace(/^./,x=>x.toUpperCase()) : "Sem descrição")}</td><td class="v">${brl(d.valor)}</td></tr>`).join("")}</tbody></table></div></details>` : "";
     const bens = c.bens.length ? `<details><summary>Bens declarados (${c.bens.length})</summary><div class="tabw"><table class="tab"><tbody>
@@ -1292,7 +1347,7 @@ async function abrirCandidato(id){
       <div class="lt-ano">${c.ano_eleicao}</div>
       <div class="lt-cargo">${cargoNome(c.cargo)}, ${esc(local)} <span class="chip" style="background:${corP(c.partido)}">${esc(c.partido)}</span><span class="sit ${el?"el":""}">${sitTxt(c.situacao)}</span></div>
       <div class="grade">
-        <div><small>Votos (1º turno)</small><b class="num">${c.votos!=null ? fmt.format(c.votos) : "–"}</b></div>
+        ${cardVotos}
         <div><small>Receitas</small><b class="num">${brlc(rt)}</b>${rt ? `<div class="split"><i style="width:${rp/rt*100}%;background:var(--ink)"></i><i style="width:${rv/rt*100}%;background:var(--ink-3)"></i></div><div class="legenda-split">${Math.round(rp/rt*100)}% público, ${Math.round(rv/rt*100)}% privado</div>` : ""}</div>
         <div><small>Despesas pagas</small><b class="num">${brlc(+c.total_despesas)}</b>${custoVoto ? `<div class="legenda-split">${brl(custoVoto)} por voto</div>` : ""}</div>
         <div><small>Patrimônio declarado</small><b class="num">${brlc(+c.patrimonio_declarado)}</b></div>
@@ -1315,6 +1370,13 @@ async function abrirCandidato(id){
     const pts = porAno.map(([a,v],i)=>({a,v,i}));
     const linha = d3.line().x(d=>x(d.i)).y(d=>y(d.v)).curve(d3.curveMonotoneX);
     const txt = v => brlc(v).replace("R$ ","");
+    // quando o menor valor é esmagado pelo maior (4×+), o ponto do início fica rente à
+    // base — isso é efeito da escala partindo de zero, não patrimônio zero; avisa o leitor
+    const vmin = d3.min(porAno, d=>d[1]);
+    const anoMin = porAno.find(d=>d[1]===vmin)[0];
+    const nota = vmin > 0 && mx / vmin >= 4
+      ? `<p class="aviso-mini pat-nota">Escala a partir de zero: o menor valor declarado (${brlc(vmin)}, em ${anoMin}) fica rente à base, mas isso é a diferença em relação a ${brlc(mx)} — não significa patrimônio zero.</p>`
+      : "";
     evol = `<h3>Patrimônio declarado ao longo das eleições</h3>
       <svg class="pat-linha" viewBox="0 0 ${W} ${H}" role="img" aria-label="Patrimônio declarado em cada eleição, do ${porAno[0][0]} ao ${porAno[porAno.length-1][0]}">
         <line x1="${LAT}" y1="${H-baixo}" x2="${W-LAT}" y2="${H-baixo}" class="eixo"/>
@@ -1323,7 +1385,7 @@ async function abrirCandidato(id){
         ${pts.map(d=>`<circle cx="${x(d.i)}" cy="${y(d.v)}" r="4.5" class="pto" tabindex="0" aria-label="${d.a}: ${brlc(d.v)}"><title>${d.a}: ${brlc(d.v)}</title></circle>
           <text x="${x(d.i)}" y="${y(d.v)-11}" class="val" text-anchor="middle">${txt(d.v)}</text>
           <text x="${x(d.i)}" y="${H-10}" class="ano" text-anchor="middle">${d.a}</text>`).join("")}
-      </svg>`;
+      </svg>${nota}`;
   }
 
   abrirGaveta(`
@@ -1331,7 +1393,7 @@ async function abrirCandidato(id){
       ${candidaturaRecente?.sq_candidato ? `<span class="foto-frame foto-topo"><img src="/api/photo/${candidaturaRecente.ano_eleicao}/${candidaturaRecente.sq_candidato}" alt="Foto oficial de ${esc(titulo(candidaturaRecente.nm_candidato||h.nome))} na eleição ${candidaturaRecente.ano_eleicao}" decoding="async"></span>` : ""}
       <div class="perfil-info">
       <h2 id="g-titulo">${esc(titulo(h.nome))}</h2>
-      <p class="sub">${urna ? "Na urna: " + esc(urna) : ""}</p>
+      <p class="sub"${urnas.length > 1 ? ` title="Variantes do nome de urna na base: ${esc(urnas.join(" / "))}"` : ""}>${urna ? "Na urna: " + esc(urna) : ""}</p>
       <ul class="fatos">
       <li><b>${cs.length}</b> ${cs.length===1?"candidatura":"candidaturas"} na base</li>
       <li><b>${eleicoes}</b> ${eleicoes===1?"vez eleito":"vezes eleito"}</li>
@@ -1392,7 +1454,7 @@ async function abrirMunicipio(cd, nomeMapa){
       const verTot = loc.filter(c=>c.ano===a && c.cargo==="VEREADOR").length;
       const porPart = d3.rollups(ver, v=>v.length, c=>c.partido).sort((x,y)=>y[1]-x[1]);
       h += `<p style="margin:.8rem 0 .3rem;font-weight:700">${a}</p>`;
-      if (pref.length) h += `<div class="tabw"><table class="tab"><thead><tr><th>Prefeito</th><th>Partido</th><th>Resultado</th><th class="v">Votos</th></tr></thead><tbody>${pref.map(c=>`<tr><td><button class="link" data-cand="${c.id}">${esc(titulo(c.nome))}</button></td><td>${esc(c.partido)}</td><td>${sitTxt(c.situacao)}</td><td class="v">${c.votos!=null?fmt.format(c.votos):"–"}</td></tr>`).join("")}</tbody></table></div>`;
+      if (pref.length) h += `<div class="tabw"><table class="tab"><thead><tr><th>Prefeito</th><th>Partido</th><th>Resultado</th><th class="v">Votos</th></tr></thead><tbody>${pref.map(c=>`<tr><td><button class="link" data-cand="${c.id}">${esc(titulo(c.nome))}</button></td><td>${esc(c.partido)}</td><td class="${!ehEleito(c.situacao) ? "dim" : ""}">${sitTxt(c.situacao)}</td><td class="v">${c.votos!=null?fmt.format(c.votos):"–"}</td></tr>`).join("")}</tbody></table></div>`;
       if (verTot) h += `<p class="aviso-mini">${ver.length} vereadores eleitos entre ${verTot} candidatos na base${porPart.length ? ": " + porPart.map(([p,n])=>`<span class="chip" style="background:${corP(p)}">${esc(p)} ${n}</span>`).join(" ") : ""}</p>`;
       if (ver.length) h += `<details><summary>Ver vereadores eleitos</summary><div class="tabw"><table class="tab"><tbody>${ver.map(c=>`<tr><td><button class="link" data-cand="${c.id}">${esc(titulo(c.nome))}</button></td><td>${esc(c.partido)}</td><td class="v">${c.votos!=null?fmt.format(c.votos):"–"}</td></tr>`).join("")}</tbody></table></div></details>`;
     }
