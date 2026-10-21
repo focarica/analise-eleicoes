@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS stg_tse.candidatura (
     cd_cargo text,
     ds_cargo text,
     sq_candidato text NOT NULL,
+    sq_candidato_tse text,
+    nr_candidato text,
     nr_cpf_candidato text,
     nm_candidato text,
     nm_urna_candidato text,
@@ -45,6 +47,10 @@ CREATE TABLE IF NOT EXISTS stg_tse.candidatura (
 
 ALTER TABLE stg_tse.candidatura
     ADD COLUMN IF NOT EXISTS nm_urna_candidato text;
+ALTER TABLE stg_tse.candidatura
+    ADD COLUMN IF NOT EXISTS sq_candidato_tse text;
+ALTER TABLE stg_tse.candidatura
+    ADD COLUMN IF NOT EXISTS nr_candidato text;
 
 CREATE TABLE IF NOT EXISTS stg_tse.votacao_candidato_munzona (
     ano_eleicao text NOT NULL,
