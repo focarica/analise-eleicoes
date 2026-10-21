@@ -3,14 +3,17 @@
 // @ts-nocheck
 
 export const UFS = ["AC","AL","BA","DF","RO","SP"];
-export const ANOS = [2018, 2020, 2022, 2024];
+export const ANOS = [2004, 2006, 2008, 2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024];
 export const CARGO_COD = {1:"Presidente",3:"Governador",5:"Senador",6:"Deputado federal",7:"Deputado estadual",8:"Deputado distrital",11:"Prefeito",13:"Vereador"};
 export const ORDEM_CARGO = ["GOVERNADOR","SENADOR","DEPUTADO FEDERAL","DEPUTADO ESTADUAL","DEPUTADO DISTRITAL","PREFEITO","VEREADOR"];
 // ordem dos botões de cargo no mapa; o primeiro disponível é o padrão do ano
 export const ORDEM_COD = [11, 13, 3, 5, 1, 6, 7, 8];
 export const ELEITO = new Set(["ELEITO","ELEITO POR QP","ELEITO POR MÉDIA"]);
-// anos de eleição geral: cargo 1 (Presidente) aparece na lista de filtros
-export const ANOS_PRESIDENTE = new Set([2018, 2022]);
+// A carga atual não tem votos de Presidente (cd_cargo=1) em nenhum ano.
+// Só habilitar este filtro depois da carga complementar por seção.
+export const ANOS_PRESIDENTE = new Set<number>();
+export const ANOS_GERAIS = new Set([2006, 2010, 2014, 2018, 2022]);
+export const ANOS_MUNICIPAIS = new Set([2004, 2008, 2012, 2016, 2020, 2024]);
 
 export const COR = {
   "MDB":"#2F8F5B","PP":"#79AEDB","PSD":"#E5C33A","PL":"#24304F","PSB":"#E8743B","UNIÃO":"#1C9C97",

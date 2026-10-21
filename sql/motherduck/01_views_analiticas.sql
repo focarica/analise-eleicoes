@@ -58,6 +58,7 @@ base_candidatos AS (
           'NÃO CONHECIDO', 'RENÚNCIA'
       )
       AND c.ds_sit_tot_turno IS NOT NULL
+      AND g.total_gasto IS NOT NULL
 ),
 faixas_gasto AS (
     SELECT
@@ -204,7 +205,7 @@ SELECT
     COALESCE(r.receitas_publicas, 0) AS receitas_publicas,
     COALESCE(r.receitas_privadas, 0) AS receitas_privadas,
     COALESCE(r.receitas, '[]'::JSON) AS receitas,
-    COALESCE(d.total_despesas, 0) AS total_despesas,
+    d.total_despesas AS total_despesas,
     COALESCE(d.qt_despesas, 0) AS qt_despesas,
     COALESCE(d.despesas, '[]'::JSON) AS despesas,
     COALESCE(b.total_bens, 0) AS patrimonio_declarado,
