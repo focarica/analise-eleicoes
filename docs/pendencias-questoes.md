@@ -20,7 +20,7 @@ Escopo da nossa carga (`BDR-TSE`): UFs **AC, AL, BA, DF, RO, SP** nos pleitos de
 
 | Questão | Status | Evidência no nosso projeto |
 |---|---|---|
-| P1 | **Parcial** | custo por voto por candidatura na ficha (`presentation.ts:641`); view `custo_cadeira` pronta (`sql/05_identidade_e_cadeira.sql`) mas sem endpoint/UI; agregados de campanha não renderizados |
+| P1 | **Feita** | view `vw_questao_1_custo_cadeira` (`sql/motherduck/12_views_custo_cadeira.sql`): gasto médio dos eleitos e custo da disputa por cadeira, por cargo, ano, UF e município; endpoints `/api/custo-cadeira` e `/api/custo-cadeira/lugares`; seção "Quanto custa uma cadeira?" (valores em R$ de 2024, evolução 2004–2024, lugares mais caros e mais baratos); custo por voto segue na ficha do candidato |
 | P2 | **Parcial** | patrimônio individual (evolução por eleição, na ficha); sem distribuição/taxa de eleição por faixa de bens |
 | P3 | **Parcial** | PIB/IDHM/população já chegam pelo `/api/municipality` (`server.ts:192`) e **não são renderizados**; faltam eleitores/população e isentos |
 | P4 | **Feita** | view `vw_questao_4_escolaridade` (`sql/motherduck/07_views_escolaridade.sql`): candidatos e eleitos a prefeito/vereador × população 18+ do Censo 2022 (`escolaridade_populacao_municipio`, via `vw_municipio_ibge`), nos quatro níveis do IBGE; endpoint `/api/escolaridade`; seção na página e na gaveta do município |

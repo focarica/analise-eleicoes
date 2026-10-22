@@ -448,6 +448,56 @@ async function route(request: Request) {
   // sql/motherduck/11_views_legenda.sql). uf vazio agrega toda a amostra.
   // P4 — escolaridade dos eleitos × população (vw_questao_4_escolaridade,
   // sql/motherduck/07_views_escolaridade.sql). uf vazio agrega toda a amostra.
+  // P1 — quanto custa uma cadeira (vw_questao_1_custo_cadeira,
+  // sql/motherduck/12_views_custo_cadeira.sql). uf vazio agrega a amostra inteira
+  // (e inclui Presidente, de uf 'BR').
+  if (path === "/api/custo-cadeira") {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    if (uf && !UFS.has(uf)) return json({ error: "UF fora da amostra." }, 400);
+    if (!(await viewDisponivel("vw_questao_1_custo_cadeira")))
+      return json({ error: "A view vw_questao_1_custo_cadeira ainda não foi aplicada no banco (sql/motherduck/12_views_custo_cadeira.sql)." }, 503);
+    const resumo = await comCache(`p1:${uf || "*"}`, () => rows(`SELECT cd_cargo, ano_eleicao,
+             SUM(qt_candidaturas) AS candidaturas, SUM(qt_com_despesa) AS com_despesa,
+             SUM(vr_despesas_total) AS despesas, SUM(qt_eleitos) AS eleitos,
+             SUM(qt_eleitos_com_despesa) AS eleitos_com_despesa, SUM(vr_despesas_eleitos) AS despesas_eleitos
+      FROM public.vw_questao_1_custo_cadeira ${uf ? "WHERE uf = $1" : ""}
+      GROUP BY 1, 2 ORDER BY 1, 2`, uf ? [uf] : []));
+    return json({ resumo: resumo.map((r: Record<string, unknown>) => ({
+      cdCargo: Number(r.cd_cargo), ano: Number(r.ano_eleicao), candidaturas: Number(r.candidaturas),
+      comDespesa: Number(r.com_despesa), despesas: Number(r.despesas), eleitos: Number(r.eleitos),
+      eleitosComDespesa: Number(r.eleitos_com_despesa), despesasEleitos: Number(r.despesas_eleitos),
+    })) });
+  }
+
+  // P1 por lugar: municípios (prefeito, vereador) ou estados (demais cargos)
+  if (path === "/api/custo-cadeira/lugares") {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    const cargo = Number(url.searchParams.get("cargo"));
+    const ano = Number(url.searchParams.get("ano"));
+    if ((uf && !UFS.has(uf)) || ![1, 3, 5, 6, 7, 8, 11, 13].includes(cargo) || !YEARS.has(ano))
+      return json({ error: "Filtro inválido." }, 400);
+    if (!(await viewDisponivel("vw_questao_1_custo_cadeira")))
+      return json({ error: "A view vw_questao_1_custo_cadeira ainda não foi aplicada no banco (sql/motherduck/12_views_custo_cadeira.sql)." }, 503);
+    const municipal = cargo === 11 || cargo === 13;
+    const params: (string | number)[] = [cargo, ano];
+    const cond = ["p.cd_cargo = $1", "p.ano_eleicao = $2"];
+    if (uf){ params.push(uf); cond.push(`p.uf = $${params.length}`); }
+    const lugares = await comCache(`p1l:${uf || "*"}:${cargo}:${ano}`, () => rows(`SELECT
+             ${municipal ? "p.cd_municipio_tse AS chave, ANY_VALUE(m.nm_municipio) AS nome, ANY_VALUE(p.uf) AS uf" : "p.uf AS chave, p.uf AS nome, p.uf AS uf"},
+             SUM(p.qt_candidaturas) AS candidaturas, SUM(p.qt_com_despesa) AS com_despesa,
+             SUM(p.vr_despesas_total) AS despesas, SUM(p.qt_eleitos) AS eleitos,
+             SUM(p.qt_eleitos_com_despesa) AS eleitos_com_despesa, SUM(p.vr_despesas_eleitos) AS despesas_eleitos
+      FROM public.vw_questao_1_custo_cadeira p
+      ${municipal ? "LEFT JOIN public.municipio m ON m.cd_municipio_tse = p.cd_municipio_tse" : ""}
+      WHERE ${cond.join(" AND ")}
+      GROUP BY 1${municipal ? "" : ", 2, 3"}`, params));
+    return json({ municipal, lugares: lugares.map((r: Record<string, unknown>) => ({
+      chave: r.chave, nome: r.nome, uf: r.uf, candidaturas: Number(r.candidaturas), comDespesa: Number(r.com_despesa),
+      despesas: Number(r.despesas), eleitos: Number(r.eleitos), eleitosComDespesa: Number(r.eleitos_com_despesa),
+      despesasEleitos: Number(r.despesas_eleitos),
+    })) });
+  }
+
   if (path === "/api/escolaridade") {
     const uf = (url.searchParams.get("uf") || "").toUpperCase();
     const ano = Number(url.searchParams.get("ano") || 0);

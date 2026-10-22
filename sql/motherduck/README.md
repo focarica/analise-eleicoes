@@ -22,6 +22,21 @@ bun run frontend/scripts/aplicar-views.ts \
   sql/motherduck/05_views_financiamento.sql
 ```
 
+`12_views_custo_cadeira.sql` responde à questão 1 com `vw_questao_1_custo_cadeira`: por cargo, ano, UF e município (só prefeito e vereador têm município; Presidente tem `uf = 'BR'`), as candidaturas, os eleitos, as despesas pagas de todas as candidaturas e as dos eleitos, com contagens de quem declarou despesa. Duas leituras: gasto médio de quem se elegeu (`vr_despesas_eleitos / qt_eleitos_com_despesa`) e custo da disputa por cadeira (`vr_despesas_total / qt_eleitos`). Valores nominais; o painel corrige pelo IPCA para reais de 2024.
+
+```sql
+SELECT ano_eleicao,
+       SUM(vr_despesas_eleitos) / SUM(qt_eleitos_com_despesa) AS gasto_medio_eleito,
+       SUM(vr_despesas_total) / SUM(qt_eleitos) AS custo_disputa_por_cadeira
+FROM public.vw_questao_1_custo_cadeira
+WHERE cd_cargo = 13 AND uf = 'SP'
+GROUP BY 1 ORDER BY 1;
+```
+
+```sh
+bun run frontend/scripts/aplicar-views.ts sql/motherduck/12_views_custo_cadeira.sql
+```
+
 `06_municipio_ibge.sql` cria `vw_municipio_ibge`, uma correspondência de reserva entre o código TSE e o código IBGE dos 1.239 municípios da amostra (fonte: `betafcc/Municipios-Brasileiros-TSE`, a mesma das malhas do mapa). A carga do Censo (`10_censo_2022_escolaridade.sql`) preenche `municipio.cd_municipio_ibge` com a correspondência oficial do TSE; a questão 4 usa essa coluna e só recorre à view quando ela está nula, como depois de recarregar o modelo.
 
 `07_views_escolaridade.sql` responde à questão 4 com `vw_questao_4_escolaridade`: o grau de instrução dos candidatos e eleitos a prefeito e vereador (`candidato.ds_grau_instrucao`) comparado com o da população de 18 anos ou mais no Censo 2022 (`escolaridade_populacao_municipio`, carregada por `10_censo_2022_escolaridade.sql`). Os sete níveis do TSE são agrupados nos quatro do Censo: sem instrução e fundamental incompleto; fundamental completo e médio incompleto; médio completo e superior incompleto; superior completo. Uma linha por município, ano, cargo (`TODOS` soma prefeito e vereador) e nível, com contagens, porcentagens e a razão entre a parcela dos eleitos e a da população. Escolaridade não informada fica numa linha à parte, fora das porcentagens; linhas de total do Censo são ignoradas. O Censo é de 2022: compare com as eleições de 2020 e 2024.

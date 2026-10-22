@@ -201,6 +201,10 @@ tr.reel-soma td{ border-top:1.5px solid var(--ink-3); }
 .fin-bloco:has(> .hb:nth-of-type(8)) > h3{ position:sticky; top:0; z-index:1; background:var(--bg); padding:.15rem 0 .4rem; margin-bottom:.6rem; }
 /* fade no pé do card rolável: avisa que há mais fontes abaixo do corte */
 .fin-bloco:has(> .hb:nth-of-type(8))::after{ content:""; position:sticky; bottom:0; display:block; height:1.5rem; margin-top:-1.5rem; background:linear-gradient(to bottom, transparent, var(--bg)); pointer-events:none; }
+.p1-cards{ display:grid; grid-template-columns:repeat(auto-fit,minmax(12rem,1fr)); gap:.8rem 1.5rem; margin:.3rem 0 .6rem; }
+.p1-cards > div{ display:flex; flex-direction:column; gap:.15rem; }
+.p1-cards small{ font-size:.8rem; color:var(--ink-3); font-weight:600; }
+.p1-cards b{ font-size:1.6rem; line-height:1.15; }
 .leg5-destaque{ font-size:1rem; margin:.1rem 0 .3rem; }
 .leg5-destaque b{ font-size:1.35rem; }
 .hb.leg5-ano{ cursor:pointer; border-radius:4px; }

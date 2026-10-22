@@ -249,6 +249,7 @@ function nenhumEstado(voar){
   document.getElementById("quartis").innerHTML = `<p class="aviso-mini">Escolha um estado da amostra para ver as faixas de gasto por cargo daquele ano.</p>`;
   montarFinanciamento();
   montarReeleicao();
+  montarCustoCadeira();
   montarEscolaridade();
   montarLegendaPartido();
   desenharForma(false);
@@ -278,6 +279,7 @@ async function carregarAno(){
   montarCargos(); desenharForma(true); montarQuartis(gasto);
   montarFinanciamento();
   montarReeleicao();
+  montarCustoCadeira();
   montarEscolaridade();
   montarLegendaPartido();
 }
@@ -1361,6 +1363,113 @@ async function montarEscolaridade(){
     // a gaveta do município não depende do estado aberto no mapa
     el.querySelectorAll("[data-mun]").forEach(b => b.onclick = () => abrirMunicipio(b.dataset.mun));
     const mais = el.querySelector("[data-mais]"); if (mais) mais.onclick = () => { mostrar += 10; desenhar(); };
+  };
+  desenhar();
+}
+
+/* ===================== P1: quanto custa uma cadeira ===================== */
+// vw_questao_1_custo_cadeira (sql/motherduck/12_views_custo_cadeira.sql) via /api/custo-cadeira.
+// IPCA anual (%, IBGE) para levar valores nominais a reais de 2024 (aproximação: as
+// despesas de campanha são pagas entre agosto e outubro do ano da eleição).
+const IPCA_ANUAL = { 2004: 7.60, 2005: 5.69, 2006: 3.14, 2007: 4.46, 2008: 5.90, 2009: 4.31, 2010: 5.91, 2011: 6.50,
+  2012: 5.84, 2013: 5.91, 2014: 6.41, 2015: 10.67, 2016: 6.29, 2017: 2.95, 2018: 3.75, 2019: 4.31, 2020: 4.52,
+  2021: 10.06, 2022: 5.79, 2023: 4.62 };
+const fatorPara2024 = ano => d3.range(ano, 2024).reduce((f, a) => f * (1 + (IPCA_ANUAL[a] ?? 0) / 100), 1);
+const P1 = { cargo: null, ano: null, ordem: "cara", cargaId: null };
+const p1Cache = new Map();
+const medidasP1 = (r, ano) => {
+  const f = fatorPara2024(ano);
+  return {
+    medioEleito: r.eleitosComDespesa ? r.despesasEleitos / r.eleitosComDespesa * f : null,
+    porCadeira: r.eleitos ? r.despesas / r.eleitos * f : null,
+    medioEleitoNominal: r.eleitosComDespesa ? r.despesasEleitos / r.eleitosComDespesa : null,
+    porCadeiraNominal: r.eleitos ? r.despesas / r.eleitos : null,
+    cobertura: r.candidaturas ? r.comDespesa / r.candidaturas : null,
+  };
+};
+const p1Pedir = url => {
+  if (!p1Cache.has(url)) p1Cache.set(url, request(url, { silencioso: true }).catch(e => { p1Cache.delete(url); throw e; }));
+  return p1Cache.get(url);
+};
+
+async function montarCustoCadeira(){
+  const el = document.getElementById("p1-conteudo");
+  if (!el) return;
+  document.getElementById("p1-origem").textContent = UF ? `Estado de ${GEO[UF].properties.nome}.` : "Sem estado escolhido: a amostra inteira (inclui Presidente).";
+  const cargaId = Symbol(); P1.cargaId = cargaId;
+  let d;
+  try { d = await p1Pedir(`/api/custo-cadeira${UF ? `?uf=${encodeURIComponent(UF)}` : ""}`); }
+  catch(e){ if (P1.cargaId === cargaId) el.innerHTML = `<p class="aviso-mini">Não foi possível carregar: ${esc(e.message)}</p>`; return; }
+  if (P1.cargaId !== cargaId) return;
+  const resumo = d.resumo.filter(r => r.eleitos > 0);
+  const cargos = ORDEM_COD.filter(c => resumo.some(r => r.cdCargo === c));
+  const botCargo = document.getElementById("p1-cargos"), botAno = document.getElementById("p1-anos");
+  if (!cargos.length){ el.innerHTML = `<p class="aviso-mini">Sem eleitos na base${UF ? " neste estado" : ""}.</p>`; botCargo.innerHTML = botAno.innerHTML = ""; return; }
+  if (!cargos.includes(P1.cargo)) P1.cargo = cargos[0];
+  const serie = resumo.filter(r => r.cdCargo === P1.cargo).sort((a, b) => a.ano - b.ano);
+  // troca de cargo mantém o ano se ele existir; senão, o mais recente
+  if (!serie.some(r => r.ano === P1.ano)) P1.ano = serie[serie.length - 1].ano;
+  botCargo.innerHTML = cargos.map(c => `<button data-c="${c}" aria-pressed="${P1.cargo === c}">${CARGO_COD[c]}</button>`).join("");
+  botCargo.querySelectorAll("button").forEach(b => b.onclick = () => { P1.cargo = +b.dataset.c; montarCustoCadeira(); });
+  botAno.innerHTML = serie.map(r => `<button data-a="${r.ano}" aria-pressed="${P1.ano === r.ano}">${r.ano}</button>`).join("");
+  botAno.querySelectorAll("button").forEach(b => b.onclick = () => { P1.ano = +b.dataset.a; montarCustoCadeira(); });
+
+  const atual = serie.find(r => r.ano === P1.ano), m = medidasP1(atual, P1.ano);
+  const real = (v, nominal) => v == null ? "–" : `<span title="Valor da época: ${brl(nominal)}">${brlc(v)}</span>`;
+  const maxSerie = d3.max(serie, r => medidasP1(r, r.ano).porCadeira) || 1;
+  const municipal = P1.cargo === 11 || P1.cargo === 13;
+  const comLugares = municipal || !UF;
+  el.innerHTML = `<div class="fin-grid">
+    <div class="fin-bloco">
+      <h3>${CARGO_COD[P1.cargo]}, ${P1.ano}</h3>
+      <div class="p1-cards">
+        <div><small>Gasto médio de quem se elegeu</small><b class="num">${real(m.medioEleito, m.medioEleitoNominal)}</b>
+          <span class="aviso-mini">${fmt.format(atual.eleitosComDespesa)} de ${fmt.format(atual.eleitos)} eleitos com despesa declarada</span></div>
+        <div><small>Custo da disputa por cadeira</small><b class="num">${real(m.porCadeira, m.porCadeiraNominal)}</b>
+          <span class="aviso-mini">${brlc(atual.despesas * fatorPara2024(P1.ano))} gastos por ${fmt.format(atual.candidaturas)} candidaturas para ${fmt.format(atual.eleitos)} ${atual.eleitos === 1 ? "cadeira" : "cadeiras"}</span></div>
+      </div>
+      <p class="aviso-mini">${m.cobertura == null ? "" : `${pct(atual.comDespesa, atual.candidaturas)} das candidaturas declararam despesa paga. `}Para cada real gasto por quem se elegeu, a disputa toda gastou ${m.medioEleito && m.porCadeira ? (m.porCadeira / m.medioEleito).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "–"} reais por cadeira.</p>
+      <h4>Custo da disputa por cadeira, eleição a eleição (R$ de 2024)</h4>
+      ${serie.map(r => { const x = medidasP1(r, r.ano); return `<div class="hb leg5-ano${r.ano === P1.ano ? " on" : ""}" data-a="${r.ano}" role="button" tabindex="0" title="Gasto médio dos eleitos: ${x.medioEleito == null ? "–" : brlc(x.medioEleito)}"><span>${r.ano}</span><i class="t" style="width:${x.porCadeira == null ? 0 : (x.porCadeira / maxSerie * 100).toFixed(1)}%"></i><span class="v">${x.porCadeira == null ? "–" : brlc(x.porCadeira)}</span></div>`; }).join("")}
+    </div>
+    <div class="fin-bloco" id="p1-lugares">${comLugares ? `<p class="aviso-mini">Carregando…</p>` : `<h3>Um único valor</h3><p class="aviso-mini">${CARGO_COD[P1.cargo]} é disputado no estado inteiro: com um estado escolhido há uma só disputa. Sem estado escolhido, a lista compara os seis estados.</p>`}</div>
+  </div>`;
+  el.querySelectorAll(".leg5-ano").forEach(dv => {
+    const ir = () => { P1.ano = +dv.dataset.a; montarCustoCadeira(); };
+    dv.onclick = ir; dv.onkeydown = ev => { if (ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); ir(); } };
+  });
+  if (comLugares) lugaresCustoCadeira(cargaId);
+}
+
+async function lugaresCustoCadeira(cargaId){
+  const alvo = document.getElementById("p1-lugares");
+  const q = new URLSearchParams({ cargo: P1.cargo, ano: P1.ano }); if (UF) q.set("uf", UF);
+  let d;
+  try { d = await p1Pedir(`/api/custo-cadeira/lugares?${q}`); }
+  catch(e){ if (P1.cargaId === cargaId && alvo.isConnected) alvo.innerHTML = `<p class="aviso-mini">Não foi possível listar: ${esc(e.message)}</p>`; return; }
+  if (P1.cargaId !== cargaId || !alvo.isConnected) return;
+  const lugares = d.lugares.filter(l => l.eleitos > 0)
+    .map(l => ({ ...l, ...medidasP1(l, P1.ano) }))
+    .filter(l => l.porCadeira != null);
+  const titulo1 = d.municipal ? "Município" : "Estado";
+  let mostrar = 10;
+  const desenhar = () => {
+    lugares.sort((a, b) => P1.ordem === "cara" ? b.porCadeira - a.porCadeira : a.porCadeira - b.porCadeira);
+    alvo.innerHTML = `<h3>${d.municipal ? "Município a município" : "Estado a estado"}</h3>
+      <div class="cargos" role="group" aria-label="Ordem da lista">
+        <button data-o="cara" aria-pressed="${P1.ordem === "cara"}">Cadeira mais cara</button>
+        <button data-o="barata" aria-pressed="${P1.ordem === "barata"}">Cadeira mais barata</button></div>
+      <div class="tabw"><table class="tab"><thead><tr><th>${titulo1}</th><th class="v">Por cadeira (disputa)</th><th class="v">Médio dos eleitos</th><th class="v">Cadeiras</th></tr></thead><tbody>
+        ${lugares.slice(0, mostrar).map(l => `<tr><td>${d.municipal ? `<button class="link" data-mun="${esc(l.chave)}">${esc(titulo(l.nome || ""))}</button>${UF ? "" : ` <small class="dim">${esc(l.uf)}</small>`}` : esc(GEO[l.uf]?.properties.nome || l.uf)}</td>
+          <td class="v num" title="Valor da época: ${brl(l.porCadeiraNominal)}">${brlc(l.porCadeira)}</td>
+          <td class="v num">${l.medioEleito == null ? "–" : brlc(l.medioEleito)}</td>
+          <td class="v num">${fmt.format(l.eleitos)}</td></tr>`).join("")}
+      </tbody></table></div>
+      ${mostrar < lugares.length ? `<p><button class="link" data-mais="1">Mostrar mais</button></p>` : ""}
+      <p class="aviso-mini">${fmt.format(lugares.length)} ${d.municipal ? "municípios" : "estados"} com eleitos e despesas na base. Em lugares pequenos, uma única campanha cara muda muito o valor.</p>`;
+    alvo.querySelectorAll("[data-o]").forEach(b => b.onclick = () => { P1.ordem = b.dataset.o; mostrar = 10; desenhar(); });
+    alvo.querySelectorAll("[data-mun]").forEach(b => b.onclick = () => abrirMunicipio(b.dataset.mun));
+    const mais = alvo.querySelector("[data-mais]"); if (mais) mais.onclick = () => { mostrar += 10; desenhar(); };
   };
   desenhar();
 }

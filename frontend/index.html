@@ -63,6 +63,14 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
     </div>
   </div>
 
+  <section class="sec" aria-labelledby="p1-t"><a id="custo-cadeira"></a>
+    <h2 id="p1-t">Quanto custa uma cadeira?</h2>
+    <p class="nota">Duas formas de medir, com as despesas pagas declaradas ao TSE: o <b>gasto médio de quem se elegeu</b> e o <b>custo da disputa por cadeira</b>, que soma o que todas as candidaturas pagaram, eleitas ou não, e divide pelas cadeiras preenchidas. Valores em reais de 2024, corrigidos pelo IPCA (aproximação anual); passe o mouse para ver o valor da época. Candidaturas sem despesa declarada entram nas contagens, não nas somas. <span id="p1-origem"></span></p>
+    <div class="cargos" id="p1-cargos" role="group" aria-label="Cargo da seção de custo da cadeira"></div>
+    <div class="cargos" id="p1-anos" role="group" aria-label="Eleição da seção de custo da cadeira"></div>
+    <div id="p1-conteudo"></div>
+  </section>
+
   <section class="sec" aria-labelledby="gs-t">
     <h2 id="gs-t">Quem gasta mais se elege mais?</h2>
     <p class="nota">Candidatos que prestaram contas, em quatro faixas de despesa paga do mesmo tamanho em reais, de R$ 0 até o maior gasto de cada cargo. A barra mostra a parcela de eleitos em cada faixa; abaixo dela, o limite da faixa e quantos candidatos caíram nela.</p>

@@ -52,6 +52,10 @@ Os pleitos de 2014 e 2016 já estão carregados: 2014 cobre os cargos estaduais/
 
 O cargo escolhido continua selecionado ao trocar de ano ou de estado, para comparar a mesma disputa ao longo do tempo. Anos gerais e municipais têm cargos diferentes, então cada tipo guarda o seu: Senador em 2018 continua Senador em 2022, 2014, 2010...; ao ir para 2024, volta o último cargo municipal escolhido (Vereador, por exemplo), e ao voltar para um ano geral, Senador de novo.
 
+### Quanto custa uma cadeira? (P1)
+
+A seção lê `/api/custo-cadeira?uf` e `/api/custo-cadeira/lugares?uf&cargo&ano`, sobre `vw_questao_1_custo_cadeira` (`sql/motherduck/12_views_custo_cadeira.sql`). Para cada cargo e eleição mostra o gasto médio de quem se elegeu e o custo da disputa por cadeira (o que todas as candidaturas pagaram ÷ cadeiras preenchidas), em reais de 2024 corrigidos pelo IPCA (o valor da época aparece ao passar o mouse); a evolução de 2004 a 2024; e a lista de municípios (prefeito, vereador) ou estados (demais cargos, sem estado escolhido) com a cadeira mais cara e mais barata.
+
 ### Escolaridade: os eleitos se parecem com a população? (P4)
 
 A seção lê `/api/escolaridade?uf&ano&cargo`, sobre `vw_questao_4_escolaridade` (`sql/motherduck/07_views_escolaridade.sql`): por cargo (prefeito e vereador, juntos ou separados) e eleição, a distribuição de candidatos, eleitos e população de 18+ do Censo 2022 nos quatro níveis do IBGE, e a lista de municípios pela diferença na parcela com superior completo (eleitos − população), nos dois sentidos. O ano padrão é o mais próximo do Censo. A gaveta de cada município traz a mesma comparação para o município.
