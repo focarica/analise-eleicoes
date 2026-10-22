@@ -52,6 +52,10 @@ api = {
       mais_votados: d.topCandidates.map(c => ({ ano: c.ano_eleicao, cargo: c.cd_cargo, id: c.id_pessoa_projeto, nome: c.nm_urna_candidato, partido: c.sg_partido, votos: c.qt_votos_nominais })),
       votacao_partido: d.parties.map(p => ({ ano: p.ano_eleicao, cargo: p.cd_cargo, partido: p.sg_partido, nominais: p.qt_votos_nominais, legenda: p.qt_votos_legenda })),
       candidaturas_locais: d.localCandidacies.map(c => ({ ano: c.ano_eleicao, cargo: c.cargo, id: c.id_pessoa_projeto, nome: c.nm_urna_candidato || c.nm_candidato, partido: c.sg_partido, situacao: c.ds_sit_tot_turno, votos: c.qt_votos_nominais })),
+      // P4 por nível; null quando a view não está no banco
+      escolaridade: d.education ? d.education.map(r => ({ ano: +r.ano_eleicao, anoCenso: +r.ano_censo, cargo: r.ds_cargo,
+        nivel: r.nr_nivel == null ? null : +r.nr_nivel, candidatos: +r.qt_candidatos, eleitos: +r.qt_eleitos,
+        populacao: r.qt_populacao == null ? null : +r.qt_populacao })) : null,
     };
   },
   // Map<cd_cargo, Map<cd_municipio_tse, vencedor>>
@@ -69,9 +73,6 @@ api = {
         const v = m.get(k);
         m.set(k, { partido: r.partido, fonte: "eleito", prefeito: { nome: r.nome, id: r.id }, votos: v?.partido === r.partido ? v.votos : null, total: v?.total });
       }
-      // Presidente: o candidato mais votado no município, no turno decisivo
-      for (const r of d.presidents || [])
-        doCargo(1).set(String(r.municipio), { partido: r.partido, fonte: "presidente", candidato: { nome: r.nome, id: r.id }, turno: +r.turno, votos: +r.votos, total: +r.total });
       return porCargo;
     }));
     return mapaCache.get(key);
@@ -248,6 +249,7 @@ function nenhumEstado(voar){
   document.getElementById("quartis").innerHTML = `<p class="aviso-mini">Escolha um estado da amostra para ver as faixas de gasto por cargo daquele ano.</p>`;
   montarFinanciamento();
   montarReeleicao();
+  montarEscolaridade();
   montarLegendaPartido();
   desenharForma(false);
   if (voar) enquadrar(duracao(500));
@@ -276,16 +278,13 @@ async function carregarAno(){
   montarCargos(); desenharForma(true); montarQuartis(gasto);
   montarFinanciamento();
   montarReeleicao();
+  montarEscolaridade();
   montarLegendaPartido();
 }
 
 function montarCargos(){
-  let cargos = ORDEM_COD.filter(c => VENCEDORES.get(c)?.size);
-  // Presidente aparece em todo ano de eleição geral, ao lado de Governador e Senador,
-  // mesmo sem votos por município na base (o mapa então explica o que falta)
-  if (ANOS_GERAIS.has(ANO) && !cargos.includes(1)) cargos.push(1);
-  // botões na ordem do cargo mais local ao mais amplo: Governador, Senador, Presidente...
-  cargos.sort((a,b) => ORDEM_COD.indexOf(a) - ORDEM_COD.indexOf(b));
+  // Presidente fica fora: a base não tem os votos de Presidente por município
+  let cargos = ORDEM_COD.filter(c => c !== 1 && VENCEDORES.get(c)?.size);
   if (!cargos.includes(CARGO)){
     const pref = CARGO_PREF[tipoAno(ANO)];
     CARGO = cargos.includes(pref) ? pref : cargos[0] ?? null;
@@ -298,8 +297,6 @@ function montarCargos(){
   });
   document.getElementById("leg-nota").textContent = CARGO === 11
     ? "Cor de cada município: partido do prefeito eleito. Onde o eleito não está na base, vale o partido mais votado no 1º turno. A lista conta em quantos municípios cada partido venceu."
-    : CARGO === 1
-    ? "Cor de cada município: partido do candidato a Presidente mais votado ali, no turno decisivo (o 2º, quando houve). A lista conta em quantos municípios cada partido venceu; passe o mouse para ver o candidato."
     : "Cor de cada município: partido mais votado no 1º turno para o cargo, somando votos nominais e de legenda. A lista conta em quantos municípios cada partido venceu.";
 }
 
@@ -376,9 +373,7 @@ function desenharForma(animar){
     vazio.textContent = "Não foi possível carregar os limites dos municípios.";
   } else if (MALHA && !total){
     vazio.hidden = false;
-    vazio.textContent = UF==="DF" && ANOS_MUNICIPAIS.has(ANO) ? "O Distrito Federal não tem eleições municipais."
-      : CARGO === 1 ? `A base ainda não tem os votos de Presidente por município em ${ANO}.`
-      : "Sem votação por município na base para este ano.";
+    vazio.textContent = UF==="DF" && ANOS_MUNICIPAIS.has(ANO) ? "O Distrito Federal não tem eleições municipais." : "Sem votação por município na base para este ano.";
   } else vazio.hidden = true;
   montarLegenda(partes, total);
   btnBrasil.hidden = !VISTA.sigla;
@@ -433,8 +428,7 @@ function tipMunicipio(ev, f){
     const nm = nomePartido(v.partido);
     const votos = v.votos && v.total ? `${fmt.format(v.votos)} votos (${pct(v.votos, v.total)})` : "";
     h += `<span class="tip-faixa"><b>${esc(v.partido)}${nm && nm !== v.partido ? ", " + esc(titulo(nm)) : ""}</b>`
-      + (v.fonte === "presidente" ? `Mais votado para presidente: ${esc(titulo(v.candidato.nome))}<br>${votos} no ${v.turno}º turno`
-        : v.fonte === "eleito" ? `Prefeito eleito: ${esc(titulo(v.prefeito.nome))}${votos ? `<br>${votos} no 1º turno` : ""}`
+      + (v.fonte === "eleito" ? `Prefeito eleito: ${esc(titulo(v.prefeito.nome))}${votos ? `<br>${votos} no 1º turno` : ""}`
         : `${CARGO === 11 ? "Mais votado no 1º turno; o eleito não está na base" : `Mais votado para ${esc(CARGO_COD[CARGO].toLowerCase())}, 1º turno`}<br>${votos}`)
       + `</span>`;
   }
@@ -1250,6 +1244,122 @@ async function quemLegendaPartido(){
   } catch(e){ if (alvo.isConnected) alvo.innerHTML = `<p class="aviso-mini">Não foi possível listar: ${esc(e.message)}</p>`; }
 }
 
+/* ===================== P4: escolaridade dos eleitos × população ===================== */
+// vw_questao_4_escolaridade (sql/motherduck/07_views_escolaridade.sql): quatro níveis do
+// Censo 2022 (população de 18+), com os sete níveis do TSE agrupados neles.
+const NIVEIS_Q4 = ["Sem instrução e fundamental incompleto", "Fundamental completo e médio incompleto", "Médio completo e superior incompleto", "Superior completo"];
+const pctQ4 = x => (x * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "%";
+// linhas: [{ nivel: 1..4 | null, populacao, candidatos, eleitos }] de um recorte
+function htmlEscolaridade(linhas, anoCenso){
+  const dist = campo => {
+    const arr = NIVEIS_Q4.map(() => 0); let fora = 0;
+    for (const r of linhas){ const q = Number(r[campo]) || 0; if (r.nivel >= 1 && r.nivel <= 4) arr[r.nivel - 1] += q; else fora += q; }
+    return { arr, tot: d3.sum(arr), fora };
+  };
+  const series = [
+    { nome: `População 18+ (Censo ${anoCenso || 2022})`, cls: "esc-el", d: dist("populacao") },
+    { nome: "Candidatos", cls: "esc-ca", d: dist("candidatos") },
+    { nome: "Eleitos", cls: "esc-ei", d: dist("eleitos") },
+  ].filter(s => s.d.tot);
+  const P = series.find(s => s.cls === "esc-el"), C = series.find(s => s.cls === "esc-ca"), E = series.find(s => s.cls === "esc-ei");
+  if (!C) return `<p class="aviso-mini">Sem candidatos com escolaridade informada neste recorte.</p>`;
+  const parte = (s, k) => s.d.arr[k] / s.d.tot;
+  const mx = d3.max(series, s => d3.max(s.d.arr) / s.d.tot) || 1;
+  const frase = (rotulo, ks) => {
+    const soma = s => s ? d3.sum(ks, k => parte(s, k)) : null;
+    const c = soma(C), e = soma(E), p = soma(P);
+    let t = `${rotulo}: <b>${pctQ4(c)}</b> dos candidatos${E ? ` e <b>${pctQ4(e)}</b> dos eleitos` : ""}`;
+    if (P){
+      t += `, contra <b>${pctQ4(p)}</b> da população`;
+      const ref = E ? e : c, quem = E ? "entre os eleitos" : "entre os candidatos";
+      if (p > 0 && ref > 0){
+        const r = ref / p;
+        t += r >= 1.05 ? ` (${quem}, ${r.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} vezes a proporção da população)`
+          : r <= 0.95 ? ` (${quem}, ${Math.round((1 - r) * 100)}% abaixo da proporção da população)` : " (proporção semelhante à da população)";
+      }
+    }
+    return `<li>${t}.</li>`;
+  };
+  let h = `<ul class="esc-resumo">${frase("Superior completo", [3])}${frase("Sem instrução ou fundamental incompleto", [0])}</ul>`;
+  h += `<div class="esc-leg">${series.map(s => `<span><i class="${s.cls}"></i>${s.nome}</span>`).join("")}</div>`;
+  h += NIVEIS_Q4.map((nome, k) => `<div class="esc-linha"><span>${nome}</span><div class="esc-barras">${
+    series.map(s => `<div title="${s.nome}: ${fmt.format(s.d.arr[k])}"><b><i class="${s.cls}" style="width:${(parte(s, k) / mx * 100).toFixed(1)}%"></i></b><span>${pctQ4(parte(s, k))}</span></div>`).join("")}</div></div>`).join("");
+  const fora = C.d.fora + (E?.d.fora || 0);
+  h += `<p class="aviso-mini">${fmt.format(C.d.tot)} candidaturas a prefeito e vereador${E ? `, ${fmt.format(E.d.tot)} eleitas` : ""}${P ? `; ${fmt.format(P.d.tot)} pessoas de 18 anos ou mais no Censo` : ""}.${fora ? ` ${fmt.format(fora)} candidaturas sem escolaridade informada ficam fora das porcentagens.` : ""} A escolaridade do candidato é a do cadastro da pessoa; vices e suplentes não entram.</p>`;
+  if (!P) h += `<p class="aviso-mini">Sem dados do Censo para este recorte.</p>`;
+  return h;
+}
+
+const Q4 = { cargo: "TODOS", ano: null, ordem: "maior", cargaId: null };
+const q4Cache = new Map();
+async function montarEscolaridade(){
+  const el = document.getElementById("q4-conteudo");
+  if (!el) return;
+  document.getElementById("q4-origem").textContent = UF ? `Estado de ${GEO[UF].properties.nome}.` : "Sem estado escolhido: a amostra inteira.";
+  const cargos = document.getElementById("q4-cargos");
+  cargos.innerHTML = [["TODOS", "Prefeito e vereador"], ["PREFEITO", "Prefeito"], ["VEREADOR", "Vereador"]]
+    .map(([c, t]) => `<button data-c="${c}" aria-pressed="${Q4.cargo === c}">${t}</button>`).join("");
+  cargos.querySelectorAll("button").forEach(b => b.onclick = () => { Q4.cargo = b.dataset.c; montarEscolaridade(); });
+  const pedir = async ano => {
+    const q = new URLSearchParams({ cargo: Q4.cargo }); if (UF) q.set("uf", UF); if (ano) q.set("ano", ano);
+    const chave = q.toString();
+    if (!q4Cache.has(chave)) q4Cache.set(chave, request(`/api/escolaridade?${q}`, { silencioso: true }).catch(e => { q4Cache.delete(chave); throw e; }));
+    return q4Cache.get(chave);
+  };
+  const cargaId = Symbol(); Q4.cargaId = cargaId;
+  el.innerHTML = `<p class="aviso-mini">Carregando…</p>`;
+  let d;
+  try {
+    // anos com candidatos: o padrão é a eleição mais próxima do Censo
+    const geral = await pedir(0);
+    if (Q4.cargaId !== cargaId) return;
+    if (!geral.anos.length){ el.innerHTML = `<p class="aviso-mini">Sem candidaturas municipais com escolaridade${UF ? " neste estado" : ""}.</p>`; document.getElementById("q4-anos").innerHTML = ""; return; }
+    const censo = geral.anoCenso || 2022;
+    if (!geral.anos.includes(Q4.ano)) Q4.ano = geral.anos.reduce((a, b) => Math.abs(b - censo) < Math.abs(a - censo) || (Math.abs(b - censo) === Math.abs(a - censo) && b > a) ? b : a);
+    const anos = document.getElementById("q4-anos");
+    anos.innerHTML = geral.anos.map(a => `<button data-a="${a}" aria-pressed="${Q4.ano === a}" ${Math.abs(a - censo) > 2 ? `title="Longe do Censo ${censo}: compare com cautela"` : ""}>${a}</button>`).join("");
+    anos.querySelectorAll("button").forEach(b => b.onclick = () => { Q4.ano = +b.dataset.a; montarEscolaridade(); });
+    d = await pedir(Q4.ano);
+  } catch(e){
+    if (Q4.cargaId === cargaId) el.innerHTML = `<p class="aviso-mini">Não foi possível carregar: ${esc(e.message)}</p>`;
+    return;
+  }
+  if (Q4.cargaId !== cargaId) return;
+  const censo = d.anoCenso || 2022;
+  const linhas = d.niveis.filter(r => r.ano === Q4.ano);
+  // municípios: diferença de superior completo, eleitos − população (pontos percentuais)
+  const muns = d.municipios.filter(m => m.eleitosInf > 0 && m.popInf > 0)
+    .map(m => ({ ...m, eleitos: m.eleitosSup / m.eleitosInf, pop: m.popSup / m.popInf }))
+    .map(m => ({ ...m, dif: (m.eleitos - m.pop) * 100 }));
+  muns.sort((a, b) => Q4.ordem === "maior" ? b.dif - a.dif : a.dif - b.dif);
+  const acima = muns.filter(m => m.dif > 0).length;
+  let mostrar = 10;
+  const pp = v => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} p.p.`;
+  const desenhar = () => {
+    el.innerHTML = `<div class="fin-grid">
+      <div class="fin-bloco"><h3>${Q4.ano}: quem se candidata e quem se elege × população</h3>
+        ${Math.abs(Q4.ano - censo) > 2 ? `<p class="aviso-mini">O Censo é de ${censo}; a escolaridade da população em ${Q4.ano} era outra. Compare com cautela.</p>` : ""}
+        ${htmlEscolaridade(linhas, censo)}</div>
+      <div class="fin-bloco"><h3>Superior completo, município a município</h3>
+        <p class="aviso-mini">Em ${fmt.format(acima)} de ${fmt.format(muns.length)} municípios (${muns.length ? pct(acima, muns.length) : "–"}) a parcela de eleitos com superior completo é maior que a da população.</p>
+        <div class="cargos" role="group" aria-label="Ordem da lista">
+          <button data-o="maior" aria-pressed="${Q4.ordem === "maior"}">Eleitos muito mais escolarizados</button>
+          <button data-o="menor" aria-pressed="${Q4.ordem === "menor"}">Mais próximos ou abaixo da população</button></div>
+        <div class="tabw"><table class="tab"><thead><tr><th>Município</th><th class="v">Eleitos</th><th class="v">População</th><th class="v">Diferença</th></tr></thead><tbody>
+          ${muns.slice(0, mostrar).map(m => `<tr><td><button class="link" data-mun="${esc(m.tse)}" data-uf="${esc(m.uf)}">${esc(titulo(m.nome))}</button>${UF ? "" : ` <small class="dim">${esc(m.uf)}</small>`}</td>
+            <td class="v num" title="${fmt.format(m.eleitosSup)} de ${fmt.format(m.eleitosInf)} eleitos">${pctQ4(m.eleitos)}</td>
+            <td class="v num">${pctQ4(m.pop)}</td><td class="v num"><b>${pp(m.dif)}</b></td></tr>`).join("")}
+        </tbody></table></div>
+        ${mostrar < muns.length ? `<p><button class="link" data-mais="1">Mostrar mais</button></p>` : ""}
+      </div></div>`;
+    el.querySelectorAll("[data-o]").forEach(b => b.onclick = () => { Q4.ordem = b.dataset.o; montarEscolaridade(); });
+    // a gaveta do município não depende do estado aberto no mapa
+    el.querySelectorAll("[data-mun]").forEach(b => b.onclick = () => abrirMunicipio(b.dataset.mun));
+    const mais = el.querySelector("[data-mais]"); if (mais) mais.onclick = () => { mostrar += 10; desenhar(); };
+  };
+  desenhar();
+}
+
 let tBusca = null, selIdx = -1, buscaAtual = null;
 inp.addEventListener("input", () => { clearTimeout(tBusca); tBusca = setTimeout(buscar, 180); });
 inp.addEventListener("keydown", ev => {
@@ -1608,6 +1718,15 @@ async function abrirMunicipio(cd, nomeMapa){
     h += `<h3>Eleitorado por faixa etária</h3><div class="ctrl"><select id="el-sel" aria-label="Ano">${[...new Set(el.map(e=>e.ano))].sort().reverse().map(a=>`<option>${a}</option>`).join("")}</select></div><div id="el-lista"></div>`;
   } else faltam.push("perfil do eleitorado");
 
+  // P4: escolaridade dos candidatos e eleitos × população (Censo)
+  const escol = (m.escolaridade || []).filter(r => r.candidatos || r.populacao);
+  if (escol.length){
+    const anosE = [...new Set(escol.map(r => r.ano))].sort((a, b) => b - a);
+    const opcoes = anosE.flatMap(a => [[`${a}|TODOS`, `${a}, prefeito e vereador`], [`${a}|PREFEITO`, `${a}, prefeito`], [`${a}|VEREADOR`, `${a}, vereador`]]
+      .filter(([v]) => v.endsWith("TODOS") || escol.some(r => `${r.ano}|${r.cargo}` === v && r.candidatos)));
+    h += `<h3>Escolaridade: candidatos e eleitos × população</h3><div class="ctrl"><select id="esc-sel" aria-label="Eleição e cargo">${opcoes.map(([v, t]) => `<option value="${esc(v)}">${t}</option>`).join("")}</select></div><div id="esc-lista"></div>`;
+  }
+
   if (faltam.length) h += `<p class="aviso-mini">Sem dados de ${faltam.join(", ").replace(/, ([^,]*)$/," e $1")} para este município na base.</p>`;
   abrirGaveta(h);
 
@@ -1624,6 +1743,9 @@ async function abrirMunicipio(cd, nomeMapa){
     return rows.map(r=>`<div class="hb"><button class="link" data-cand="${r.id}" style="font-weight:500">${esc(titulo(r.nome))} <span style="color:var(--ink-3)">${esc(r.partido)}</span></button><i class="t" style="width:${r.votos/mx*100}%;background:${corP(r.partido)}"></i><span class="v">${fmt.format(r.votos)}</span></div>`).join(""); });
   ligar("vp-sel","vp-lista", v => { const [a,c] = v.split("|").map(Number); const rows = vp.filter(r=>r.ano===a && r.cargo===c).map(r=>({...r, t:r.nominais+r.legenda})).sort((x,y)=>y.t-x.t).slice(0,10); const mx = d3.max(rows, r=>r.t)||1;
     return rows.map(r=>`<div class="hb"><span>${esc(r.partido)}</span><i class="t" style="width:${r.t/mx*100}%;background:${corP(r.partido)}"></i><span class="v">${fmt.format(r.t)}</span></div>`).join("") + `<p class="aviso-mini">Soma de votos nominais e de legenda; 10 partidos mais votados.</p>`; });
+  ligar("esc-sel","esc-lista", v => { const [a, c] = v.split("|");
+    const linhas = escol.filter(r => r.ano === +a && r.cargo === c);
+    return htmlEscolaridade(linhas, linhas[0]?.anoCenso); });
   ligar("el-sel","el-lista", v => { const ini = s => parseInt(s,10) || 0;
     const rows = el.filter(e=>String(e.ano)===v && e.qt>0 && /\d/.test(e.faixa)).sort((x,y)=>ini(x.faixa)-ini(y.faixa)); const tot = d3.sum(rows, r=>r.qt), mx = d3.max(rows, r=>r.qt)||1;
     return rows.map(r=>`<div class="hb"><span>${esc(r.faixa)}</span><i class="t" style="width:${r.qt/mx*100}%"></i><span class="v">${(r.qt/tot*100).toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span></div>`).join("") + `<p class="aviso-mini">${fmt.format(tot)} eleitores cadastrados.</p>`; });

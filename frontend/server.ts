@@ -280,11 +280,7 @@ async function route(request: Request) {
     const uf = (url.searchParams.get("uf") || "").toUpperCase();
     const year = Number(url.searchParams.get("year"));
     if (!UFS.has(uf) || !YEARS.has(year)) return json({ error: "UF ou ano inválido." }, 400);
-    // Presidente: candidato mais votado em cada município no turno decisivo (o 2º, quando
-    // houve). Vem de votacao_candidato_municipio; se essa tabela não tiver cd_cargo 1,
-    // o cliente cai no partido mais votado de votacao_partido (1º turno), quando houver.
-    const geral = year % 4 === 2;
-    const [winners, mayors, presidents] = await comCache(`mapa:${uf}:${year}:pres`, () => seguido([
+    const [winners, mayors] = await comCache(`mapa:${uf}:${year}`, () => seguido([
       () => rows(`WITH votos AS (
               SELECT v.cd_municipio_tse, v.cd_cargo, v.sg_partido,
                      SUM(COALESCE(v.qt_votos_nominais, 0) + COALESCE(v.qt_votos_legenda, 0)) AS votos
@@ -305,32 +301,8 @@ async function route(request: Request) {
             JOIN public.municipio m USING (cd_municipio_tse)
             WHERE m.sg_uf = $1 AND c.ano_eleicao = $2 AND c.ds_cargo = 'PREFEITO'
               AND c.ds_sit_tot_turno IN ('ELEITO', 'ELEITO POR QP', 'ELEITO POR MÉDIA')`, [uf, year]),
-      () => !geral ? Promise.resolve([]) : rows(`WITH turno AS (
-              SELECT MAX(v.nr_turno) AS t
-              FROM public.votacao_candidato_municipio v
-              JOIN public.municipio m USING (cd_municipio_tse)
-              WHERE m.sg_uf = $1 AND v.ano_eleicao = $2 AND v.cd_cargo = 1
-            ), votos AS (
-              SELECT v.cd_municipio_tse, v.sq_candidato, SUM(v.qt_votos_nominais) AS votos
-              FROM public.votacao_candidato_municipio v
-              JOIN public.municipio m USING (cd_municipio_tse)
-              WHERE m.sg_uf = $1 AND v.ano_eleicao = $2 AND v.cd_cargo = 1
-                AND v.nr_turno = (SELECT t FROM turno)
-              GROUP BY 1, 2
-            ), ranqueado AS (
-              SELECT *, SUM(votos) OVER (PARTITION BY cd_municipio_tse) AS total,
-                     ROW_NUMBER() OVER (PARTITION BY cd_municipio_tse ORDER BY votos DESC, sq_candidato) AS pos
-              FROM votos
-            )
-            SELECT r.cd_municipio_tse AS municipio, c.sg_partido AS partido,
-                   COALESCE(c.nm_urna_candidato, ca.nm_candidato) AS nome, c.id_pessoa_projeto AS id,
-                   r.votos, r.total, (SELECT t FROM turno) AS turno
-            FROM ranqueado r
-            JOIN public.candidatura c ON c.ano_eleicao = $2 AND c.sq_candidato = r.sq_candidato
-            LEFT JOIN public.candidato ca ON ca.id_pessoa_projeto = c.id_pessoa_projeto
-            WHERE r.pos = 1 AND r.votos > 0`, [uf, year]),
     ]));
-    return json({ uf, year, winners, mayors, presidents });
+    return json({ uf, year, winners, mayors });
   }
 
   if (path === "/api/search") {
@@ -474,6 +446,54 @@ async function route(request: Request) {
   // o corte (o frontend usa cargo=1 para trazer o Presidente nacional).
   // P5 — eleitos com a ajuda dos votos do partido (vw_questao_5_legenda,
   // sql/motherduck/10_views_legenda.sql). uf vazio agrega toda a amostra.
+  // P4 — escolaridade dos eleitos × população (vw_questao_4_escolaridade,
+  // sql/motherduck/07_views_escolaridade.sql). uf vazio agrega toda a amostra.
+  if (path === "/api/escolaridade") {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    const ano = Number(url.searchParams.get("ano") || 0);
+    const cargo = (url.searchParams.get("cargo") || "TODOS").toUpperCase();
+    if ((uf && !UFS.has(uf)) || (ano && !YEARS.has(ano)) || !["TODOS", "PREFEITO", "VEREADOR"].includes(cargo))
+      return json({ error: "Filtro inválido." }, 400);
+    if (!(await viewDisponivel("vw_questao_4_escolaridade")))
+      return json({ error: "A view vw_questao_4_escolaridade ainda não foi aplicada no banco (sql/motherduck/06_municipio_ibge.sql e 07_views_escolaridade.sql)." }, 503);
+    const [anos, niveis, municipios] = await comCache(`q4:${uf || "*"}:${ano}:${cargo}`, () => seguido([
+      () => rows(`SELECT DISTINCT ano_eleicao, ano_censo FROM public.vw_questao_4_escolaridade
+            ${uf ? "WHERE sg_uf = $1" : ""} ORDER BY 1`, uf ? [uf] : []),
+      () => {
+        const params: (string | number)[] = [cargo]; const cond = ["ds_cargo = $1"];
+        if (ano){ params.push(ano); cond.push(`ano_eleicao = $${params.length}`); }
+        if (uf){ params.push(uf); cond.push(`sg_uf = $${params.length}`); }
+        return rows(`SELECT ano_eleicao, nr_nivel, ANY_VALUE(ds_nivel) AS ds_nivel,
+                     SUM(qt_candidatos) AS candidatos, SUM(qt_eleitos) AS eleitos, SUM(qt_populacao) AS populacao
+              FROM public.vw_questao_4_escolaridade WHERE ${cond.join(" AND ")}
+              GROUP BY 1, 2 ORDER BY 1, 2 NULLS LAST`, params);
+      },
+      () => {
+        // por município: superior completo entre eleitos e na população (ano escolhido)
+        if (!ano) return Promise.resolve([]);
+        const params: (string | number)[] = [cargo, ano]; const cond = ["ds_cargo = $1", "ano_eleicao = $2"];
+        if (uf){ params.push(uf); cond.push(`sg_uf = $${params.length}`); }
+        return rows(`SELECT cd_municipio_tse, ANY_VALUE(nm_municipio) AS nm_municipio, ANY_VALUE(sg_uf) AS uf,
+                     SUM(qt_eleitos) FILTER (WHERE nr_nivel = 4) AS eleitos_sup,
+                     SUM(qt_eleitos) FILTER (WHERE nr_nivel IS NOT NULL) AS eleitos_inf,
+                     SUM(qt_populacao) FILTER (WHERE nr_nivel = 4) AS pop_sup,
+                     SUM(qt_populacao) FILTER (WHERE nr_nivel IS NOT NULL) AS pop_inf
+              FROM public.vw_questao_4_escolaridade WHERE ${cond.join(" AND ")}
+              GROUP BY 1`, params);
+      },
+    ]));
+    const n = (v: unknown) => v == null ? null : Number(v);
+    return json({
+      anos: anos.map((r: Record<string, unknown>) => Number(r.ano_eleicao)),
+      anoCenso: n(anos[0]?.ano_censo),
+      niveis: niveis.map((r: Record<string, unknown>) => ({ ano: Number(r.ano_eleicao), nivel: n(r.nr_nivel), nome: r.ds_nivel,
+        candidatos: Number(r.candidatos), eleitos: Number(r.eleitos), populacao: n(r.populacao) })),
+      municipios: municipios.map((r: Record<string, unknown>) => ({ tse: r.cd_municipio_tse, nome: r.nm_municipio, uf: r.uf,
+        eleitosSup: Number(r.eleitos_sup || 0), eleitosInf: Number(r.eleitos_inf || 0),
+        popSup: n(r.pop_sup), popInf: n(r.pop_inf) })),
+    });
+  }
+
   if (path === "/api/legenda") {
     const uf = (url.searchParams.get("uf") || "").toUpperCase();
     if (uf && !UFS.has(uf)) return json({ error: "UF fora da amostra." }, 400);
@@ -686,7 +706,9 @@ async function route(request: Request) {
                                               pib_per_capita, idhm, populacao_total
                                        FROM public.municipio WHERE cd_municipio_tse = $1`, [code]);
     if (!municipality) return json({ error: "Município não encontrado." }, 404);
-    const [attendance, electorate, parties, topCandidates, localCandidacies] = await comCache(`mun:${code}`, () => seguido([
+    // P4: a view só existe depois de aplicar 06 e 07; a chave do cache registra isso
+    const temQ4 = await viewDisponivel("vw_questao_4_escolaridade");
+    const [attendance, electorate, parties, topCandidates, localCandidacies, education] = await comCache(`mun:${code}:q4${temQ4 ? 1 : 0}`, () => seguido([
       () => rows(`SELECT ano_eleicao, nr_turno, qt_aptos, qt_comparecimento, qt_abstencao
             FROM public.comparecimento_municipio WHERE cd_municipio_tse = $1
             ORDER BY ano_eleicao, nr_turno`, [code]),
@@ -717,8 +739,13 @@ async function route(request: Request) {
               AND c.ano_eleicao IN (2004, 2008, 2012, 2016, 2020, 2024)
               AND c.ds_cargo IN ('PREFEITO', 'VEREADOR')
             ORDER BY c.ano_eleicao, c.ds_cargo, c.ds_sit_tot_turno, c.nm_urna_candidato`, [code]),
+      // P4: escolaridade dos candidatos e eleitos × população (Censo), por nível
+      () => temQ4 ? rows(`SELECT ano_eleicao, ano_censo, ds_cargo, nr_nivel, ds_nivel,
+                   qt_candidatos, qt_eleitos, qt_populacao
+            FROM public.vw_questao_4_escolaridade WHERE cd_municipio_tse = $1
+            ORDER BY ano_eleicao, ds_cargo, nr_nivel NULLS LAST`, [code]) : Promise.resolve(null),
     ]));
-    return json({ ...municipality, attendance, electorate, parties, topCandidates, localCandidacies });
+    return json({ ...municipality, attendance, electorate, parties, topCandidates, localCandidacies, education });
   }
 
   return json({ error: "Rota não encontrada." }, 404);

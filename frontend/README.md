@@ -50,9 +50,13 @@ Os pleitos de 2014 e 2016 já estão carregados: 2014 cobre os cargos estaduais/
 
 ### Cargos no mapa
 
-Nos anos de eleição geral, os botões trazem Governador, Senador e Presidente, além dos deputados. Para Presidente, cada município leva a cor do partido do candidato mais votado ali, no turno decisivo (o 2º, quando houve); o tooltip mostra o candidato. Os votos vêm de `votacao_candidato_municipio` (cargo 1); se a base não tiver esses votos para o ano, o mapa avisa.
+Presidente não aparece entre os cargos: a base não tem os votos de Presidente por município.
 
 O cargo escolhido continua selecionado ao trocar de ano ou de estado, para comparar a mesma disputa ao longo do tempo. Anos gerais e municipais têm cargos diferentes, então cada tipo guarda o seu: Senador em 2018 continua Senador em 2022, 2014, 2010...; ao ir para 2024, volta o último cargo municipal escolhido (Vereador, por exemplo), e ao voltar para um ano geral, Senador de novo.
+
+### Escolaridade: os eleitos se parecem com a população? (P4)
+
+A seção lê `/api/escolaridade?uf&ano&cargo`, sobre `vw_questao_4_escolaridade` (`sql/motherduck/07_views_escolaridade.sql`): por cargo (prefeito e vereador, juntos ou separados) e eleição, a distribuição de candidatos, eleitos e população de 18+ do Censo 2022 nos quatro níveis do IBGE, e a lista de municípios pela diferença na parcela com superior completo (eleitos − população), nos dois sentidos. O ano padrão é o mais próximo do Censo. A gaveta de cada município traz a mesma comparação para o município.
 
 ### Eleitos com a ajuda do partido (P5)
 

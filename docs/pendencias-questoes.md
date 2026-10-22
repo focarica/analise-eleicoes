@@ -23,7 +23,7 @@ Escopo da nossa carga (`BDR-TSE`): UFs **AC, AL, BA, DF, RO, SP** nos pleitos de
 | P1 | **Parcial** | custo por voto por candidatura na ficha (`presentation.ts:641`); view `custo_cadeira` pronta (`sql/05_identidade_e_cadeira.sql`) mas sem endpoint/UI; agregados de campanha não renderizados |
 | P2 | **Parcial** | patrimônio individual (evolução por eleição, na ficha); sem distribuição/taxa de eleição por faixa de bens |
 | P3 | **Parcial** | PIB/IDHM/população já chegam pelo `/api/municipality` (`server.ts:192`) e **não são renderizados**; faltam eleitores/população e isentos |
-| P4 | **Falta** | grau de instrução só na ficha individual; `stg_tse.perfil_eleitorado_municipio` tem `ds_grau_instrucao` — nada agregado |
+| P4 | **Feita** | view `vw_questao_4_escolaridade` (`sql/motherduck/07_views_escolaridade.sql`): candidatos e eleitos a prefeito/vereador × população 18+ do Censo 2022 (`escolaridade_populacao_municipio`, via `vw_municipio_ibge`), nos quatro níveis do IBGE; endpoint `/api/escolaridade`; seção na página e na gaveta do município |
 | P5 | **Feita** | view `vw_questao_5_legenda` (`sql/motherduck/10_views_legenda.sql`): por eleito em cargo proporcional, votos próprios × quociente eleitoral e × legenda do partido; endpoints `/api/legenda` e `/api/legenda/pessoas`; seção "Eleitos com a ajuda do partido" (cargo, ano, evolução 2004–2024, partidos e lista) |
 | P6 | **Falta** | idade derivável de `dt_nascimento`; sem alternância (não baixamos 1996–2016) |
 | P7 | **Falta** | não temos o dataset de notas de especialistas (Harvard Dataverse) |
