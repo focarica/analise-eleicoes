@@ -48,6 +48,18 @@ O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2004–2024. A interface 
 
 Os pleitos de 2014 e 2016 já estão carregados: 2014 cobre os cargos estaduais/federais da eleição geral; 2016 cobre prefeito e vereador, com lacunas de votos por cargo em Guarulhos, Itapetininga, Itupeva e Lins. A votação presidencial está disponível para 2018 e 2022, carregada como complemento dos arquivos do TSE por seção; os demais anos gerais não têm esse complemento. A ausência de um município nessa tabela indica que não há votação publicada naquele grão; não a interprete como zero votos.
 
+### Cargos no mapa
+
+O cargo escolhido continua selecionado ao trocar de ano ou de estado, para comparar a mesma disputa ao longo do tempo. Anos gerais e municipais têm cargos diferentes, então cada tipo guarda o seu: Senador em 2018 continua Senador em 2022, 2014, 2010...; ao ir para 2024, volta o último cargo municipal escolhido (Vereador, por exemplo), e ao voltar para um ano geral, Senador de novo.
+
+### Escolaridade: os eleitos se parecem com a população? (P4)
+
+A seção lê `/api/escolaridade?uf&ano&cargo`, sobre `vw_questao_4_escolaridade` (`sql/motherduck/07_views_escolaridade.sql`): por cargo (prefeito e vereador, juntos ou separados) e eleição, a distribuição de candidatos, eleitos e população de 18+ do Censo 2022 nos quatro níveis do IBGE, e a lista de municípios pela diferença na parcela com superior completo (eleitos − população), nos dois sentidos. O ano padrão é o mais próximo do Censo. A gaveta de cada município traz a mesma comparação para o município.
+
+### Eleitos com a ajuda do partido (P5)
+
+A seção "Eleitos com a ajuda do partido" lê `/api/legenda` e `/api/legenda/pessoas`, sobre `vw_questao_5_legenda` (`sql/motherduck/11_views_legenda.sql`). Para cada cargo proporcional e eleição: quantos eleitos tiveram menos votos próprios que o quociente eleitoral, a evolução de 2004 a 2024 (clicar num ano o seleciona), a tabela por partido (clicar num partido filtra a lista) e quem se elegeu com a menor fração do quociente. Sem estado escolhido, soma a amostra inteira.
+
 ### Mapa de municípios
 
 Os limites municipais ficam em `public/geo/municipios-UF.json` (TopoJSON, um arquivo por estado, já versionado). Cada município traz o código TSE, o mesmo de `municipio.cd_municipio_tse`. Cada município é pintado com a cor do partido vencedor no cargo escolhido: para prefeito, o partido do eleito (ou o mais votado no 1º turno, se o eleito não estiver na base); para os demais cargos, o partido mais votado no 1º turno, somando votos nominais e de legenda. A rota `/api/municipal-map` faz esse cálculo a partir de `votacao_partido` e `candidatura`. A legenda conta em quantos municípios cada partido venceu.

@@ -201,6 +201,26 @@ tr.reel-soma td{ border-top:1.5px solid var(--ink-3); }
 .fin-bloco:has(> .hb:nth-of-type(8)) > h3{ position:sticky; top:0; z-index:1; background:var(--bg); padding:.15rem 0 .4rem; margin-bottom:.6rem; }
 /* fade no pé do card rolável: avisa que há mais fontes abaixo do corte */
 .fin-bloco:has(> .hb:nth-of-type(8))::after{ content:""; position:sticky; bottom:0; display:block; height:1.5rem; margin-top:-1.5rem; background:linear-gradient(to bottom, transparent, var(--bg)); pointer-events:none; }
+.leg5-destaque{ font-size:1rem; margin:.1rem 0 .3rem; }
+.leg5-destaque b{ font-size:1.35rem; }
+.hb.leg5-ano{ cursor:pointer; border-radius:4px; }
+.hb.leg5-ano:hover, .hb.leg5-ano:focus-visible{ background:color-mix(in srgb, var(--ink) 6%, transparent); }
+.hb.leg5-ano.on span:first-child{ font-weight:700; }
+.hb.leg5-ano.on .t{ background:var(--ink); }
+tr.leg5-partido{ cursor:pointer; }
+tr.leg5-partido:hover td, tr.leg5-partido.on td{ background:color-mix(in srgb, var(--ink) 6%, transparent); }
+/* P4: escolaridade dos candidatos e eleitos × população (Censo) */
+.esc-resumo{ list-style:none; margin:0 0 .7rem; padding:0; font-size:.88rem; color:var(--ink-2); display:grid; gap:.25rem; }
+.esc-resumo b{ color:var(--ink); font-weight:700; }
+.esc-leg{ display:flex; flex-wrap:wrap; gap:.3rem 1rem; font-size:.78rem; color:var(--ink-3); margin:0 0 .35rem; }
+.esc-leg i{ display:inline-block; width:.7rem; height:.7rem; border-radius:2px; margin-right:.35rem; vertical-align:-1px; }
+.esc-linha{ display:grid; grid-template-columns:minmax(7rem,10rem) minmax(0,1fr); gap:.6rem; align-items:center; padding:.35rem 0; border-bottom:1px solid var(--line); font-size:.85rem; }
+.esc-barras{ display:grid; gap:3px; }
+.esc-barras > div{ display:grid; grid-template-columns:minmax(0,1fr) 3.4rem; gap:.4rem; align-items:center; }
+.esc-barras b{ display:block; height:.45rem; }
+.esc-barras b i{ display:block; height:100%; border-radius:2px; min-width:1px; }
+.esc-barras span{ text-align:right; font-size:.75rem; color:var(--ink-2); font-variant-numeric:tabular-nums; }
+.esc-el{ background:var(--ink-3); } .esc-ca{ background:var(--ink); } .esc-ei{ background:var(--ok); }
 .fin-bloco h4{ margin:1.25rem 0 .4rem; font-size:.85rem; font-weight:700; }
 .fin-seg{ display:flex; height:1.15rem; border-radius:4px; overflow:hidden; background:var(--line); }
 .fin-seg i{ display:block; min-width:2px; }

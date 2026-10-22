@@ -216,6 +216,18 @@ const seguido = async (consultas: (() => Promise<any>)[]) => {
   return out;
 };
 
+// Views opcionais: a rota explica o que falta aplicar em vez de devolver o erro do banco.
+const viewsVistas = new Map<string, Promise<boolean>>();
+function viewDisponivel(nome: string) {
+  if (!viewsVistas.has(nome)) {
+    viewsVistas.set(nome, rows(
+      `SELECT 1 AS existe FROM information_schema.tables
+       WHERE table_catalog = current_database() AND table_schema = 'public' AND table_name = $1`, [nome],
+    ).then((r) => r.length > 0).catch((error) => { viewsVistas.delete(nome); throw error; }));
+  }
+  return viewsVistas.get(nome)!.then((existe) => { if (!existe) viewsVistas.delete(nome); return existe; });
+}
+
 const json = (data: unknown, status = 200) => Response.json(data, { status });
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Erro ao consultar MotherDuck.";
 
@@ -432,6 +444,106 @@ async function route(request: Request) {
   // Q8 — financiamento: peso dos fundos públicos por cargo, faixa e partido.
   // uf vazio = TODOS as UFs da amostra, agregado aqui; `cargo` opcional afina
   // o corte (o frontend usa cargo=1 para trazer o Presidente nacional).
+  // P5 — eleitos com a ajuda dos votos do partido (vw_questao_5_legenda,
+  // sql/motherduck/11_views_legenda.sql). uf vazio agrega toda a amostra.
+  // P4 — escolaridade dos eleitos × população (vw_questao_4_escolaridade,
+  // sql/motherduck/07_views_escolaridade.sql). uf vazio agrega toda a amostra.
+  if (path === "/api/escolaridade") {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    const ano = Number(url.searchParams.get("ano") || 0);
+    const cargo = (url.searchParams.get("cargo") || "TODOS").toUpperCase();
+    if ((uf && !UFS.has(uf)) || (ano && !YEARS.has(ano)) || !["TODOS", "PREFEITO", "VEREADOR"].includes(cargo))
+      return json({ error: "Filtro inválido." }, 400);
+    if (!(await viewDisponivel("vw_questao_4_escolaridade")))
+      return json({ error: "A view vw_questao_4_escolaridade ainda não foi aplicada no banco (sql/motherduck/10_censo_2022_escolaridade.sql, 06_municipio_ibge.sql e 07_views_escolaridade.sql)." }, 503);
+    const [anos, niveis, municipios] = await comCache(`q4:${uf || "*"}:${ano}:${cargo}`, () => seguido([
+      () => rows(`SELECT DISTINCT ano_eleicao, ano_censo FROM public.vw_questao_4_escolaridade
+            ${uf ? "WHERE sg_uf = $1" : ""} ORDER BY 1`, uf ? [uf] : []),
+      () => {
+        const params: (string | number)[] = [cargo]; const cond = ["ds_cargo = $1"];
+        if (ano){ params.push(ano); cond.push(`ano_eleicao = $${params.length}`); }
+        if (uf){ params.push(uf); cond.push(`sg_uf = $${params.length}`); }
+        return rows(`SELECT ano_eleicao, nr_nivel, ANY_VALUE(ds_nivel) AS ds_nivel,
+                     SUM(qt_candidatos) AS candidatos, SUM(qt_eleitos) AS eleitos, SUM(qt_populacao) AS populacao
+              FROM public.vw_questao_4_escolaridade WHERE ${cond.join(" AND ")}
+              GROUP BY 1, 2 ORDER BY 1, 2 NULLS LAST`, params);
+      },
+      () => {
+        // por município: superior completo entre eleitos e na população (ano escolhido)
+        if (!ano) return Promise.resolve([]);
+        const params: (string | number)[] = [cargo, ano]; const cond = ["ds_cargo = $1", "ano_eleicao = $2"];
+        if (uf){ params.push(uf); cond.push(`sg_uf = $${params.length}`); }
+        return rows(`SELECT cd_municipio_tse, ANY_VALUE(nm_municipio) AS nm_municipio, ANY_VALUE(sg_uf) AS uf,
+                     SUM(qt_eleitos) FILTER (WHERE nr_nivel = 4) AS eleitos_sup,
+                     SUM(qt_eleitos) FILTER (WHERE nr_nivel IS NOT NULL) AS eleitos_inf,
+                     SUM(qt_populacao) FILTER (WHERE nr_nivel = 4) AS pop_sup,
+                     SUM(qt_populacao) FILTER (WHERE nr_nivel IS NOT NULL) AS pop_inf
+              FROM public.vw_questao_4_escolaridade WHERE ${cond.join(" AND ")}
+              GROUP BY 1`, params);
+      },
+    ]));
+    const n = (v: unknown) => v == null ? null : Number(v);
+    return json({
+      anos: anos.map((r: Record<string, unknown>) => Number(r.ano_eleicao)),
+      anoCenso: n(anos[0]?.ano_censo),
+      niveis: niveis.map((r: Record<string, unknown>) => ({ ano: Number(r.ano_eleicao), nivel: n(r.nr_nivel), nome: r.ds_nivel,
+        candidatos: Number(r.candidatos), eleitos: Number(r.eleitos), populacao: n(r.populacao) })),
+      municipios: municipios.map((r: Record<string, unknown>) => ({ tse: r.cd_municipio_tse, nome: r.nm_municipio, uf: r.uf,
+        eleitosSup: Number(r.eleitos_sup || 0), eleitosInf: Number(r.eleitos_inf || 0),
+        popSup: n(r.pop_sup), popInf: n(r.pop_inf) })),
+    });
+  }
+
+  if (path === "/api/legenda") {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    if (uf && !UFS.has(uf)) return json({ error: "UF fora da amostra." }, 400);
+    if (!(await viewDisponivel("vw_questao_5_legenda")))
+      return json({ error: "A view vw_questao_5_legenda ainda não foi aplicada no banco (sql/motherduck/11_views_legenda.sql)." }, 503);
+    const [condicao, params] = uf ? ["WHERE uf = $1", [uf]] : ["", []];
+    const [resumo, partidos] = await comCache(`legenda:${uf || "*"}`, () => seguido([
+      () => rows(`SELECT cd_cargo, ano_eleicao, COUNT(*) AS eleitos,
+                   COUNT(*) FILTER (WHERE eleito_abaixo_qe) AS abaixo_qe,
+                   COUNT(*) FILTER (WHERE eleito_abaixo_legenda) AS abaixo_legenda
+            FROM public.vw_questao_5_legenda ${condicao}
+            GROUP BY 1, 2 ORDER BY 1, 2`, params),
+      () => rows(`SELECT cd_cargo, ano_eleicao, sg_partido, COUNT(*) AS eleitos,
+                   COUNT(*) FILTER (WHERE eleito_abaixo_qe) AS abaixo_qe,
+                   COUNT(*) FILTER (WHERE eleito_abaixo_legenda) AS abaixo_legenda
+            FROM public.vw_questao_5_legenda ${condicao}
+            GROUP BY 1, 2, 3`, params),
+    ]));
+    const num = (r: Record<string, unknown>) => ({
+      cdCargo: Number(r.cd_cargo), ano: Number(r.ano_eleicao), eleitos: Number(r.eleitos),
+      abaixoQe: Number(r.abaixo_qe), abaixoLegenda: Number(r.abaixo_legenda),
+    });
+    return json({
+      uf: uf || null,
+      resumo: resumo.map((r: Record<string, unknown>) => num(r)),
+      partidos: partidos.map((r: Record<string, unknown>) => ({ ...num(r), partido: r.sg_partido })),
+    });
+  }
+
+  if (path === "/api/legenda/pessoas") {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    const cargo = Number(url.searchParams.get("cargo"));
+    const ano = Number(url.searchParams.get("ano"));
+    const partido = (url.searchParams.get("partido") || "").toUpperCase();
+    if ((uf && !UFS.has(uf)) || ![6, 7, 8, 13].includes(cargo) || !YEARS.has(ano))
+      return json({ error: "Filtro inválido." }, 400);
+    const condicoes = ["l.cd_cargo = $1", "l.ano_eleicao = $2", "l.eleito_abaixo_qe"];
+    const params: (string | number)[] = [cargo, ano];
+    if (uf){ params.push(uf); condicoes.push(`l.uf = $${params.length}`); }
+    if (partido){ params.push(partido); condicoes.push(`l.sg_partido = $${params.length}`); }
+    const pessoas = await rows(`SELECT l.id_pessoa_projeto, l.nm_urna_candidato, l.sg_partido, l.uf,
+                 m.nm_municipio, l.votos_nominais, l.quociente_eleitoral, l.pct_do_quociente,
+                 l.votos_legenda_partido, l.eleito_abaixo_legenda
+          FROM public.vw_questao_5_legenda l
+          LEFT JOIN public.municipio m ON m.cd_municipio_tse = l.cd_municipio_tse
+          WHERE ${condicoes.join(" AND ")}
+          ORDER BY l.pct_do_quociente, l.votos_nominais LIMIT 40`, params);
+    return json({ pessoas });
+  }
+
   if (path === "/api/financiamento") {
     const uf = (url.searchParams.get("uf") || "").toUpperCase();
     if (uf && !UFS.has(uf)) return json({ error: "UF fora da amostra." }, 400);
@@ -594,7 +706,9 @@ async function route(request: Request) {
                                               pib_per_capita, idhm, populacao_total
                                        FROM public.municipio WHERE cd_municipio_tse = $1`, [code]);
     if (!municipality) return json({ error: "Município não encontrado." }, 404);
-    const [attendance, electorate, parties, topCandidates, localCandidacies] = await comCache(`mun:${code}`, () => seguido([
+    // P4: a view só existe depois de aplicar 06 e 07; a chave do cache registra isso
+    const temQ4 = await viewDisponivel("vw_questao_4_escolaridade");
+    const [attendance, electorate, parties, topCandidates, localCandidacies, education] = await comCache(`mun:${code}:q4${temQ4 ? 1 : 0}`, () => seguido([
       () => rows(`SELECT ano_eleicao, nr_turno, qt_aptos, qt_comparecimento, qt_abstencao
             FROM public.comparecimento_municipio WHERE cd_municipio_tse = $1
             ORDER BY ano_eleicao, nr_turno`, [code]),
@@ -625,8 +739,13 @@ async function route(request: Request) {
               AND c.ano_eleicao IN (2004, 2008, 2012, 2016, 2020, 2024)
               AND c.ds_cargo IN ('PREFEITO', 'VEREADOR')
             ORDER BY c.ano_eleicao, c.ds_cargo, c.ds_sit_tot_turno, c.nm_urna_candidato`, [code]),
+      // P4: escolaridade dos candidatos e eleitos × população (Censo), por nível
+      () => temQ4 ? rows(`SELECT ano_eleicao, ano_censo, ds_cargo, nr_nivel, ds_nivel,
+                   qt_candidatos, qt_eleitos, qt_populacao
+            FROM public.vw_questao_4_escolaridade WHERE cd_municipio_tse = $1
+            ORDER BY ano_eleicao, ds_cargo, nr_nivel NULLS LAST`, [code]) : Promise.resolve(null),
     ]));
-    return json({ ...municipality, attendance, electorate, parties, topCandidates, localCandidacies });
+    return json({ ...municipality, attendance, electorate, parties, topCandidates, localCandidacies, education });
   }
 
   return json({ error: "Rota não encontrada." }, 404);
