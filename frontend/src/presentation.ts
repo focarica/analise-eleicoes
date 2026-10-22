@@ -69,6 +69,9 @@ api = {
         const v = m.get(k);
         m.set(k, { partido: r.partido, fonte: "eleito", prefeito: { nome: r.nome, id: r.id }, votos: v?.partido === r.partido ? v.votos : null, total: v?.total });
       }
+      // Presidente: o candidato mais votado no município, no turno decisivo
+      for (const r of d.presidents || [])
+        doCargo(1).set(String(r.municipio), { partido: r.partido, fonte: "presidente", candidato: { nome: r.nome, id: r.id }, turno: +r.turno, votos: +r.votos, total: +r.total });
       return porCargo;
     }));
     return mapaCache.get(key);
@@ -95,6 +98,12 @@ document.getElementById("estados").innerHTML = UFS.map(uf => {
 // UF null = nenhum estado escolhido: a página abre no mapa do Brasil e os
 // filtros (estado no topo, busca, cargos) só valem depois de uma escolha.
 let UF = null, ANO = 2022, CARGO = null, LINHAS = [], VENCEDORES = new Map();
+// Cargo escolhido por tipo de eleição: ao trocar de ano (ou de estado) o mapa continua
+// no cargo escolhido, para comparar ao longo do tempo. Anos gerais e municipais têm
+// cargos diferentes, então cada tipo guarda o seu: 2018 → 2022 mantém Senador;
+// 2022 → 2024 vai para o último cargo municipal visto; 2024 → 2022 volta a Senador.
+const CARGO_PREF = { geral: null, municipal: null };
+const tipoAno = a => ANOS_GERAIS.has(a) ? "geral" : "municipal";
 const svg = d3.select("#forma"), tip = document.getElementById("tip");
 // câmera: que parte do mapa está enquadrada — todo o Brasil (sigla null), um estado ou um município
 let VISTA = { sigla: null, mun: null };
@@ -196,7 +205,7 @@ function focarMunicipio(tse){
 function anosDisponiveis(uf){ return uf === "DF" ? ANOS.filter(a => ANOS_GERAIS.has(a)) : ANOS; }
 
 async function abrirEstado(uf, voar){
-  UF = uf; CARGO = null; MALHA = null; MALHA_ERRO = false; MUN_SEL = null;
+  UF = uf; MALHA = null; MALHA_ERRO = false; MUN_SEL = null;
   VISTA.mun = null;
   document.getElementById("estados").classList.remove("escondido");
   if (voar) VISTA.sigla = uf; // a carga inicial da página abre no mapa do Brasil inteiro
@@ -239,6 +248,7 @@ function nenhumEstado(voar){
   document.getElementById("quartis").innerHTML = `<p class="aviso-mini">Escolha um estado da amostra para ver as faixas de gasto por cargo daquele ano.</p>`;
   montarFinanciamento();
   montarReeleicao();
+  montarLegendaPartido();
   desenharForma(false);
   if (voar) enquadrar(duracao(500));
 }
@@ -257,7 +267,7 @@ function escolherNoMapa(sigla){
 function montarAnos(){
   const el = document.getElementById("anos"), disp = anosDisponiveis(UF);
   el.innerHTML = ANOS.map(a => `<button class="ano-btn" data-ano="${a}" aria-pressed="${a===ANO}" ${disp.includes(a)?"":"disabled title=\"O DF não tem eleições municipais\""}>${a}</button>`).join("");
-  el.querySelectorAll("button").forEach(b => b.onclick = () => { ANO = +b.dataset.ano; CARGO = null; montarAnos(); carregarAno(); });
+  el.querySelectorAll("button").forEach(b => b.onclick = () => { ANO = +b.dataset.ano; montarAnos(); carregarAno(); });
 }
 
 async function carregarAno(){
@@ -266,22 +276,30 @@ async function carregarAno(){
   montarCargos(); desenharForma(true); montarQuartis(gasto);
   montarFinanciamento();
   montarReeleicao();
+  montarLegendaPartido();
 }
 
 function montarCargos(){
   let cargos = ORDEM_COD.filter(c => VENCEDORES.get(c)?.size);
-  // Presidente é da federação: incluído nos anos de eleição geral mesmo sem
-  // vencedor municipal carregado (a cor por município vem de votacao_partido, cd_cargo 1)
-  if (ANOS_PRESIDENTE.has(ANO) && !cargos.includes(1)) cargos.push(1);
+  // Presidente aparece em todo ano de eleição geral, ao lado de Governador e Senador,
+  // mesmo sem votos por município na base (o mapa então explica o que falta)
+  if (ANOS_GERAIS.has(ANO) && !cargos.includes(1)) cargos.push(1);
+  // botões na ordem do cargo mais local ao mais amplo: Governador, Senador, Presidente...
   cargos.sort((a,b) => ORDEM_COD.indexOf(a) - ORDEM_COD.indexOf(b));
-  if (!cargos.includes(CARGO)) CARGO = cargos[0] ?? null;
+  if (!cargos.includes(CARGO)){
+    const pref = CARGO_PREF[tipoAno(ANO)];
+    CARGO = cargos.includes(pref) ? pref : cargos[0] ?? null;
+  }
   const el = document.getElementById("cargos");
   el.innerHTML = cargos.map(c => `<button data-c="${c}" aria-pressed="${CARGO===c}">${CARGO_COD[c]}</button>`).join("");
-  el.querySelectorAll("button").forEach(b => b.onclick = () => { CARGO = +b.dataset.c; montarCargos(); desenharForma(true); });
+  el.querySelectorAll("button").forEach(b => b.onclick = () => {
+    CARGO = +b.dataset.c; CARGO_PREF[tipoAno(ANO)] = CARGO;
+    montarCargos(); desenharForma(true);
+  });
   document.getElementById("leg-nota").textContent = CARGO === 11
     ? "Cor de cada município: partido do prefeito eleito. Onde o eleito não está na base, vale o partido mais votado no 1º turno. A lista conta em quantos municípios cada partido venceu."
     : CARGO === 1
-    ? "Cor de cada município: partido mais votado para Presidente no 1º turno, somando votos nominais e de legenda. A lista conta em quantos municípios cada partido venceu."
+    ? "Cor de cada município: partido do candidato a Presidente mais votado ali, no turno decisivo (o 2º, quando houve). A lista conta em quantos municípios cada partido venceu; passe o mouse para ver o candidato."
     : "Cor de cada município: partido mais votado no 1º turno para o cargo, somando votos nominais e de legenda. A lista conta em quantos municípios cada partido venceu.";
 }
 
@@ -358,7 +376,9 @@ function desenharForma(animar){
     vazio.textContent = "Não foi possível carregar os limites dos municípios.";
   } else if (MALHA && !total){
     vazio.hidden = false;
-    vazio.textContent = UF==="DF" && ANOS_MUNICIPAIS.has(ANO) ? "O Distrito Federal não tem eleições municipais." : "Sem votação por município na base para este ano.";
+    vazio.textContent = UF==="DF" && ANOS_MUNICIPAIS.has(ANO) ? "O Distrito Federal não tem eleições municipais."
+      : CARGO === 1 ? `A base ainda não tem os votos de Presidente por município em ${ANO}.`
+      : "Sem votação por município na base para este ano.";
   } else vazio.hidden = true;
   montarLegenda(partes, total);
   btnBrasil.hidden = !VISTA.sigla;
@@ -413,7 +433,8 @@ function tipMunicipio(ev, f){
     const nm = nomePartido(v.partido);
     const votos = v.votos && v.total ? `${fmt.format(v.votos)} votos (${pct(v.votos, v.total)})` : "";
     h += `<span class="tip-faixa"><b>${esc(v.partido)}${nm && nm !== v.partido ? ", " + esc(titulo(nm)) : ""}</b>`
-      + (v.fonte === "eleito" ? `Prefeito eleito: ${esc(titulo(v.prefeito.nome))}${votos ? `<br>${votos} no 1º turno` : ""}`
+      + (v.fonte === "presidente" ? `Mais votado para presidente: ${esc(titulo(v.candidato.nome))}<br>${votos} no ${v.turno}º turno`
+        : v.fonte === "eleito" ? `Prefeito eleito: ${esc(titulo(v.prefeito.nome))}${votos ? `<br>${votos} no 1º turno` : ""}`
         : `${CARGO === 11 ? "Mais votado no 1º turno; o eleito não está na base" : `Mais votado para ${esc(CARGO_COD[CARGO].toLowerCase())}, 1º turno`}<br>${votos}`)
       + `</span>`;
   }
@@ -1122,6 +1143,113 @@ async function quemReeleicao(continuar){
 
 /* ===================== Busca ===================== */
 const inp = document.getElementById("busca"), res = document.getElementById("resultados");
+/* ===================== P5: eleitos com a ajuda do partido ===================== */
+// vw_questao_5_legenda (sql/motherduck/10_views_legenda.sql) via /api/legenda.
+const LEG5 = { cargo: null, ano: null, partido: null, dados: null, cargaId: null };
+const leg5Cache = new Map();
+const LEG5_CARGOS = [13, 6, 7, 8];
+
+async function montarLegendaPartido(){
+  const el = document.getElementById("leg5-conteudo");
+  if (!el) return;
+  const chave = UF || "*";
+  document.getElementById("leg5-origem").textContent = UF ? `Estado de ${GEO[UF].properties.nome}.` : "Sem estado escolhido: a amostra inteira.";
+  if (leg5Cache.has(chave)){ LEG5.dados = leg5Cache.get(chave); aplicarLegendaPartido(); return; }
+  el.innerHTML = `<p class="aviso-mini">Carregando…</p>`;
+  document.getElementById("leg5-cargos").innerHTML = ""; document.getElementById("leg5-anos").innerHTML = "";
+  const cargaId = Symbol(); LEG5.cargaId = cargaId;
+  try {
+    const d = await request(`/api/legenda${UF ? `?uf=${encodeURIComponent(UF)}` : ""}`, { silencioso: true });
+    leg5Cache.set(chave, d);
+    if (LEG5.cargaId !== cargaId) return;
+    LEG5.dados = d; aplicarLegendaPartido();
+  } catch(e){
+    if (LEG5.cargaId !== cargaId) return;
+    el.innerHTML = `<p class="aviso-mini">Não foi possível carregar os dados: ${esc(e.message)}</p>`;
+  }
+}
+
+function aplicarLegendaPartido(){
+  const el = document.getElementById("leg5-conteudo"), botCargo = document.getElementById("leg5-cargos"), botAno = document.getElementById("leg5-anos");
+  const resumo = LEG5.dados.resumo;
+  const cargos = LEG5_CARGOS.filter(c => resumo.some(r => r.cdCargo === c && r.eleitos));
+  if (!cargos.length){ el.innerHTML = `<p class="aviso-mini">Sem eleitos para cargos proporcionais com votação na base${UF ? " neste estado" : ""}.</p>`; botCargo.innerHTML = botAno.innerHTML = ""; return; }
+  if (!cargos.includes(LEG5.cargo)) LEG5.cargo = cargos[0];
+  const anos = resumo.filter(r => r.cdCargo === LEG5.cargo && r.eleitos).map(r => r.ano).sort((a,b) => a-b);
+  // troca de cargo mantém o ano se ele existir; senão, o mais recente
+  if (!anos.includes(LEG5.ano)){ LEG5.ano = anos[anos.length - 1]; LEG5.partido = null; }
+  botCargo.innerHTML = cargos.map(c => `<button data-c="${c}" aria-pressed="${LEG5.cargo===c}">${CARGO_COD[c]}</button>`).join("");
+  botCargo.querySelectorAll("button").forEach(b => b.onclick = () => { LEG5.cargo = +b.dataset.c; LEG5.partido = null; aplicarLegendaPartido(); });
+  botAno.innerHTML = anos.map(a => `<button data-a="${a}" aria-pressed="${LEG5.ano===a}">${a}</button>`).join("");
+  botAno.querySelectorAll("button").forEach(b => b.onclick = () => { LEG5.ano = +b.dataset.a; LEG5.partido = null; aplicarLegendaPartido(); });
+
+  const atual = resumo.find(r => r.cdCargo === LEG5.cargo && r.ano === LEG5.ano);
+  const p = (a, b) => b ? pct(a, b) : "–";
+  const serie = resumo.filter(r => r.cdCargo === LEG5.cargo && r.eleitos).sort((a,b) => a.ano - b.ano);
+  const partidos = LEG5.dados.partidos.filter(r => r.cdCargo === LEG5.cargo && r.ano === LEG5.ano)
+    .sort((a,b) => b.abaixoQe - a.abaixoQe || b.eleitos - a.eleitos).slice(0, 15);
+  const cargoTxt = CARGO_COD[LEG5.cargo].toLowerCase().replace(/^deputado/, "deputados").replace(/^vereador$/, "vereadores");
+  el.innerHTML = `
+    <div class="fin-bloco">
+      <h3>${LEG5.ano}: ${cargoTxt}</h3>
+      <p class="leg5-destaque"><b>${fmt.format(atual.abaixoQe)}</b> de ${fmt.format(atual.eleitos)} eleitos (${p(atual.abaixoQe, atual.eleitos)}) tiveram menos votos que o quociente eleitoral: dependeram dos votos do partido.</p>
+      <p class="aviso-mini">${fmt.format(atual.abaixoLegenda)} (${p(atual.abaixoLegenda, atual.eleitos)}) tiveram menos votos próprios que a legenda do partido na disputa.</p>
+      <h4>Abaixo do quociente, eleição a eleição</h4>
+      ${serie.map(r => `<div class="hb leg5-ano${r.ano===LEG5.ano ? " on" : ""}" data-a="${r.ano}" role="button" tabindex="0" title="Ver ${r.ano}"><span>${r.ano}</span><i class="t" style="width:${r.eleitos ? (r.abaixoQe / r.eleitos * 100).toFixed(1) : 0}%"></i><span class="v">${p(r.abaixoQe, r.eleitos)}</span></div>`).join("")}
+    </div>
+    <div class="fin-bloco">
+      <h3>Por partido</h3>
+      <div class="tabw"><table class="tab"><thead><tr><th>Partido</th><th class="v">Eleitos</th><th class="v">Abaixo do quociente</th><th class="v">Abaixo da legenda</th></tr></thead><tbody>
+        ${partidos.map(r => `<tr class="leg5-partido${LEG5.partido===r.partido ? " on" : ""}" data-p="${esc(r.partido)}" title="Ver quem são">
+          <td><span class="chip" style="background:${corP(r.partido)}">${esc(r.partido)}</span></td>
+          <td class="v num">${fmt.format(r.eleitos)}</td>
+          <td class="v num">${fmt.format(r.abaixoQe)} <small>${p(r.abaixoQe, r.eleitos)}</small></td>
+          <td class="v num">${fmt.format(r.abaixoLegenda)}</td></tr>`).join("")}
+      </tbody></table></div>
+      <h4>Quem se elegeu com menos votos em relação ao quociente${LEG5.partido ? ` · <span class="chip" style="background:${corP(LEG5.partido)}">${esc(LEG5.partido)}</span> <button class="link" data-limpar="1">ver todos</button>` : ""}</h4>
+      <div id="leg5-quem"><p class="aviso-mini">Carregando…</p></div>
+    </div>`;
+  el.querySelectorAll(".leg5-ano").forEach(d => {
+    const ir = () => { LEG5.ano = +d.dataset.a; LEG5.partido = null; aplicarLegendaPartido(); };
+    d.onclick = ir; d.onkeydown = ev => { if (ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); ir(); } };
+  });
+  el.querySelectorAll(".leg5-partido").forEach(tr => tr.onclick = () => { LEG5.partido = LEG5.partido === tr.dataset.p ? null : tr.dataset.p; aplicarLegendaPartido(); });
+  const limpar = el.querySelector("[data-limpar]"); if (limpar) limpar.onclick = () => { LEG5.partido = null; aplicarLegendaPartido(); };
+  quemLegendaPartido();
+}
+
+async function quemLegendaPartido(){
+  const alvo = document.getElementById("leg5-quem"); if (!alvo) return;
+  const marca = [UF, LEG5.cargo, LEG5.ano, LEG5.partido].join("|");
+  const q = new URLSearchParams({ cargo: LEG5.cargo, ano: LEG5.ano });
+  if (UF) q.set("uf", UF);
+  if (LEG5.partido) q.set("partido", LEG5.partido);
+  try {
+    const d = await request(`/api/legenda/pessoas?${q}`, { silencioso: true });
+    if (!alvo.isConnected || [UF, LEG5.cargo, LEG5.ano, LEG5.partido].join("|") !== marca) return;
+    if (!d.pessoas.length){ alvo.innerHTML = `<p class="aviso-mini">Ninguém se elegeu abaixo do quociente neste recorte.</p>`; return; }
+    const local = LEG5.cargo === 13 ? "Município" : "UF";
+    // dez por vez, como as outras listas "quem são" da página
+    let mostrar = 10;
+    const desenhar = () => {
+    alvo.innerHTML = `<div class="tabw"><table class="tab"><thead><tr><th>Eleito</th><th>Partido</th><th>${local}</th><th class="v">Votos</th><th class="v">do quociente</th></tr></thead><tbody>
+      ${d.pessoas.slice(0, mostrar).map(r => `<tr>
+        <td><button class="link" data-cand="${r.id_pessoa_projeto}">${esc(titulo(r.nm_urna_candidato))}</button>${r.eleito_abaixo_legenda ? ` <small class="dim" title="Menos votos que a legenda do partido">· abaixo da legenda</small>` : ""}</td>
+        <td><span class="chip" style="background:${corP(r.sg_partido)}">${esc(r.sg_partido)}</span></td>
+        <td>${esc(LEG5.cargo === 13 ? titulo(r.nm_municipio || "") : r.uf)}</td>
+        <td class="v num" title="Quociente: ${fmt.format(r.quociente_eleitoral)} votos">${fmt.format(r.votos_nominais)}</td>
+        <td class="v num">${Number(r.pct_do_quociente).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</td></tr>`).join("")}
+      </tbody></table></div>
+      ${mostrar < d.pessoas.length ? `<p><button class="link" data-mais="1">Mostrar mais</button></p>` : ""}
+      <p class="aviso-mini">Os eleitos com menor fração do quociente${UF ? "" : " na amostra"} (até 40); passe o mouse nos votos para ver o quociente da disputa.</p>`;
+    alvo.querySelectorAll("[data-cand]").forEach(b => b.onclick = () => abrirCandidato(+b.dataset.cand));
+    const mais = alvo.querySelector("[data-mais]");
+    if (mais) mais.onclick = () => { mostrar += 10; desenhar(); };
+    };
+    desenhar();
+  } catch(e){ if (alvo.isConnected) alvo.innerHTML = `<p class="aviso-mini">Não foi possível listar: ${esc(e.message)}</p>`; }
+}
+
 let tBusca = null, selIdx = -1, buscaAtual = null;
 inp.addEventListener("input", () => { clearTimeout(tBusca); tBusca = setTimeout(buscar, 180); });
 inp.addEventListener("keydown", ev => {

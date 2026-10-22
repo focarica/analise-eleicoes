@@ -21,3 +21,17 @@ bun run frontend/scripts/aplicar-views.ts \
   sql/motherduck/04_views_reeleicao.sql \
   sql/motherduck/05_views_financiamento.sql
 ```
+
+`10_views_legenda.sql` responde à questão 5 com `vw_questao_5_legenda`: uma linha por eleito em cargo proporcional (vereador, deputado federal, estadual e distrital), com os votos nominais dele, o quociente eleitoral da disputa e os votos de legenda do partido. A unidade da disputa é o município para vereador e a UF para deputados. Quociente = votos válidos (nominais + legenda de todos os partidos, 1º turno) ÷ cadeiras, com a regra de arredondamento do art. 106 do Código Eleitoral. Duas réguas: `eleito_abaixo_qe` (votos próprios abaixo do quociente: dependeu dos votos do partido) e `eleito_abaixo_legenda` (votos próprios abaixo dos votos de legenda do partido). O eleito pela média dos arquivos antigos (`MÉDIA`) conta como eleito.
+
+```sql
+SELECT sg_partido, COUNT(*) AS eleitos,
+       COUNT(*) FILTER (WHERE eleito_abaixo_qe) AS abaixo_do_quociente
+FROM public.vw_questao_5_legenda
+WHERE cd_cargo = 13 AND ano_eleicao = 2024 AND uf = 'SP'
+GROUP BY 1 ORDER BY 3 DESC;
+```
+
+```sh
+bun run frontend/scripts/aplicar-views.ts sql/motherduck/10_views_legenda.sql
+```

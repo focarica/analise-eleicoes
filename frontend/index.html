@@ -84,6 +84,14 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
     <div class="fin-grid" id="reel-conteudo"></div>
   </section>
 
+  <section class="sec" aria-labelledby="leg5-t"><a id="legenda-partido"></a>
+    <h2 id="leg5-t">Eleitos com a ajuda do partido</h2>
+    <p class="nota">Em vereador e deputado, as cadeiras são divididas primeiro entre os partidos, pela soma dos votos dos seus candidatos com os votos de legenda (no número do partido); dentro de cada partido, vão para os mais votados. Por isso dá para se eleger com poucos votos próprios. O <b>quociente eleitoral</b> é o total de votos válidos da disputa dividido pelas cadeiras: quem se elegeu <b>abaixo do quociente</b> não conquistaria a vaga sozinho e dependeu dos votos de legenda e dos colegas de partido. A segunda régua conta quem teve <b>menos votos que a legenda do próprio partido</b>. Votos do 1º turno; até 2018 os partidos podiam se coligar e a cadeira era da coligação. <span id="leg5-origem"></span></p>
+    <div class="cargos" id="leg5-cargos" role="group" aria-label="Cargo da seção de votos de legenda"></div>
+    <div class="cargos" id="leg5-anos" role="group" aria-label="Eleição da seção de votos de legenda"></div>
+    <div class="fin-grid" id="leg5-conteudo"></div>
+  </section>
+
   <footer>
     <span>Fonte: TSE, tabelas do projeto BD Relacionais (UFPI). A amostra não contém todos os candidatos de cada disputa.</span>
     <span id="origem"></span>

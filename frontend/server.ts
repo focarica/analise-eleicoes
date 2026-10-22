@@ -216,6 +216,18 @@ const seguido = async (consultas: (() => Promise<any>)[]) => {
   return out;
 };
 
+// Views opcionais: a rota explica o que falta aplicar em vez de devolver o erro do banco.
+const viewsVistas = new Map<string, Promise<boolean>>();
+function viewDisponivel(nome: string) {
+  if (!viewsVistas.has(nome)) {
+    viewsVistas.set(nome, rows(
+      `SELECT 1 AS existe FROM information_schema.tables
+       WHERE table_catalog = current_database() AND table_schema = 'public' AND table_name = $1`, [nome],
+    ).then((r) => r.length > 0).catch((error) => { viewsVistas.delete(nome); throw error; }));
+  }
+  return viewsVistas.get(nome)!.then((existe) => { if (!existe) viewsVistas.delete(nome); return existe; });
+}
+
 const json = (data: unknown, status = 200) => Response.json(data, { status });
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Erro ao consultar MotherDuck.";
 
@@ -268,7 +280,11 @@ async function route(request: Request) {
     const uf = (url.searchParams.get("uf") || "").toUpperCase();
     const year = Number(url.searchParams.get("year"));
     if (!UFS.has(uf) || !YEARS.has(year)) return json({ error: "UF ou ano inválido." }, 400);
-    const [winners, mayors] = await comCache(`mapa:${uf}:${year}`, () => seguido([
+    // Presidente: candidato mais votado em cada município no turno decisivo (o 2º, quando
+    // houve). Vem de votacao_candidato_municipio; se essa tabela não tiver cd_cargo 1,
+    // o cliente cai no partido mais votado de votacao_partido (1º turno), quando houver.
+    const geral = year % 4 === 2;
+    const [winners, mayors, presidents] = await comCache(`mapa:${uf}:${year}:pres`, () => seguido([
       () => rows(`WITH votos AS (
               SELECT v.cd_municipio_tse, v.cd_cargo, v.sg_partido,
                      SUM(COALESCE(v.qt_votos_nominais, 0) + COALESCE(v.qt_votos_legenda, 0)) AS votos
@@ -289,8 +305,32 @@ async function route(request: Request) {
             JOIN public.municipio m USING (cd_municipio_tse)
             WHERE m.sg_uf = $1 AND c.ano_eleicao = $2 AND c.ds_cargo = 'PREFEITO'
               AND c.ds_sit_tot_turno IN ('ELEITO', 'ELEITO POR QP', 'ELEITO POR MÉDIA')`, [uf, year]),
+      () => !geral ? Promise.resolve([]) : rows(`WITH turno AS (
+              SELECT MAX(v.nr_turno) AS t
+              FROM public.votacao_candidato_municipio v
+              JOIN public.municipio m USING (cd_municipio_tse)
+              WHERE m.sg_uf = $1 AND v.ano_eleicao = $2 AND v.cd_cargo = 1
+            ), votos AS (
+              SELECT v.cd_municipio_tse, v.sq_candidato, SUM(v.qt_votos_nominais) AS votos
+              FROM public.votacao_candidato_municipio v
+              JOIN public.municipio m USING (cd_municipio_tse)
+              WHERE m.sg_uf = $1 AND v.ano_eleicao = $2 AND v.cd_cargo = 1
+                AND v.nr_turno = (SELECT t FROM turno)
+              GROUP BY 1, 2
+            ), ranqueado AS (
+              SELECT *, SUM(votos) OVER (PARTITION BY cd_municipio_tse) AS total,
+                     ROW_NUMBER() OVER (PARTITION BY cd_municipio_tse ORDER BY votos DESC, sq_candidato) AS pos
+              FROM votos
+            )
+            SELECT r.cd_municipio_tse AS municipio, c.sg_partido AS partido,
+                   COALESCE(c.nm_urna_candidato, ca.nm_candidato) AS nome, c.id_pessoa_projeto AS id,
+                   r.votos, r.total, (SELECT t FROM turno) AS turno
+            FROM ranqueado r
+            JOIN public.candidatura c ON c.ano_eleicao = $2 AND c.sq_candidato = r.sq_candidato
+            LEFT JOIN public.candidato ca ON ca.id_pessoa_projeto = c.id_pessoa_projeto
+            WHERE r.pos = 1 AND r.votos > 0`, [uf, year]),
     ]));
-    return json({ uf, year, winners, mayors });
+    return json({ uf, year, winners, mayors, presidents });
   }
 
   if (path === "/api/search") {
@@ -432,6 +472,58 @@ async function route(request: Request) {
   // Q8 — financiamento: peso dos fundos públicos por cargo, faixa e partido.
   // uf vazio = TODOS as UFs da amostra, agregado aqui; `cargo` opcional afina
   // o corte (o frontend usa cargo=1 para trazer o Presidente nacional).
+  // P5 — eleitos com a ajuda dos votos do partido (vw_questao_5_legenda,
+  // sql/motherduck/10_views_legenda.sql). uf vazio agrega toda a amostra.
+  if (path === "/api/legenda") {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    if (uf && !UFS.has(uf)) return json({ error: "UF fora da amostra." }, 400);
+    if (!(await viewDisponivel("vw_questao_5_legenda")))
+      return json({ error: "A view vw_questao_5_legenda ainda não foi aplicada no banco (sql/motherduck/10_views_legenda.sql)." }, 503);
+    const [condicao, params] = uf ? ["WHERE uf = $1", [uf]] : ["", []];
+    const [resumo, partidos] = await comCache(`legenda:${uf || "*"}`, () => seguido([
+      () => rows(`SELECT cd_cargo, ano_eleicao, COUNT(*) AS eleitos,
+                   COUNT(*) FILTER (WHERE eleito_abaixo_qe) AS abaixo_qe,
+                   COUNT(*) FILTER (WHERE eleito_abaixo_legenda) AS abaixo_legenda
+            FROM public.vw_questao_5_legenda ${condicao}
+            GROUP BY 1, 2 ORDER BY 1, 2`, params),
+      () => rows(`SELECT cd_cargo, ano_eleicao, sg_partido, COUNT(*) AS eleitos,
+                   COUNT(*) FILTER (WHERE eleito_abaixo_qe) AS abaixo_qe,
+                   COUNT(*) FILTER (WHERE eleito_abaixo_legenda) AS abaixo_legenda
+            FROM public.vw_questao_5_legenda ${condicao}
+            GROUP BY 1, 2, 3`, params),
+    ]));
+    const num = (r: Record<string, unknown>) => ({
+      cdCargo: Number(r.cd_cargo), ano: Number(r.ano_eleicao), eleitos: Number(r.eleitos),
+      abaixoQe: Number(r.abaixo_qe), abaixoLegenda: Number(r.abaixo_legenda),
+    });
+    return json({
+      uf: uf || null,
+      resumo: resumo.map((r: Record<string, unknown>) => num(r)),
+      partidos: partidos.map((r: Record<string, unknown>) => ({ ...num(r), partido: r.sg_partido })),
+    });
+  }
+
+  if (path === "/api/legenda/pessoas") {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    const cargo = Number(url.searchParams.get("cargo"));
+    const ano = Number(url.searchParams.get("ano"));
+    const partido = (url.searchParams.get("partido") || "").toUpperCase();
+    if ((uf && !UFS.has(uf)) || ![6, 7, 8, 13].includes(cargo) || !YEARS.has(ano))
+      return json({ error: "Filtro inválido." }, 400);
+    const condicoes = ["l.cd_cargo = $1", "l.ano_eleicao = $2", "l.eleito_abaixo_qe"];
+    const params: (string | number)[] = [cargo, ano];
+    if (uf){ params.push(uf); condicoes.push(`l.uf = $${params.length}`); }
+    if (partido){ params.push(partido); condicoes.push(`l.sg_partido = $${params.length}`); }
+    const pessoas = await rows(`SELECT l.id_pessoa_projeto, l.nm_urna_candidato, l.sg_partido, l.uf,
+                 m.nm_municipio, l.votos_nominais, l.quociente_eleitoral, l.pct_do_quociente,
+                 l.votos_legenda_partido, l.eleito_abaixo_legenda
+          FROM public.vw_questao_5_legenda l
+          LEFT JOIN public.municipio m ON m.cd_municipio_tse = l.cd_municipio_tse
+          WHERE ${condicoes.join(" AND ")}
+          ORDER BY l.pct_do_quociente, l.votos_nominais LIMIT 40`, params);
+    return json({ pessoas });
+  }
+
   if (path === "/api/financiamento") {
     const uf = (url.searchParams.get("uf") || "").toUpperCase();
     if (uf && !UFS.has(uf)) return json({ error: "UF fora da amostra." }, 400);

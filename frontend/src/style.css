@@ -201,6 +201,14 @@ tr.reel-soma td{ border-top:1.5px solid var(--ink-3); }
 .fin-bloco:has(> .hb:nth-of-type(8)) > h3{ position:sticky; top:0; z-index:1; background:var(--bg); padding:.15rem 0 .4rem; margin-bottom:.6rem; }
 /* fade no pé do card rolável: avisa que há mais fontes abaixo do corte */
 .fin-bloco:has(> .hb:nth-of-type(8))::after{ content:""; position:sticky; bottom:0; display:block; height:1.5rem; margin-top:-1.5rem; background:linear-gradient(to bottom, transparent, var(--bg)); pointer-events:none; }
+.leg5-destaque{ font-size:1rem; margin:.1rem 0 .3rem; }
+.leg5-destaque b{ font-size:1.35rem; }
+.hb.leg5-ano{ cursor:pointer; border-radius:4px; }
+.hb.leg5-ano:hover, .hb.leg5-ano:focus-visible{ background:color-mix(in srgb, var(--ink) 6%, transparent); }
+.hb.leg5-ano.on span:first-child{ font-weight:700; }
+.hb.leg5-ano.on .t{ background:var(--ink); }
+tr.leg5-partido{ cursor:pointer; }
+tr.leg5-partido:hover td, tr.leg5-partido.on td{ background:color-mix(in srgb, var(--ink) 6%, transparent); }
 .fin-bloco h4{ margin:1.25rem 0 .4rem; font-size:.85rem; font-weight:700; }
 .fin-seg{ display:flex; height:1.15rem; border-radius:4px; overflow:hidden; background:var(--line); }
 .fin-seg i{ display:block; min-width:2px; }
