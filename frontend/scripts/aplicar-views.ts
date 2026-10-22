@@ -1,10 +1,10 @@
-// Aplica os arquivos SQL de views no MotherDuck (banco do painel, BDR-TSE-2026).
-// Requer o token do painel no .env: MOTHERDUCK_TOKEN.
+// Aplica arquivos SQL de views no banco de referência MotherDuck BDR-TSE.
+// Requer token com permissão de escrita no .env: MOTHERDUCK_TOKEN.
 // Uso: bun run scripts/aplicar-views.ts  ../sql/motherduck/04_views_reeleicao.sql
 import { resolve } from "node:path";
 import { DuckDBInstance } from "@duckdb/node-api";
 
-const PAINEL = 'BDR-TSE-2026';
+const PAINEL = 'BDR-TSE';
 const arquivos = process.argv.slice(2).map((a) => resolve(a));
 if (arquivos.length === 0) {
   console.error("Passe os caminhos dos arquivos SQL como argumento.");

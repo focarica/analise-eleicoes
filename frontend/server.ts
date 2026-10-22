@@ -1,13 +1,12 @@
 import { resolve, sep } from "node:path";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
+import { createDataCache } from './cache';
 
 const PORT = Number(Bun.env.PORT || 3001);
-// BDR-TSE-2026: banco na própria conta do painel — espelho do share BDR-TSE
-// mais a votação de Presidente por município (carga em scripts/motherduck/).
-const DATABASE = "BDR-TSE-2026";
+// Banco de referência compartilhado: contém eleições de 2004 a 2024.
+const DATABASE = "BDR-TSE";
 const UFS = new Set(["AC", "AL", "BA", "DF", "RO", "SP"]);
-const YEARS = new Set([2018, 2020, 2022, 2024]);
+const YEARS = new Set([2004, 2006, 2008, 2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024]);
 const CARGOS: Record<number, string> = { 1: "Presidente", 3: "Governador", 5: "Senador", 6: "Deputado federal", 7: "Deputado estadual", 8: "Deputado distrital", 11: "Prefeito", 13: "Vereador" };
 const UFS_LIST = ["AC", "AL", "BA", "DF", "RO", "SP"];
 // Várias conexões da mesma instância: as consultas rodam em paralelo no
@@ -81,18 +80,9 @@ class ConsultaLenta extends Error {
   constructor() { super("A consulta ao MotherDuck demorou demais. Tente de novo."); }
 }
 
-// A busca é chamada a cada pausa na digitação e os dados não mudam durante o
-// uso: guarda as respostas (e reaproveita a mesma consulta se já estiver em curso).
-const BUSCA_CACHE_MAX = 500;
-const buscaCache = new Map<string, Promise<unknown>>();
+// A busca reaproveita consultas em curso e acompanha a revisão da carga.
 function buscaEmCache(chave: string, consulta: () => Promise<unknown>) {
-  let resposta = buscaCache.get(chave);
-  if (!resposta) {
-    resposta = consulta().catch((error) => { buscaCache.delete(chave); throw error; });
-    buscaCache.set(chave, resposta);
-    if (buscaCache.size > BUSCA_CACHE_MAX) buscaCache.delete(buscaCache.keys().next().value!);
-  }
-  return resposta;
+  return buscaCacheVersionado(chave, consulta);
 }
 
 // Mesma regra da view v_historico_candidato (sql/motherduck/01_views_analiticas.sql),
@@ -215,24 +205,8 @@ ORDER BY c.ano_eleicao, c.ds_cargo`;
 // MotherDuck; o arquivo em disco também sobrevive aos reinícios do --hot em
 // desenvolvimento, que recriam o processo a cada edição.
 const CACHE_DIR = Bun.env.CACHE_DIR || (import.meta.dir + "/.cache-api");
-const cacheMemoria = new Map<string, Promise<unknown>>();
-function comCache<T>(chave: string, calcular: () => Promise<T>): Promise<T> {
-  if (cacheMemoria.has(chave)) return cacheMemoria.get(chave) as Promise<T>;
-  const p = (async () => {
-    const arquivo = `${CACHE_DIR}/${chave.replace(/[^a-zA-Z0-9_.-]/g, "_")}.json`;
-    try {
-      const salvo = JSON.parse(readFileSync(arquivo, "utf8"));
-      // dados de carga fechada: 24h de validade é folgado; recarrega depois
-      if (salvo?.t && Date.now() - salvo.t < 86_400_000 && salvo.d !== undefined) return salvo.d as T;
-    } catch {}
-    const saida = await calcular();
-    try { mkdirSync(CACHE_DIR, { recursive: true }); writeFileSync(arquivo, JSON.stringify({ t: Date.now(), d: saida })); } catch {}
-    return saida;
-  })();
-  p.catch(() => cacheMemoria.delete(chave));
-  cacheMemoria.set(chave, p);
-  return p as Promise<T>;
-}
+const comCache = createDataCache(CACHE_DIR, Bun.env.CACHE_VERSION);
+const buscaCacheVersionado = createDataCache(CACHE_DIR, Bun.env.CACHE_VERSION, {persist:false,maxEntries:500});
 
 // rota pesada: em vez de N consultas simultâneas sobre a mesma conexão (pico de
 // computação no MotherDuck e concorrência instável), rodar uma depois da outra
@@ -399,7 +373,7 @@ async function route(request: Request) {
       }
       return [...porAno.values()].sort((a, b) => a.anoEleito - b.anoEleito);
     };
-    const municipaisFechados = municipais.map((r) => ({
+    const municipaisFechados = municipais.map((r: any) => ({
       ...fechar(r),
       taxa: Number(r.tentaram) > 0 ? Math.round(Number(r.reeleitos) * 1000 / Number(r.tentaram)) / 10 : null,
       municipios: Number(r.municipios),
@@ -407,15 +381,15 @@ async function route(request: Request) {
       taxaMunicipios: r.taxa_municipios == null ? null : Number(r.taxa_municipios),
     }));
     const cargos = [3, 5, 6, 7, 8, 11, 13].map((cd) => {
-      const estado = estados.filter((r) => (!uf || r.uf === uf) && Number(r.cd_cargo) === cd).map(fechar);
+      const estado = estados.filter((r: any) => (!uf || r.uf === uf) && Number(r.cd_cargo) === cd).map(fechar);
       // prefeito e vereador só têm grão municipal: os ciclos saem da soma dos municípios
-      const municipaisCargo = municipaisFechados.filter((r) => r.cdCargo === cd && (!uf || r.uf === uf));
+      const municipaisCargo = municipaisFechados.filter((r: any) => r.cdCargo === cd && (!uf || r.uf === uf));
       const fonte = estado.length > 0 ? estado : municipaisCargo;
       return {
         cdCargo: cd,
         cargo: CARGOS[cd],
         ciclos: fonte.map((r: any) => ({ ...r, municipios: r.municipios ?? null, municipiosComTentativa: r.municipiosComTentativa ?? null, taxaMunicipios: r.taxaMunicipios ?? null })).sort((a: any, b: any) => a.anoEleito - b.anoEleito),
-        media: municipaisCargo.sort((a, b) => a.anoEleito - b.anoEleito),
+        media: municipaisCargo.sort((a: any, b: any) => a.anoEleito - b.anoEleito),
       };
     });
     const gradas = [3, 5, 6, 7, 8].map((cd) => ({
@@ -423,7 +397,7 @@ async function route(request: Request) {
       cargo: CARGOS[cd],
       porUf: UFS_LIST.map((u) => ({
         uf: u,
-        ciclos: porCargo(estados.filter((r) => r.uf === u && Number(r.cd_cargo) === cd).map(fechar)),
+        ciclos: porCargo(estados.filter((r: any) => r.uf === u && Number(r.cd_cargo) === cd).map(fechar)),
       })),
     }));
     return json({ uf, cargos, estados: gradas });
@@ -482,7 +456,7 @@ async function route(request: Request) {
             FROM public.v_financiamento_partidos ${condicao}
             GROUP BY 1, 2, 3`, params),
     ]));
-    const partidosFechados = partidos.map((r) => ({
+    const partidosFechados = partidos.map((r: any) => ({
       cdCargo: Number(r.cd_cargo),
       ano: Number(r.ano_eleicao),
       partido: r.sg_partido,
@@ -494,7 +468,7 @@ async function route(request: Request) {
     }));
     return json({
       uf,
-      faixas: faixas.map((r) => ({
+      faixas: faixas.map((r: any) => ({
         cdCargo: Number(r.cd_cargo),
         ano: Number(r.ano_eleicao),
         faixa: r.faixa,
@@ -502,7 +476,7 @@ async function route(request: Request) {
         eleitas: Number(r.eleitas),
         taxaEleicao: r.taxa_eleicao == null ? null : Number(r.taxa_eleicao),
       })),
-      fontes: fontes.map((r) => ({
+      fontes: fontes.map((r: any) => ({
         cdCargo: Number(r.cd_cargo),
         ano: Number(r.ano_eleicao),
         fonte: r.ds_fonte_receita,
@@ -579,32 +553,34 @@ async function route(request: Request) {
     // que a busca e o mapa esperavam. Por isso a ficha resolve antes as
     // candidaturas da pessoa e filtra por (ano, sq) — o que o README das views da
     // Q9 já recomenda —, e o histórico usa a mesma regra da view com o filtro no
-    // início (SQL_HISTORICO_CANDIDATO). Resultado idêntico, em menos de 1 s.
-    const chaves = await rows(`SELECT ano_eleicao, sq_candidato FROM public.candidatura
-                               WHERE id_pessoa_projeto = $1 ORDER BY 1, 2`, [id]);
-    const filtroChaves = chaves
-      .map((_, k) => `(ano_eleicao = CAST($${2 * k + 1} AS INTEGER) AND sq_candidato = CAST($${2 * k + 2} AS BIGINT))`)
-      .join(" OR ");
-    const valoresChaves = chaves.flatMap((c) => [String(c.ano_eleicao), String(c.sq_candidato)]);
-    const nuvem = (ordem: string, peso: string) => chaves.length
-      ? rows(`SELECT ano_eleicao, sq_candidato, ds_cargo, termo, ${peso},
-                     valor_pago_associado, qt_lancamentos
-              FROM public.vw_questao_9_nuvem_valor
-              WHERE ${filtroChaves}
-              QUALIFY ROW_NUMBER() OVER (
-                PARTITION BY ano_eleicao, ds_cargo ORDER BY ${ordem} DESC, termo
-              ) <= 35
-              ORDER BY ano_eleicao, ds_cargo, ${ordem} DESC, termo`, valoresChaves)
-      : Promise.resolve([]);
-    const [personRows, candidacies, propagandaValor, propagandaFrequencia] = await comCache(`cand:${id}`, () => Promise.all([
-      rows(`SELECT nm_candidato, dt_nascimento, ds_grau_instrucao,
-                   ds_genero, ds_cor_raca
-            FROM public.candidato WHERE id_pessoa_projeto = $1`, [id]),
-      rows(SQL_HISTORICO_CANDIDATO, [id]),
-      nuvem("peso", "peso"),
-      // Deriva frequência da mesma base de termos para evitar divergência entre as duas views.
-      nuvem("qt_lancamentos", "qt_lancamentos AS peso"),
-    ]));
+    // início (SQL_HISTORICO_CANDIDATO). Mantém o mesmo cálculo da view.
+    const [personRows, candidacies, propagandaValor, propagandaFrequencia] = await comCache(`cand:${id}`, async () => {
+      const chaves = await rows(`SELECT ano_eleicao, sq_candidato FROM public.candidatura
+                                 WHERE id_pessoa_projeto = $1 ORDER BY 1, 2`, [id]);
+      const filtroChaves = chaves
+        .map((_, k) => `(ano_eleicao = CAST($${2 * k + 1} AS INTEGER) AND sq_candidato = CAST($${2 * k + 2} AS BIGINT))`)
+        .join(" OR ");
+      const valoresChaves = chaves.flatMap((c) => [String(c.ano_eleicao), String(c.sq_candidato)]);
+      const nuvem = (ordem: string, peso: string) => chaves.length
+        ? rows(`SELECT ano_eleicao, sq_candidato, ds_cargo, termo, ${peso},
+                       valor_pago_associado, qt_lancamentos
+                FROM public.vw_questao_9_nuvem_valor
+                WHERE ${filtroChaves}
+                QUALIFY ROW_NUMBER() OVER (
+                  PARTITION BY ano_eleicao, ds_cargo ORDER BY ${ordem} DESC, termo
+                ) <= 35
+                ORDER BY ano_eleicao, ds_cargo, ${ordem} DESC, termo`, valoresChaves)
+        : Promise.resolve([]);
+      return Promise.all([
+        rows(`SELECT nm_candidato, dt_nascimento, ds_grau_instrucao,
+                     ds_genero, ds_cor_raca
+              FROM public.candidato WHERE id_pessoa_projeto = $1`, [id]),
+        rows(SQL_HISTORICO_CANDIDATO, [id]),
+        nuvem("peso", "peso"),
+        // Deriva frequência da mesma base de termos para evitar divergência entre as duas views.
+        nuvem("qt_lancamentos", "qt_lancamentos AS peso"),
+      ]);
+    });
     const person = personRows[0];
     if (!person) return json({ error: "Candidato não encontrado." }, 404);
     return json({ ...person, candidacies, propagandaValor, propagandaFrequencia });
@@ -646,7 +622,7 @@ async function route(request: Request) {
             FROM public.candidatura c
             LEFT JOIN public.candidato ca USING (id_pessoa_projeto)
             WHERE c.cd_municipio_tse = $1
-              AND c.ano_eleicao IN (2020, 2024)
+              AND c.ano_eleicao IN (2004, 2008, 2012, 2016, 2020, 2024)
               AND c.ds_cargo IN ('PREFEITO', 'VEREADOR')
             ORDER BY c.ano_eleicao, c.ds_cargo, c.ds_sit_tot_turno, c.nm_urna_candidato`, [code]),
     ]));
