@@ -9,9 +9,9 @@ export const ORDEM_CARGO = ["GOVERNADOR","SENADOR","DEPUTADO FEDERAL","DEPUTADO 
 // ordem dos botões de cargo no mapa; o primeiro disponível é o padrão do ano
 export const ORDEM_COD = [11, 13, 3, 5, 1, 6, 7, 8];
 export const ELEITO = new Set(["ELEITO","ELEITO POR QP","ELEITO POR MÉDIA"]);
-// A carga atual não tem votos de Presidente (cd_cargo=1) em nenhum ano.
-// Só habilitar este filtro depois da carga complementar por seção.
-export const ANOS_PRESIDENTE = new Set<number>();
+// A votação presidencial foi carregada por município para as eleições gerais
+// de 2018 e 2022.
+export const ANOS_PRESIDENTE = new Set([2018, 2022]);
 export const ANOS_GERAIS = new Set([2006, 2010, 2014, 2018, 2022]);
 export const ANOS_MUNICIPAIS = new Set([2004, 2008, 2012, 2016, 2020, 2024]);
 
