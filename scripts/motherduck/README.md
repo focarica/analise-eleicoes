@@ -11,7 +11,7 @@ python3 scripts/motherduck/gerar_carga_tse_flight.py
 ```
  Configure a autenticação MotherDuck no ambiente do Flight ou em `MOTHERDUCK_TOKEN`. O destino é o banco `BDR-TSE`; o script cria ou atualiza as tabelas do schema `public` e as seis views de `sql/motherduck/01_views_analiticas.sql` e `03_views_propaganda.sql`.
 
-O escopo inclui eleições municipais de 2004, 2008, 2012, 2016, 2020 e 2024 e eleições gerais de 2006, 2010, 2014, 2018 e 2022. Candidaturas nacionais são lidas dos arquivos BR quando disponíveis; os fatos municipais seguem o recorte de UFs. A tabela de votos municipais não contém o cargo Presidente (`CD_CARGO = 1`), que é publicado em arquivos TSE separados por seção e não integra este carregamento.
+O escopo inclui eleições municipais de 2004, 2008, 2012, 2016, 2020 e 2024 e eleições gerais de 2006, 2010, 2014, 2018 e 2022. Candidaturas nacionais são lidas dos arquivos BR quando disponíveis; os fatos municipais seguem o recorte de UFs. A carga principal não inclui Presidente (`CD_CARGO = 1`), publicado pelo TSE em arquivos separados por seção. No banco `BDR-TSE`, esse complemento está carregado para 2018 e 2022 nos seis estados do recorte, além dos totais nacionais de primeiro turno nas candidaturas. A extração e a carga complementares estão nos scripts `complementar_presidente.py` e `carga_presidente.ts`.
 
 Depois da carga, aplique as views de reeleição e financiamento:
 

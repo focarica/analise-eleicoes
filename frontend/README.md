@@ -4,7 +4,7 @@ O painel usa TypeScript, Vite e Bun. Seu markup, CSS, mapa e interações reprod
 
 ### Banco `BDR-TSE`
 
-O painel consulta `BDR-TSE`, a base de referência compartilhada. O usuário do painel precisa ter permissão de leitura nessa base. A tabela de votos nominais por município não inclui Presidente (`CD_CARGO = 1`) em nenhum dos onze anos; por isso o filtro presidencial fica desabilitado até integrar os resultados específicos por seção do TSE. A tela e os filtros de candidatos usam todos os onze anos presentes na base: 2004–2024.
+O painel consulta `BDR-TSE`, a base de referência compartilhada. O usuário do painel precisa ter permissão de leitura nessa base. A votação presidencial (`CD_CARGO = 1`) está carregada para 2018 e 2022, nos municípios dos seis estados do recorte, a partir dos resultados do TSE por seção. Nos demais anos gerais, o painel não oferece o filtro presidencial. A tela e os filtros de candidatos usam todos os onze anos presentes na base: 2004–2024.
 
 ## Requisitos
 
@@ -46,7 +46,19 @@ As chaves S3 compatíveis com R2 ainda são necessárias para administrar e carr
 
 O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2004–2024. A interface mostra o partido vencedor em cada município no mapa, filtro de cargo, faixas de gastos da questão 2, busca de candidatos/municípios e detalhes em gaveta.
 
-Os pleitos de 2014 e 2016 já estão carregados: 2014 cobre os cargos estaduais/federais da eleição geral; 2016 cobre prefeito e vereador, com lacunas de votos por cargo em Guarulhos, Itapetininga, Itupeva e Lins. A tabela de votos ainda não contém `CD_CARGO = 1` (Presidente) em nenhum ano; o filtro presidencial fica desabilitado até integrar os resultados específicos por seção publicados pelo TSE. A ausência de um município nessa tabela indica que não há votação publicada naquele grão; não a interprete como zero votos.
+Os pleitos de 2014 e 2016 já estão carregados: 2014 cobre os cargos estaduais/federais da eleição geral; 2016 cobre prefeito e vereador, com lacunas de votos por cargo em Guarulhos, Itapetininga, Itupeva e Lins. A votação presidencial está disponível para 2018 e 2022, carregada como complemento dos arquivos do TSE por seção; os demais anos gerais não têm esse complemento. A ausência de um município nessa tabela indica que não há votação publicada naquele grão; não a interprete como zero votos.
+
+### Cargos no mapa
+
+O cargo escolhido continua selecionado ao trocar de ano ou de estado, para comparar a mesma disputa ao longo do tempo. Anos gerais e municipais têm cargos diferentes, então cada tipo guarda o seu: Senador em 2018 continua Senador em 2022, 2014, 2010...; ao ir para 2024, volta o último cargo municipal escolhido (Vereador, por exemplo), e ao voltar para um ano geral, Senador de novo.
+
+### Escolaridade: os eleitos se parecem com a população? (P4)
+
+A seção lê `/api/escolaridade?uf&ano&cargo`, sobre `vw_questao_4_escolaridade` (`sql/motherduck/07_views_escolaridade.sql`): por cargo (prefeito e vereador, juntos ou separados) e eleição, a distribuição de candidatos, eleitos e população de 18+ do Censo 2022 nos quatro níveis do IBGE, e a lista de municípios pela diferença na parcela com superior completo (eleitos − população), nos dois sentidos. O ano padrão é o mais próximo do Censo. A gaveta de cada município traz a mesma comparação para o município.
+
+### Eleitos com a ajuda do partido (P5)
+
+A seção "Eleitos com a ajuda do partido" lê `/api/legenda` e `/api/legenda/pessoas`, sobre `vw_questao_5_legenda` (`sql/motherduck/11_views_legenda.sql`). Para cada cargo proporcional e eleição: quantos eleitos tiveram menos votos próprios que o quociente eleitoral, a evolução de 2004 a 2024 (clicar num ano o seleciona), a tabela por partido (clicar num partido filtra a lista) e quem se elegeu com a menor fração do quociente. Sem estado escolhido, soma a amostra inteira.
 
 ### Mapa de municípios
 
