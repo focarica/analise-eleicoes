@@ -27,6 +27,10 @@ Para começar do zero e reinicializar também esses mapas, use um banco descart�
 
 O diretório `motherduck/` guarda o script autocontido executado no ambiente Flight do MotherDuck, com fluxo de carga distinto do pipeline local. Veja [motherduck/README.md](motherduck/README.md).
 
+## Propostas de governo
+
+O coletor das propostas de governo de SP e BA (2014, 2018 e 2022) está em [propostas_governo/](propostas_governo/README.md). Faz apenas aquisição, organização e inventário dos documentos; a extração de texto é uma etapa posterior.
+
 ## Fotos
 
 A descoberta das fotos oficiais por UF, sua associação por ano e SQ e a proposta de cache no painel estão em [fotos/README.md](fotos/README.md).

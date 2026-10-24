@@ -9,6 +9,7 @@ __pycache__/
 *.zip
 *.csv
 *.jsonl
+/data/
 /data/raw/
 /data/staging/
 /data/fotos/
