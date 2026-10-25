@@ -55,11 +55,15 @@ api = {
     const d = await request(`/api/municipality/${cd}`);
     return {
       cd: d.id, nome: d.nome, uf: d.uf, ibge: d.ibge,
+      populacao: d.populacao_total == null ? null : +d.populacao_total,
+      pibPerCapita: d.pib_per_capita == null ? null : +d.pib_per_capita,
+      idhm: d.idhm == null ? null : +d.idhm,
       comparecimento: d.attendance.map(c => ({ ano: c.ano_eleicao, turno: c.nr_turno, aptos: c.qt_aptos, comparecimento: c.qt_comparecimento, abstencao: c.qt_abstencao })),
       eleitorado: d.electorate.map(e => ({ ano: e.ano_eleicao, faixa: e.ds_faixa_etaria, qt: e.qt_eleitores })),
-      mais_votados: d.topCandidates.map(c => ({ ano: c.ano_eleicao, cargo: c.cd_cargo, id: c.id_pessoa_projeto, nome: c.nm_urna_candidato, partido: c.sg_partido, votos: c.qt_votos_nominais })),
+      escolaridade_eleitorado: (d.electorateEducation || []).map(e => ({ ano: +e.ano_eleicao, escolaridade: e.ds_grau_instrucao, qt: +e.qt_eleitores })),
+      mais_votados: d.topCandidates.map(c => ({ ano: c.ano_eleicao, cargo: c.cd_cargo, turno: +c.nr_turno, id: c.id_pessoa_projeto, sq: c.sq_candidato, nome: c.nm_urna_candidato, partido: c.sg_partido, votos: +c.qt_votos_nominais, totalVotos: +c.total_votos })),
       votacao_partido: d.parties.map(p => ({ ano: p.ano_eleicao, cargo: p.cd_cargo, partido: p.sg_partido, nominais: p.qt_votos_nominais, legenda: p.qt_votos_legenda })),
-      candidaturas_locais: d.localCandidacies.map(c => ({ ano: c.ano_eleicao, cargo: c.cargo, id: c.id_pessoa_projeto, nome: c.nm_urna_candidato || c.nm_candidato, partido: c.sg_partido, situacao: c.ds_sit_tot_turno, votos: c.qt_votos_nominais })),
+      candidaturas_locais: d.localCandidacies.map(c => ({ ano: c.ano_eleicao, cargo: c.cargo, id: c.id_pessoa_projeto, sq: c.sq_candidato, nome: c.nm_urna_candidato || c.nm_candidato, partido: c.sg_partido, situacao: c.ds_sit_tot_turno, votos: c.qt_votos_nominais })),
       // P4 por nível; null quando a view não está no banco
       escolaridade: d.education ? d.education.map(r => ({ ano: +r.ano_eleicao, anoCenso: +r.ano_censo, cargo: r.ds_cargo,
         nivel: r.nr_nivel == null ? null : +r.nr_nivel, candidatos: +r.qt_candidatos, eleitos: +r.qt_eleitos,
@@ -1420,9 +1424,12 @@ async function buscar(){
 
 /* ===================== Gaveta ===================== */
 const gaveta = document.getElementById("gaveta"), scrim = document.getElementById("scrim"), corpo = document.getElementById("g-corpo");
+const botaoVoltar = document.getElementById("voltar");
 let ultimoFoco = null;
-function abrirGaveta(html){
+let municipioAnterior = null;
+function abrirGaveta(html, mostrarVoltar = false){
   if (!gaveta.classList.contains("on")) ultimoFoco = document.activeElement;
+  botaoVoltar.hidden = !mostrarVoltar;
   corpo.innerHTML = html; gaveta.scrollTop = 0;
   gaveta.classList.add("on"); scrim.classList.add("on"); gaveta.focus();
   corpo.querySelectorAll("[data-cand]").forEach(b => b.onclick = () => abrirCandidato(+b.dataset.cand));
@@ -1440,10 +1447,14 @@ function abrirGaveta(html){
 }
 function fecharGaveta(){
   gaveta.classList.remove("on"); scrim.classList.remove("on"); ultimoFoco?.focus?.();
+  municipioAnterior = null; botaoVoltar.hidden = true;
   // a gaveta pode ter sido aberta por um município focado: volta o enquadramento para o estado
   if (VISTA.mun){ VISTA.mun = null; enquadrar(duracao(600)); }
 }
 document.getElementById("fechar").onclick = fecharGaveta; scrim.onclick = fecharGaveta;
+botaoVoltar.onclick = () => {
+  if (municipioAnterior) abrirMunicipio(municipioAnterior.cd, municipioAnterior.nome);
+};
 document.addEventListener("keydown", ev => { if (ev.key==="Escape" && gaveta.classList.contains("on")) fecharGaveta(); });
 
 function prepararFotos(raiz){
@@ -1567,11 +1578,12 @@ function nuvemPropaganda(c, h){
 }
 
 async function abrirCandidato(id){
+  const voltarAoMunicipio = municipioAnterior;
   let h = null, erro = null;
   try { h = await api.historico(id); } catch(e){ erro = e; console.error(e); }
   if (!h){
     const motivo = erro ? esc(erro.message) : "Não há registro para este identificador na base.";
-    abrirGaveta(`<h2>Não foi possível carregar este candidato</h2><p class="sub">${motivo}</p><p class="aviso-mini">Consultas do MotherDuck podem falhar quando a cota diária da conta se esgota; recarregue em alguns instantes.</p>`);
+    abrirGaveta(`<h2>Não foi possível carregar este candidato</h2><p class="sub">${motivo}</p><p class="aviso-mini">Consultas do MotherDuck podem falhar quando a cota diária da conta se esgota; recarregue em alguns instantes.</p>`, !!voltarAoMunicipio);
     return;
   }
   const cs = h.candidaturas.filter(c => c.cargo).sort((a,b)=>a.ano_eleicao-b.ano_eleicao || ordemCargo(a.cargo)-ordemCargo(b.cargo));
@@ -1647,6 +1659,7 @@ async function abrirCandidato(id){
   }
 
   abrirGaveta(`
+    <section class="candidato-dashboard">
     <div class="perfil-topo ${candidaturaRecente?.sq_candidato ? "" : "sem-foto"}">
       ${candidaturaRecente?.sq_candidato ? `<span class="foto-frame foto-topo"><img src="/api/photo/${candidaturaRecente.ano_eleicao}/${candidaturaRecente.sq_candidato}" alt="Foto oficial de ${esc(titulo(candidaturaRecente.nm_candidato||h.nome))} na eleição ${candidaturaRecente.ano_eleicao}" decoding="async"></span>` : ""}
       <div class="perfil-info">
@@ -1664,10 +1677,90 @@ async function abrirCandidato(id){
     ${evol}
     <h3>Trajetória</h3>
     <ol class="linha-tempo">${cs.map(item).join("")}</ol>
-    <p class="aviso-mini">A trajetória reúne as candidaturas ligadas ao mesmo identificador de pessoa do projeto. As fotos são as imagens oficiais do TSE disponíveis para cada candidatura. Receitas de fundo especial e fundo partidário contam como públicas; outros recursos, como privados.</p>`);
+    <p class="aviso-mini">A trajetória reúne as candidaturas ligadas ao mesmo identificador de pessoa do projeto. As fotos são as imagens oficiais do TSE disponíveis para cada candidatura. Receitas de fundo especial e fundo partidário contam como públicas; outros recursos, como privados.</p>
+    </section>`, !!voltarAoMunicipio);
+}
+
+function resumoIdadeMunicipio(m, ano){
+  const percent = x => (100*x).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "%";
+  const rows = (m.eleitorado || []).filter(r => +r.ano === +ano && Number.isFinite(parseInt(r.faixa, 10)));
+  const total = d3.sum(rows, r => +r.qt || 0);
+  if (!total) return `<p class="mun-sem-dados">Sem dados de faixa etária para ${ano}.</p>`;
+  const faixas = [...rows].sort((a,b)=>(parseInt(a.faixa,10)||0)-(parseInt(b.faixa,10)||0));
+  const max = d3.max(faixas, r=>+r.qt)||1;
+  const dominante = [...faixas].sort((a,b)=>(+b.qt||0)-(+a.qt||0))[0];
+  const share = (+dominante.qt||0)/total;
+  const nomeFaixa = titulo(dominante.faixa).toLocaleLowerCase("pt-BR").replace(/^./, c=>c.toLocaleUpperCase("pt-BR"));
+  const frase = share >= .5 ? `A maioria do eleitorado está na faixa de ${nomeFaixa}.` : `A faixa de ${nomeFaixa} é a mais numerosa.`;
+  return `<div class="mun-insight"><span class="mun-kicker">Faixa etária mais numerosa</span><strong>${percent(share)}</strong><p class="mun-frase-efeito">${frase}</p><p>${fmt.format(+dominante.qt||0)} pessoas estavam nessa faixa no perfil eleitoral de ${ano}.</p></div>
+    <div class="mun-barras mun-barras-idade" aria-label="Eleitorado por faixa etária em ${ano}">${faixas.map(r=>`<div class="mun-barra ${r===dominante?"mun-barra-destaque":""}"><span>${esc(titulo(r.faixa))}</span><b><i style="width:${((+r.qt||0)/max*100).toFixed(1)}%"></i></b><em>${percent((+r.qt||0)/total)}</em></div>`).join("")}</div>`;
+}
+
+function resumoEscolaridadeMunicipio(m, ano){
+  const percent = x => (100*x).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "%";
+  const rows = (m.escolaridade_eleitorado || []).filter(r => +r.ano === +ano && r.escolaridade && !/NÃO INFORMAD/i.test(r.escolaridade));
+  const total = d3.sum(rows, r=>+r.qt||0);
+  if (!total) return `<p class="mun-sem-dados">Não há dados de escolaridade do eleitorado para este ano.</p>`;
+  const analfabetos = d3.sum(rows.filter(r=>/ANALFABETO/i.test(r.escolaridade)), r=>+r.qt||0);
+  const superior = d3.sum(rows.filter(r=>/SUPERIOR COMPLETO/i.test(r.escolaridade)), r=>+r.qt||0);
+  const orden = ["ANALFABETO", "LÊ E ESCREVE", "ENSINO FUNDAMENTAL INCOMPLETO", "ENSINO FUNDAMENTAL COMPLETO", "ENSINO MÉDIO INCOMPLETO", "ENSINO MÉDIO COMPLETO", "SUPERIOR INCOMPLETO", "SUPERIOR COMPLETO"];
+  const sorted = [...rows].sort((a,b)=>{
+    const ia = orden.findIndex(k=>norm(a.escolaridade).includes(norm(k)));
+    const ib = orden.findIndex(k=>norm(b.escolaridade).includes(norm(k)));
+    return (ia<0?99:ia)-(ib<0?99:ib);
+  });
+  return `<div class="mun-insight"><span class="mun-kicker">Escolaridade declarada</span><strong>${percent(analfabetos/total)} <small>analfabetos</small></strong><p>${percent(superior/total)} têm superior completo. Base: ${fmt.format(total)} eleitores com escolaridade informada em ${ano}.</p></div>
+    <div class="mun-barras mun-barras-esc" aria-label="Escolaridade do eleitorado em ${ano}">${sorted.map(r=>`<div class="mun-barra"><span>${esc(titulo(r.escolaridade))}</span><b><i style="width:${(+r.qt/total*100).toFixed(1)}%"></i></b><em>${percent(+r.qt/total)}</em></div>`).join("")}</div>`;
+}
+
+function htmlLinhaHistoricaMunicipio(m, cargo, modoTurno = "final"){
+  const percent = x => (100*x).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "%";
+  const rows = (m.mais_votados || []).filter(r=>+r.cargo===+cargo);
+  const porAno = [...d3.group(rows, r=>+r.ano)].map(([ano, candidatos])=>{
+    const ultimoTurno = d3.max(candidatos, r=>+r.turno) || 1;
+    const turno = modoTurno === "primeiro" ? 1 : ultimoTurno;
+    const candidatosDoTurno = candidatos.filter(r=>+r.turno===turno);
+    const maisVotado = [...candidatosDoTurno].sort((a,b)=>b.votos-a.votos)[0];
+    if (+cargo !== 11 || modoTurno !== "final") return { ...maisVotado, resultadoEleicao: false };
+    const eleito = (m.candidaturas_locais || []).find(c=>+c.ano===ano && c.cargo==="PREFEITO" && ehEleito(c.situacao));
+    if (!eleito) return { ...maisVotado, resultadoEleicao: false };
+    const mesmoCandidato = r => (eleito.id != null && String(r.id)===String(eleito.id)) || (eleito.sq != null && String(r.sq)===String(eleito.sq));
+    const votoEleito = candidatosDoTurno.find(mesmoCandidato);
+    return { ...(votoEleito || { ...maisVotado, ...eleito }), turno, resultadoEleicao: true };
+  }).sort((a,b)=>+a.ano-+b.ano);
+  if (!porAno.length) return `<div class="mun-sem-dados">Sem votação municipal disponível para ${cargo===1 ? "Presidente" : cargo===3 ? "Governador" : "Prefeito"}.</div>`;
+  const latest = porAno[porAno.length-1];
+  const W = 900, H = 190, left = 54, right = 24, top = 28, bottom = 40;
+  const x = i => left + i*(W-left-right)/Math.max(1,porAno.length-1);
+  const share = r => r.totalVotos ? r.votos/r.totalVotos*100 : 0;
+  const valores = porAno.map(share), minimo = d3.min(valores)||0, maximo = d3.max(valores)||0;
+  const piso = Math.max(0, Math.floor((minimo-8)/5)*5), teto = Math.min(100, Math.ceil((maximo+8)/5)*5 || 100);
+  const escala = teto > piso ? [piso,teto] : [Math.max(0,minimo-10),Math.min(100,maximo+10)];
+  const y = r => top + (1-(share(r)-escala[0])/(escala[1]-escala[0]))*(H-top-bottom);
+  const line = porAno.length > 1 ? d3.line().x((r,i)=>x(i)).y(y).curve(d3.curveMonotoneX)(porAno) : "";
+  const chart = `<svg class="mun-linha-votos" viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolução da parcela de votos do candidato mais votado em cada eleição">
+      <line class="mun-eixo" x1="${left}" x2="${W-right}" y1="${H-bottom}" y2="${H-bottom}"/>
+      ${[0,1,2].map(i=>{const val=escala[0]+(escala[1]-escala[0])*i/2, yy=top+(H-top-bottom)*(1-i/2);return `<line class="mun-guia" x1="${left}" x2="${W-right}" y1="${yy}" y2="${yy}"/><text class="mun-eixo-txt" x="${left-8}" y="${yy+4}" text-anchor="end">${percent(val/100)}</text>`;}).join("")}
+      ${line ? `<path class="mun-tracado" d="${line}"/>` : ""}
+      ${porAno.map((r,i)=>`<circle class="mun-ponto" cx="${x(i)}" cy="${y(r)}" r="6"><title>${r.ano}, ${r.turno}º turno: ${percent(share(r)/100)}</title></circle><text class="mun-rotulo-ponto" x="${x(i)}" y="${y(r)-12}" text-anchor="middle">${percent(share(r)/100)}</text><text class="mun-ano" x="${x(i)}" y="${H-10}" text-anchor="middle">${r.ano}</text>`).join("")}
+    </svg>`;
+  const leader = latest.sq ? `<img src="/api/photo/${latest.ano}/${latest.sq}" alt="Foto oficial de ${esc(titulo(latest.nome))} na eleição ${latest.ano}" loading="lazy" decoding="async">` : `<span>${esc(titulo(latest.nome).slice(0,1))}</span>`;
+  const cargoNome = +cargo===11 && latest.resultadoEleicao ? "Prefeito eleito" : "Mais votado no município";
+  const subtituloGrafico = +cargo===11 && modoTurno==="final" ? `Votação do ${latest.resultadoEleicao ? "prefeito eleito" : "candidato mais votado"} no turno que definiu a disputa` : `Parcela dos votos do candidato mais votado em cada eleição · ${modoTurno==="final" ? "turno final disponível" : "1º turno"}`;
+  return `<div class="mun-destaque-ano">
+      <div class="mun-foto-destaque">${leader}</div><div><span class="mun-kicker">${cargoNome} · ${latest.ano}</span>
+      <button class="mun-nome-destaque" data-cand="${latest.id}" type="button">${esc(titulo(latest.nome))}</button>
+      <p><span class="chip" style="background:${corP(latest.partido)}">${esc(latest.partido)}</span> ${fmt.format(latest.votos)} votos · ${percent(share(latest)/100)} no ${latest.turno}º turno</p></div>
+    </div>
+    <div class="mun-chart-wrap"><div class="mun-chart-legenda"><span>${subtituloGrafico}</span><span>${modoTurno==="final" ? "Turno final disponível" : "1º turno"} · escala ${percent(escala[0]/100)}–${percent(escala[1]/100)}</span></div>${chart}</div>
+    <div class="mun-anos">${porAno.map(r=>`<button class="mun-ano-card" type="button" data-cand="${r.id}" aria-label="Ver detalhes de ${esc(titulo(r.nome))}, ${+cargo===11 && r.resultadoEleicao?"prefeito eleito":"mais votado"} em ${r.ano}">
+      <span class="mun-ano-foto">${r.sq ? `<img src="/api/photo/${r.ano}/${r.sq}" alt="" loading="lazy" decoding="async">` : `<i>${esc(titulo(r.nome).slice(0,1))}</i>`}</span>
+      <span class="mun-ano-meta"><b>${r.ano} · ${r.turno}º turno</b><strong>${esc(titulo(r.nome))}</strong><small>${esc(r.partido)} · ${fmt.format(r.votos)} votos</small><em>${percent(share(r)/100)} dos votos</em></span>
+    </button>`).join("")}</div>`;
 }
 
 async function abrirMunicipio(cd, nomeMapa){
+  municipioAnterior = { cd, nome: nomeMapa || MALHA?.porTse.get(String(cd))?.properties.nome || "Município" };
   marcarMunicipio(cd);
   let m = null, erro = null;
   try { m = await api.municipio(cd); } catch(e){ erro = e; console.error(e); }
@@ -1676,10 +1769,47 @@ async function abrirMunicipio(cd, nomeMapa){
     const motivo = !erro || /não encontrado/i.test(erro.message) ? "Não há registros deste município na base." : esc(erro.message);
     abrirGaveta(`<h2 id="g-titulo">${esc(nome || "Município não encontrado")}</h2><p class="sub">${motivo}</p>`); return;
   }
-  let h = `<h2 id="g-titulo">${esc(titulo(m.nome))}</h2><p class="sub">${esc(m.uf)}, código TSE ${esc(m.cd)}${m.ibge ? `, código IBGE ${esc(m.ibge)}` : ""}</p>`;
+  const malhaMun = await carregarMalha(m.uf);
+  const feicaoMun = malhaMun?.porTse.get(String(m.cd));
+  let mapaMun = `<div class="mun-mapa-vazio">Mapa do município indisponível</div>`;
+  if (feicaoMun){
+    const proj = d3.geoMercator().fitSize([270,220], feicaoMun);
+    mapaMun = `<svg class="mun-mapa" viewBox="0 0 270 220" role="img" aria-label="Mapa de ${esc(titulo(m.nome))}"><path d="${d3.geoPath(proj)(feicaoMun)}"/></svg>`;
+  }
+  const cargosTimeline = [...new Set((m.mais_votados || []).map(r=>+r.cargo).filter(c=>c===1 || c===3 || c===11))];
+  const cargoInicial = cargosTimeline.includes(1) ? 1 : cargosTimeline[0] || 1;
+  const turnoInicial = "final";
+  const anosEleitorado = [...new Set((m.eleitorado || []).map(r=>+r.ano))].sort((a,b)=>b-a);
+  const anosEscolaridade = [...new Set((m.escolaridade_eleitorado || []).map(r=>+r.ano))].sort((a,b)=>b-a);
+  let h = `<section class="municipio-dashboard">
+    <header class="mun-cabecalho">
+      <div class="mun-mapa-wrap">${mapaMun}<span>${esc(m.uf)} · ${m.ibge ? `IBGE ${esc(m.ibge)}` : `TSE ${esc(m.cd)}`}</span></div>
+      <div class="mun-titulo"><span class="mun-kicker">Retrato eleitoral do município</span><h2 id="g-titulo">${esc(titulo(m.nome))}</h2><p>${esc(m.uf)} · dados de eleições e perfil do eleitorado</p>
+        <div class="mun-metricas">${m.populacao!=null?`<div><b>${fmt.format(m.populacao)}</b><span>habitantes</span></div>`:""}${m.pibPerCapita!=null?`<div><b>${brlc(m.pibPerCapita)}</b><span>PIB por pessoa</span></div>`:""}${m.idhm!=null?`<div><b>${(+m.idhm).toLocaleString("pt-BR",{maximumFractionDigits:3})}</b><span>IDHM</span></div>`:""}</div>
+        <div class="mun-cargo-toggle" role="group" aria-label="Cargo da trajetória">
+          ${cargosTimeline.includes(1) ? `<button type="button" data-mun-cargo="1" aria-pressed="${cargoInicial===1}">Presidente</button>` : ""}
+          ${cargosTimeline.includes(3) ? `<button type="button" data-mun-cargo="3" aria-pressed="${cargoInicial===3}">Governador</button>` : ""}
+          ${cargosTimeline.includes(11) ? `<button type="button" data-mun-cargo="11" aria-pressed="${cargoInicial===11}">Prefeito</button>` : ""}
+          ${!cargosTimeline.length ? `<span class="mun-sem-dados">Sem série histórica para presidente ou governador.</span>` : ""}
+        </div>
+      </div>
+    </header>
+    <div class="mun-turno-toggle" id="mun-turno-toggle" role="group" aria-label="Turno da eleição" hidden></div>
+    <div class="mun-turno-note">O segundo turno só aparece quando ninguém alcança a maioria absoluta dos votos válidos. Para prefeito, ele só pode ocorrer em capitais e municípios com mais de 200 mil eleitores.</div>
+    <div id="mun-timeline">${htmlLinhaHistoricaMunicipio(m, cargoInicial, turnoInicial)}</div>
+    <div class="mun-nota-fonte">A série mostra a parcela de votos do candidato destacado e identifica o turno usado em cada ano. Selecione um retrato para abrir a trajetória da pessoa.</div>
+  </section>
+  <section class="mun-retrato-eleitorado"><div class="mun-section-heading"><span class="mun-kicker">Quem vive a eleição</span><h3>O perfil de quem vota</h3><p>Uma leitura rápida da idade e da escolaridade declarada no cadastro eleitoral.</p></div>
+    <div class="mun-retrato-grid">
+      <article class="mun-retrato-card"><div class="mun-retrato-top"><h4>Faixa etária</h4><label>Ano <select id="mun-idade-ano" aria-label="Ano do perfil por faixa etária">${anosEleitorado.map(a=>`<option>${a}</option>`).join("")}</select></label></div><div id="mun-idade">${anosEleitorado.length ? resumoIdadeMunicipio(m, anosEleitorado[0]) : `<p class="mun-sem-dados">Sem dados de idade.</p>`}</div></article>
+      <article class="mun-retrato-card"><div class="mun-retrato-top"><h4>Escolaridade</h4><label>Ano <select id="mun-escolaridade-ano" aria-label="Ano do perfil por escolaridade">${anosEscolaridade.map(a=>`<option>${a}</option>`).join("")}</select></label></div><div id="mun-escolaridade">${anosEscolaridade.length ? resumoEscolaridadeMunicipio(m, anosEscolaridade[0]) : `<p class="mun-sem-dados">Sem dados de escolaridade do eleitorado.</p>`}</div></article>
+    </div>
+  </section>`;
   const faltam = [];
 
-  // comparecimento: tabela e gráfico alternáveis
+  h += `<details class="mun-mais-dados"><summary>Mais dados do município</summary><div class="mun-mais-conteudo">`;
+
+  // Comparecimento e abstenção em barras de largura proporcional ao eleitorado apto.
   if (m.comparecimento.length){
     h += `<h3>Comparecimento e abstenção</h3>
       <div class="comp-grafico">
@@ -1698,12 +1828,13 @@ async function abrirMunicipio(cd, nomeMapa){
 
   // candidaturas locais (prefeito e vereador)
   const loc = m.candidaturas_locais || [];
+  const porVotos = (a, b) => (b.votos ?? -1) - (a.votos ?? -1);
   if (loc.length){
     const anosL = [...new Set(loc.map(c=>c.ano))].sort();
     h += `<h3>Eleições municipais</h3>`;
     for (const a of anosL){
-      const pref = loc.filter(c=>c.ano===a && c.cargo==="PREFEITO");
-      const ver = loc.filter(c=>c.ano===a && c.cargo==="VEREADOR" && ehEleito(c.situacao));
+      const pref = loc.filter(c=>c.ano===a && c.cargo==="PREFEITO").sort(porVotos);
+      const ver = loc.filter(c=>c.ano===a && c.cargo==="VEREADOR" && ehEleito(c.situacao)).sort(porVotos);
       const verTot = loc.filter(c=>c.ano===a && c.cargo==="VEREADOR").length;
       const porPart = d3.rollups(ver, v=>v.length, c=>c.partido).sort((x,y)=>y[1]-x[1]);
       h += `<p style="margin:.8rem 0 .3rem;font-weight:700">${a}</p>`;
@@ -1714,7 +1845,7 @@ async function abrirMunicipio(cd, nomeMapa){
   }
 
   // mais votados no município
-  const mv = m.mais_votados || [];
+  const mv = (m.mais_votados || []).filter(r=>+r.turno===1);
   if (mv.length){
     h += `<h3>Mais votados no município (1º turno)</h3><div class="ctrl"><select id="mv-sel" aria-label="Eleição e cargo">${
       [...new Map(mv.map(r=>[`${r.ano}|${r.cargo}`, r])).values()].sort((a,b)=>b.ano-a.ano||a.cargo-b.cargo).map(r=>`<option value="${r.ano}|${r.cargo}">${r.ano}, ${CARGO_COD[r.cargo]||r.cargo}</option>`).join("")}</select></div><div id="mv-lista"></div>`;
@@ -1742,19 +1873,43 @@ async function abrirMunicipio(cd, nomeMapa){
     h += `<h3>Escolaridade: candidatos e eleitos × população</h3><div class="ctrl"><select id="esc-sel" aria-label="Eleição e cargo">${opcoes.map(([v, t]) => `<option value="${esc(v)}">${t}</option>`).join("")}</select></div><div id="esc-lista"></div>`;
   }
 
+  h += `</div></details>`;
   if (faltam.length) h += `<p class="aviso-mini">Sem dados de ${faltam.join(", ").replace(/, ([^,]*)$/," e $1")} para este município na base.</p>`;
   abrirGaveta(h);
 
-  // alternador tabela × gráficos do comparecimento
-  const compAlt = document.querySelector(".comp-alt");
-  if (compAlt) compAlt.querySelectorAll("button").forEach(b => b.onclick = () => {
-    compAlt.querySelectorAll("button").forEach(o => o.setAttribute("aria-pressed", String(o === b)));
-    document.querySelectorAll(".comp-vis").forEach(v => v.hidden = !v.classList.contains("vis-" + b.dataset.v));
+  const munTimeline = document.getElementById("mun-timeline");
+  const munCargoButtons = corpo.querySelectorAll("[data-mun-cargo]");
+  const munTurnoToggle = document.getElementById("mun-turno-toggle");
+  let cargoAtual = cargoInicial, modoTurnoAtual = turnoInicial;
+  const renderTurnoToggle = () => {
+    const temSegundoTurno = (m.mais_votados || []).some(r=>+r.cargo===+cargoAtual && +r.turno===2);
+    munTurnoToggle.hidden = !temSegundoTurno;
+    if (!temSegundoTurno) return;
+    munTurnoToggle.innerHTML = `<button type="button" data-modo-turno="primeiro" aria-pressed="${modoTurnoAtual==="primeiro"}">1º turno</button><button type="button" data-modo-turno="final" aria-pressed="${modoTurnoAtual==="final"}">Turno final</button>`;
+    munTurnoToggle.querySelectorAll("button").forEach(b => b.onclick = () => {
+      modoTurnoAtual = b.dataset.modoTurno;
+      munTurnoToggle.querySelectorAll("button").forEach(o=>o.setAttribute("aria-pressed",String(o===b)));
+      munTimeline.innerHTML = htmlLinhaHistoricaMunicipio(m,cargoAtual,modoTurnoAtual);
+      munTimeline.querySelectorAll("[data-cand]").forEach(link=>link.onclick=()=>abrirCandidato(+link.dataset.cand));
+    });
+  };
+  renderTurnoToggle();
+  munCargoButtons.forEach(b => b.onclick = () => {
+    cargoAtual = +b.dataset.munCargo;
+    modoTurnoAtual = "final";
+    munCargoButtons.forEach(o => o.setAttribute("aria-pressed", String(o === b)));
+    renderTurnoToggle();
+    munTimeline.innerHTML = htmlLinhaHistoricaMunicipio(m, cargoAtual, modoTurnoAtual);
+    munTimeline.querySelectorAll("[data-cand]").forEach(link => link.onclick = () => abrirCandidato(+link.dataset.cand));
   });
+  const idadeSelect = document.getElementById("mun-idade-ano");
+  if (idadeSelect) idadeSelect.onchange = () => { document.getElementById("mun-idade").innerHTML = resumoIdadeMunicipio(m, idadeSelect.value); };
+  const escolaridadeSelect = document.getElementById("mun-escolaridade-ano");
+  if (escolaridadeSelect) escolaridadeSelect.onchange = () => { document.getElementById("mun-escolaridade").innerHTML = resumoEscolaridadeMunicipio(m, escolaridadeSelect.value); };
 
   const ligar = (selId, listaId, render) => { const s = document.getElementById(selId); if (!s) return; const f = () => { document.getElementById(listaId).innerHTML = render(s.value);
       document.getElementById(listaId).querySelectorAll("[data-cand]").forEach(b => b.onclick = () => abrirCandidato(+b.dataset.cand)); }; s.onchange = f; f(); };
-  ligar("mv-sel","mv-lista", v => { const [a,c] = v.split("|").map(Number); const rows = mv.filter(r=>r.ano===a && r.cargo===c); const mx = d3.max(rows, r=>r.votos)||1;
+  ligar("mv-sel","mv-lista", v => { const [a,c] = v.split("|").map(Number); const rows = mv.filter(r=>r.ano===a && r.cargo===c).sort(porVotos); const mx = d3.max(rows, r=>r.votos)||1;
     return rows.map(r=>`<div class="hb"><button class="link" data-cand="${r.id}" style="font-weight:500">${esc(titulo(r.nome))} <span style="color:var(--ink-3)">${esc(r.partido)}</span></button><i class="t" style="width:${r.votos/mx*100}%;background:${corP(r.partido)}"></i><span class="v">${fmt.format(r.votos)}</span></div>`).join(""); });
   ligar("vp-sel","vp-lista", v => { const [a,c] = v.split("|").map(Number); const rows = vp.filter(r=>r.ano===a && r.cargo===c).map(r=>({...r, t:r.nominais+r.legenda})).sort((x,y)=>y.t-x.t).slice(0,10); const mx = d3.max(rows, r=>r.t)||1;
     return rows.map(r=>`<div class="hb"><span>${esc(r.partido)}</span><i class="t" style="width:${r.t/mx*100}%;background:${corP(r.partido)}"></i><span class="v">${fmt.format(r.t)}</span></div>`).join("") + `<p class="aviso-mini">Soma de votos nominais e de legenda; 10 partidos mais votados.</p>`; });
