@@ -19,6 +19,14 @@ api = {
   async gasto(uf, ano) {
     return (await carregarPainel(uf, ano)).spending;
   },
+  async patrimonio(uf, ano) {
+    const d = await request(`/api/q2-patrimonio?uf=${encodeURIComponent(uf)}&ano=${ano}`);
+    return d.dados;
+  },
+  async custoCadeira(uf, ano) {
+    const d = await request(`/api/q1-custo-cadeira?uf=${encodeURIComponent(uf)}&ano=${ano}`);
+    return d.dados;
+  },
   async buscar(uf, termo, signal) {
     const d = await request(`/api/search?uf=${encodeURIComponent(uf)}&q=${encodeURIComponent(termo)}`, { silencioso: true, signal });
     return {
@@ -247,6 +255,8 @@ function nenhumEstado(voar){
   document.getElementById("legenda").innerHTML = "";
   // quartis dependem de estado+ano: na visão Brasil, convite claro no lugar dos cartões
   document.getElementById("quartis").innerHTML = `<p class="aviso-mini">Escolha um estado da amostra para ver as faixas de gasto por cargo daquele ano.</p>`;
+  document.getElementById("patrimonio-quartis").innerHTML = `<p class="aviso-mini">Escolha um estado da amostra para ver o patrimônio.</p>`;
+  document.getElementById("custo-cadeira").innerHTML = `<p class="aviso-mini">Escolha um estado da amostra para ver o custo por cadeira.</p>`;
   montarFinanciamento();
   montarReeleicao();
   montarEscolaridade();
@@ -273,9 +283,14 @@ function montarAnos(){
 }
 
 async function carregarAno(){
-  const [linhas, gasto, malha, vencedores] = await Promise.all([api.partidos(UF, ANO), api.gasto(UF, ANO), carregarMalha(UF), api.mapa(UF, ANO)]);
+  const [linhas, gasto, malha, vencedores, patrimonio, custo] = await Promise.all([
+    api.partidos(UF, ANO), api.gasto(UF, ANO), carregarMalha(UF), api.mapa(UF, ANO),
+    api.patrimonio(UF, ANO), api.custoCadeira(UF, ANO)
+  ]);
   LINHAS = linhas; MALHA = malha; MALHA_ERRO = !malha; VENCEDORES = vencedores;
   montarCargos(); desenharForma(true); montarQuartis(gasto);
+  montarPatrimonio(patrimonio);
+  montarCustoCadeira(custo);
   montarFinanciamento();
   montarReeleicao();
   montarEscolaridade();
@@ -1799,3 +1814,106 @@ window.addEventListener("hashchange", rota);
   }
   document.getElementById("carregando").hidden = true;
 })();
+
+function montarPatrimonio(linhas){
+  const el = document.getElementById("patrimonio-quartis");
+  if (!linhas || !linhas.length) { el.innerHTML = `<p class="nota">Sem dados de património na base para ${ANO}.</p>`; return; }
+  const porCargo = d3.group(linhas, r=>r.ds_cargo);
+  const cargos = [...porCargo.keys()].sort((a,b)=>ordemCargo(a)-ordemCargo(b));
+  
+  el.innerHTML = cargos.map(c => {
+    const rows = porCargo.get(c);
+    const n = d3.sum(rows, q=>+q.qtd_candidatos_na_faixa), el_ = d3.sum(rows, q=>+q.qtd_eleitos);
+    const faixas = [0,1,2,3,4].map(k => rows.find(q=>+q.quartil_patrimonio===k) || { quartil_patrimonio:k, vazia:true, teto_faixa_valor: 0, piso_faixa_valor: 0 });
+    
+    return `<div class="qc">
+      <h3>${cargoNome(c)}</h3>
+      <p class="nota" style="margin:-.4rem 0 0">${fmt.format(n)} candidatos, ${fmt.format(el_)} eleitos</p>
+      
+      <div class="barras" style="display: flex !important; justify-content: space-between !important; width: 100% !important;">
+        ${faixas.map(q => q.vazia
+          ? `<div class="b vazia" style="flex: 1 1 19% !important; max-width: 19% !important; min-width: 0 !important; margin: 0 !important;" title="Nenhum candidato nesta faixa"><span>–</span></div>`
+          : `<div class="b" style="flex: 1 1 19% !important; max-width: 19% !important; min-width: 0 !important; margin: 0 !important; height:${Math.max(2,+q.taxa_sucesso_pct)}%" title="${q.qtd_eleitos} de ${q.qtd_candidatos_na_faixa} eleitos; bens de ${brl(+q.piso_faixa_valor)} a ${brl(+q.teto_faixa_valor)}"><span>${(+q.taxa_sucesso_pct).toLocaleString("pt-BR",{maximumFractionDigits:0})}%</span></div>`
+        ).join("")}
+      </div>
+      
+      <div class="eixo num" style="display: flex !important; justify-content: space-between !important; text-align: center; width: 100% !important;">
+        ${faixas.map(q=>`<span style="flex: 1 1 19% !important; max-width: 19% !important; min-width: 0 !important; font-size: 9.5px; line-height: 1.1; padding-top: 4px; word-break: break-word;">
+          ${+q.quartil_patrimonio===0 ? "Sem bens" : `até<br>${brlc(+q.teto_faixa_valor).replace(/\s/g, '&nbsp;')}`}<br>
+          <em style="font-size: 8.5px; color:var(--ink-3);">${q.vazia ? "ninguém" : fmt.format(+q.qtd_candidatos_na_faixa) + "&nbsp;cand."}</em>
+        </span>`).join("")}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function montarCustoCadeira(linhas) {
+  const el = document.getElementById("custo-cadeira");
+  if (!linhas || !linhas.length) { 
+    el.innerHTML = `<p class="nota">Sem dados de despesas na base para ${ANO}.</p>`; 
+    return; 
+  }
+
+  // Estado local para controlar o filtro selecionado pelo usuário
+  let modoCalculo = "eleitos"; // pode ser "eleitos" ou "todos"
+
+  const renderizarGrafico = () => {
+    // Processa os dados calculando o custo médio da cadeira com base no modo
+    const dadosProcessados = linhas.map(r => {
+      const vagas = +r.qt_eleitos || 1; // Evita divisão por zero
+      const eleitosComDespesa = +r.qt_eleitos_com_despesa || 1;
+      
+      const custoEleitos = (+r.vr_despesas_eleitos || 0) / eleitosComDespesa;
+      const custoTodos = (+r.vr_despesas_total || 0) / vagas;
+      
+      const valorExibido = modoCalculo === "eleitos" ? custoEleitos : custoTodos;
+      
+      return { 
+        cargo: r.ds_cargo, 
+        valorExibido, 
+        vagas, 
+        candComDespesa: modoCalculo === "eleitos" ? r.qt_eleitos_com_despesa : r.qt_com_despesa
+      };
+    }).sort((a, b) => b.valorExibido - a.valorExibido); // Ordena do cargo mais caro para o mais barato
+
+    const maiorCusto = d3.max(dadosProcessados, d => d.valorExibido) || 1;
+
+    el.innerHTML = `
+      <div class="cargos" role="group" aria-label="Modo de cálculo do custo" style="margin-bottom: 12px;">
+        <button data-modo="eleitos" aria-pressed="${modoCalculo === 'eleitos'}">Apenas despesas dos eleitos</button>
+        <button data-modo="todos" aria-pressed="${modoCalculo === 'todos'}">Despesas de todos os candidatos</button>
+      </div>
+      
+      <p class="aviso-mini" style="margin-bottom: 24px;">
+        ${modoCalculo === 'eleitos' 
+          ? "Cálculo: soma das despesas declaradas pelos <b>candidatos eleitos</b> dividida pelo número de cadeiras." 
+          : "Cálculo: soma das despesas de <b>todos os candidatos (eleitos e não eleitos)</b> dividida pelo número de cadeiras."}
+      </p>
+
+      <div class="fin-grid" style="display: flex; flex-direction: column; gap: 16px;">
+        ${dadosProcessados.map(d => `
+          <div class="hb" style="display: flex; align-items: center; width: 100%;">
+            <span style="font-weight: 600; width: 140px; flex-shrink: 0;">${cargoNome(d.cargo)}</span>
+            <div style="flex-grow: 1; background: var(--bg-escuro); height: 16px; margin: 0 16px; position: relative;">
+              <i style="position: absolute; top: 0; left: 0; height: 100%; width: ${(d.valorExibido / maiorCusto) * 100}%; background: var(--ink);"></i>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; width: 130px; flex-shrink: 0;">
+              <span class="v num" style="font-size: 15px; font-weight: 700;">${brlc(d.valorExibido)}</span>
+              <span style="font-size: 10px; color: var(--ink-3);">em ${fmt.format(d.candComDespesa)} prest. contas</span>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `;
+
+    // Adiciona interatividade aos botões
+    el.querySelectorAll("button[data-modo]").forEach(btn => {
+      btn.onclick = () => {
+        modoCalculo = btn.dataset.modo;
+        renderizarGrafico(); // Recarrega apenas este componente ao clicar
+      };
+    });
+  };
+
+  renderizarGrafico();
+}

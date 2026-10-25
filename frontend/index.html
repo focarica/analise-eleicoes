@@ -69,6 +69,18 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
     <div class="quartis" id="quartis"></div>
   </section>
 
+  <section class="sec" aria-labelledby="pat-t">
+    <h2 id="pat-t">Ter mais bens declarados ajuda a se eleger?</h2>
+    <p class="nota">Candidatos divididos em faixas de patrimônio. A primeira faixa concentra quem declarou R$ 0. Os demais foram divididos em quatro faixas (quartis) contendo o mesmo número de candidatos, do menor ao maior patrimônio declarado.</p>
+    <div class="quartis" id="patrimonio-quartis"></div>
+  </section>
+
+  <section class="sec" aria-labelledby="custo-t">
+    <h2 id="custo-t">Qual o custo de uma cadeira?</h2>
+    <p class="nota">Relação entre as despesas de campanha e as cadeiras conquistadas por cargo.</p>
+    <div id="custo-cadeira"></div>
+  </section>
+
   <section class="sec" aria-labelledby="fin-t"><a id="financiamento"></a>
     <h2 id="fin-t">Depender de fundo público se elege mais?</h2>
     <p class="nota">Cada candidatura é classificada pela fração <b>da receita que arrecadou</b> que veio de fundos públicos — fundo eleitoral (FEFC) + fundo partidário somados, divididos pelo total recebido; o resto veio de outras fontes, como recursos próprios e doadores privados. Não é a fração do gasto: é a das entradas. No escopo, o TSE só publica as fontes FUNDO ESPECIAL, FUNDO PARTIDARIO e OUTROS RECURSOS. <span id="fin-origem"></span> Clique em uma faixa para ver quem são.</p>
