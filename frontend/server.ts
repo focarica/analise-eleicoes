@@ -747,30 +747,36 @@ if (path === "/api/q1-custo-cadeira") {
     if (!municipality) return json({ error: "Município não encontrado." }, 404);
     // P4: a view só existe depois de aplicar 06 e 07; a chave do cache registra isso
     const temQ4 = await viewDisponivel("vw_questao_4_escolaridade");
-    const [attendance, electorate, parties, topCandidates, localCandidacies, education] = await comCache(`mun:${code}:q4${temQ4 ? 1 : 0}`, () => seguido([
+    const temEscolaridadeEleitorado = await viewDisponivel("escolaridade_eleitorado");
+    const [attendance, electorate, electorateEducation, parties, topCandidates, localCandidacies, education] = await comCache(`mun:${code}:visual1:perfil${temEscolaridadeEleitorado ? 1 : 0}:q4${temQ4 ? 1 : 0}`, () => seguido([
       () => rows(`SELECT ano_eleicao, nr_turno, qt_aptos, qt_comparecimento, qt_abstencao
             FROM public.comparecimento_municipio WHERE cd_municipio_tse = $1
             ORDER BY ano_eleicao, nr_turno`, [code]),
       () => rows(`SELECT ano_eleicao, ds_faixa_etaria, qt_eleitores
             FROM public.perfil_eleitorado WHERE cd_municipio_tse = $1
             ORDER BY ano_eleicao, ds_faixa_etaria`, [code]),
+      () => temEscolaridadeEleitorado ? rows(`SELECT ano_eleicao, ds_grau_instrucao, qt_eleitores
+            FROM public.escolaridade_eleitorado WHERE cd_municipio_tse = $1
+            ORDER BY ano_eleicao, ds_grau_instrucao`, [code]) : Promise.resolve([]),
       () => rows(`SELECT ano_eleicao, cd_cargo, sg_partido, qt_votos_nominais, qt_votos_legenda
             FROM public.votacao_partido WHERE cd_municipio_tse = $1 AND nr_turno = 1
             ORDER BY ano_eleicao, cd_cargo, qt_votos_nominais DESC LIMIT 120`, [code]),
-      () => rows(`SELECT ano_eleicao, cd_cargo, nm_urna_candidato, sg_partido,
-                   qt_votos_nominais, id_pessoa_projeto
+      () => rows(`SELECT ano_eleicao, cd_cargo, nr_turno, nm_urna_candidato, sg_partido,
+                   qt_votos_nominais, id_pessoa_projeto, sq_candidato, total_votos
             FROM (
-              SELECT v.ano_eleicao, v.cd_cargo, c.nm_urna_candidato, c.sg_partido,
+              SELECT v.ano_eleicao, v.cd_cargo, v.nr_turno, c.nm_urna_candidato, c.sg_partido,
                      v.qt_votos_nominais, c.id_pessoa_projeto,
-                     ROW_NUMBER() OVER (PARTITION BY v.ano_eleicao, v.cd_cargo
+                     c.sq_candidato,
+                     SUM(v.qt_votos_nominais) OVER (PARTITION BY v.ano_eleicao, v.cd_cargo, v.nr_turno) AS total_votos,
+                     ROW_NUMBER() OVER (PARTITION BY v.ano_eleicao, v.cd_cargo, v.nr_turno
                                         ORDER BY v.qt_votos_nominais DESC) AS pos
               FROM public.votacao_candidato_municipio v
               JOIN public.candidatura c USING (ano_eleicao, sq_candidato)
-              WHERE v.cd_municipio_tse = $1 AND v.nr_turno = 1
+              WHERE v.cd_municipio_tse = $1
             ) ranked WHERE pos <= 5
-            ORDER BY ano_eleicao, cd_cargo, pos`, [code]),
+            ORDER BY ano_eleicao, cd_cargo, nr_turno, pos`, [code]),
       () => rows(`SELECT c.ano_eleicao, c.ds_cargo AS cargo, c.id_pessoa_projeto,
-                   c.nm_urna_candidato, ca.nm_candidato, c.sg_partido,
+                   c.sq_candidato, c.nm_urna_candidato, ca.nm_candidato, c.sg_partido,
                    c.ds_sit_tot_turno, c.qt_votos_totais AS qt_votos_nominais
             FROM public.candidatura c
             LEFT JOIN public.candidato ca USING (id_pessoa_projeto)
@@ -784,7 +790,7 @@ if (path === "/api/q1-custo-cadeira") {
             FROM public.vw_questao_4_escolaridade WHERE cd_municipio_tse = $1
             ORDER BY ano_eleicao, ds_cargo, nr_nivel NULLS LAST`, [code]) : Promise.resolve(null),
     ]));
-    return json({ ...municipality, attendance, electorate, parties, topCandidates, localCandidacies, education });
+    return json({ ...municipality, attendance, electorate, electorateEducation, parties, topCandidates, localCandidacies, education });
   }
 
   return json({ error: "Rota não encontrada." }, 404);
