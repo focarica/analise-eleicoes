@@ -342,17 +342,19 @@ footer{ margin-top:2.5rem; padding-top:1rem; border-top:1px solid var(--line); c
 @media (max-width:520px){ .perfil-topo{ grid-template-columns:72px minmax(0,1fr); gap:.75rem; padding-right:2rem; } .foto-topo{ width:72px; height:96px; } .linha-tempo > li{ grid-template-columns:52px minmax(0,1fr); gap:.65rem; padding-left:1rem; } .foto-candidatura{ width:52px; height:68px; } .lt-ano{ font-size:1.4rem; } }
 @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
 
-/* alternância tabela × gráficos no comparecimento do município */
-.comp-alt{ display:inline-flex; gap:.3rem; margin:.35rem 0 .6rem; }
-.comp-alt button{ border:1.5px solid var(--line); background:var(--raised); border-radius:999px; padding:.25rem .7rem; font-size:.8rem; font-weight:600; cursor:pointer; }
-.comp-alt button:hover{ border-color:var(--ink); }
-.comp-alt button[aria-pressed="true"]{ background:var(--ink); border-color:var(--ink); color:var(--bg); }
-.cmp-linha{ display:grid; grid-template-columns:7.4rem minmax(0,1fr) auto; gap:.6rem; align-items:center; padding:.28rem 0; font-size:.85rem; }
+.comp-grafico{ width:100%; min-width:0; }
+.cmp-linha{ display:grid; width:100%; min-width:0; grid-template-columns:minmax(0,1fr); gap:.45rem; padding:.6rem 0; font-size:.82rem; }
 .cmp-ano{ color:var(--ink-2); font-weight:600; white-space:nowrap; }
-.cmp-seg{ display:flex; height:18px; border-radius:6px; overflow:hidden; background:var(--vazio); }
-.cmp-seg i{ display:block; height:100%; background:var(--ok); min-width:0; }
+.cmp-seg{ display:flex; width:100%; min-width:0; height:18px; grid-column:1; border-radius:99px; overflow:hidden; background:var(--vazio); }
+.cmp-seg i{ display:block; height:100%; min-width:0; flex-shrink:0; }
+.cmp-presenca{ background:var(--ok); }
+.cmp-ausencia{ background:color-mix(in srgb,var(--ink-3) 48%,var(--line)); }
+.cmp-legenda{ display:grid; grid-column:1; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.25rem .8rem; width:100%; min-width:0; color:var(--ink-2); font-size:.72rem; font-variant-numeric:tabular-nums; }
+.cmp-legenda span{ display:flex; align-items:center; gap:.4rem; }
+.cmp-legenda i{ flex:0 0 9px; width:9px; height:9px; border-radius:50%; }
+.cmp-cor-presenca{ background:var(--ok); }
+.cmp-cor-ausencia{ background:var(--ink-3); }
 .cmp-v{ color:var(--ink-3); font-variant-numeric:tabular-nums; white-space:nowrap; }
-@media (max-width:520px){ .cmp-linha{ grid-template-columns:5.6rem minmax(0,1fr); } .cmp-v{ grid-column:2; } }
 
 /* gráfico de linha do patrimônio declarado na ficha do candidato */
 .pat-linha{ display:block; width:100%; height:auto; margin:.2rem 0 .5rem; }

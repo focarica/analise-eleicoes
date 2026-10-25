@@ -1681,23 +1681,18 @@ async function abrirMunicipio(cd, nomeMapa){
 
   // comparecimento: tabela e gráfico alternáveis
   if (m.comparecimento.length){
-    h += `<h3>Comparecimento</h3>
-      <div class="comp-alt" role="group" aria-label="Alternar visão do comparecimento">
-        <button type="button" data-v="tabela" aria-pressed="true">Tabela</button>
-        <button type="button" data-v="graficos" aria-pressed="false">Gráficos</button>
-      </div>
-      <div class="comp-vis vis-tabela"><div class="tabw"><table class="tab"><thead><tr><th>Eleição</th><th class="v">Aptos</th><th class="v">Compareceram</th><th class="v">Abstenção</th></tr></thead><tbody>
-      ${m.comparecimento.map(c=>`<tr><td>${c.ano}, ${c.turno}º turno</td><td class="v">${fmt.format(c.aptos)}</td><td class="v">${fmt.format(c.comparecimento)}</td><td class="v">${(c.abstencao/c.aptos*100).toLocaleString("pt-BR",{maximumFractionDigits:1})}%</td></tr>`).join("")}</tbody></table></div></div>
-      <div class="comp-vis vis-graficos" hidden>
+    h += `<h3>Comparecimento e abstenção</h3>
+      <div class="comp-grafico">
         ${m.comparecimento.map(c=>{
           const p = c.aptos ? c.comparecimento / c.aptos * 100 : 0;
+          const ausencia = c.aptos ? c.abstencao / c.aptos * 100 : 0;
           return `<div class="cmp-linha">
             <span class="cmp-ano">${c.ano}, ${c.turno}º turno</span>
-            <div class="cmp-seg"><i style="width:${p.toFixed(2)}%" title="Aptos ${fmt.format(c.aptos)} · Compareceram ${fmt.format(c.comparecimento)} · Abstenção ${(c.abstencao/c.aptos*100).toLocaleString("pt-BR",{maximumFractionDigits:1})}%"></i></div>
-            <span class="cmp-v">${p.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span>
+            <div class="cmp-seg" role="img" aria-label="${fmt.format(c.comparecimento)} compareceram (${p.toLocaleString("pt-BR",{maximumFractionDigits:1})}%) e ${fmt.format(c.abstencao)} se abstiveram (${ausencia.toLocaleString("pt-BR",{maximumFractionDigits:1})}%) de ${fmt.format(c.aptos)} eleitores aptos"><i class="cmp-presenca" style="width:${p.toFixed(2)}%" title="Compareceram ${fmt.format(c.comparecimento)} (${p.toLocaleString("pt-BR",{maximumFractionDigits:1})}%)"></i><i class="cmp-ausencia" style="width:${ausencia.toFixed(2)}%" title="Abstenção: ${fmt.format(c.abstencao)} (${ausencia.toLocaleString("pt-BR",{maximumFractionDigits:1})}%)"></i></div>
+            <div class="cmp-legenda"><span><i class="cmp-cor-presenca"></i>${fmt.format(c.comparecimento)} compareceram · ${p.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span><span><i class="cmp-cor-ausencia"></i>${fmt.format(c.abstencao)} faltaram · ${ausencia.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span></div>
           </div>`;
         }).join("")}
-        <p class="aviso-mini">Verde: compareceram; cinza: abstenção, em relação aos aptos de cada eleição.</p>
+        <p class="aviso-mini">Cada barra representa 100% do eleitorado apto. Os números ao lado mostram quantas pessoas compareceram e quantas se abstiveram.</p>
       </div>`;
   } else faltam.push("comparecimento");
 
