@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "types": ["bun"]
   },
-  "include": ["*.ts", "src/**/*.ts", "vite.config.ts"]
+  "include": ["*.ts", "api/**/*.ts", "src/**/*.ts", "vite.config.ts"]
 }
