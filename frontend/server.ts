@@ -640,6 +640,45 @@ async function route(request: Request) {
     return json({ uf, cargo, ano, faixa, pessoas, temMais });
   }
 
+if (path === "/api/q1-custo-cadeira") {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    const ano = Number(url.searchParams.get("ano"));
+    if (!UFS.has(uf) || !YEARS.has(ano)) return json({ error: "UF ou ano inválido." }, 400);
+    
+    const dados = await comCache(`q1-custo:${uf}:${ano}`, () => rows(
+      `SELECT * FROM public.vw_questao_1_custo_cadeira 
+       WHERE uf = $1 AND ano_eleicao = $2 
+       ORDER BY ds_cargo`, [uf, ano]
+    ));
+    return json({ uf, ano, dados });
+  }
+
+  if (path === "/api/q2-despesas") {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    const ano = Number(url.searchParams.get("ano"));
+    if (!UFS.has(uf) || !YEARS.has(ano)) return json({ error: "UF ou ano inválido." }, 400);
+    
+    const dados = await comCache(`q2-desp:${uf}:${ano}`, () => rows(
+      `SELECT * FROM public.vw_questao_2_despesas 
+       WHERE uf = $1 AND ano_eleicao = $2 
+       ORDER BY ds_cargo, faixa_financeira`, [uf, ano]
+    ));
+    return json({ uf, ano, dados });
+  }
+
+  if (path === "/api/q2-patrimonio") {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    const ano = Number(url.searchParams.get("ano"));
+    if (!UFS.has(uf) || !YEARS.has(ano)) return json({ error: "UF ou ano inválido." }, 400);
+    
+    const dados = await comCache(`q2-pat:${uf}:${ano}`, () => rows(
+      `SELECT * FROM public.vw_questao_2_patrimonio_sucesso 
+       WHERE uf = $1 AND ano_eleicao = $2 
+       ORDER BY ds_cargo, quartil_patrimonio`, [uf, ano]
+    ));
+    return json({ uf, ano, dados });
+  }
+
   const photoMatch = path.match(/^\/api\/photo\/(\d{4})\/(\d{1,20})$/);
   if (photoMatch) {
     const year = Number(photoMatch[1]);
