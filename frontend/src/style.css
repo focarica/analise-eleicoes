@@ -384,19 +384,25 @@ footer{ margin-top:2.5rem; padding-top:1rem; border-top:1px solid var(--line); c
 @media (max-width:420px){ .indicador-grid{ grid-template-columns:1fr; } .indicador-fonte{ grid-column:1; } .indicador-barra{ grid-template-columns:minmax(7rem,42%) 1fr auto; font-size:.78rem; } }
 @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
 
-.comp-grafico{ width:100%; min-width:0; }
-.cmp-linha{ display:grid; width:100%; min-width:0; grid-template-columns:minmax(0,1fr); gap:.45rem; padding:.6rem 0; font-size:.82rem; }
-.cmp-ano{ color:var(--ink-2); font-weight:600; white-space:nowrap; }
-.cmp-seg{ display:flex; width:100%; min-width:0; height:18px; grid-column:1; border-radius:99px; overflow:hidden; background:var(--vazio); }
-.cmp-seg i{ display:block; height:100%; min-width:0; flex-shrink:0; }
-.cmp-presenca{ background:var(--ok); }
-.cmp-ausencia{ background:color-mix(in srgb,var(--ink-3) 48%,var(--line)); }
-.cmp-legenda{ display:grid; grid-column:1; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.25rem .8rem; width:100%; min-width:0; color:var(--ink-2); font-size:.72rem; font-variant-numeric:tabular-nums; }
+.comp-grafico{ width:100%; min-width:0; --cmp-altura:260px; }
+.cmp-plot{ display:grid; grid-template-columns:2.7rem minmax(0,1fr); gap:.5rem; margin:.9rem 0 .35rem; }
+.cmp-eixo-y{ height:var(--cmp-altura); display:flex; flex-direction:column; justify-content:space-between; align-items:flex-end; color:var(--ink-3); font-size:.72rem; font-variant-numeric:tabular-nums; }
+.cmp-rolagem{ min-width:0; overflow-x:auto; padding-bottom:.5rem; overscroll-behavior-inline:contain; }
+.cmp-rolagem:focus-visible,.cmp-seg:focus-visible{ outline:2px solid var(--ink); outline-offset:2px; }
+.cmp-colunas{ display:grid; grid-template-columns:repeat(var(--cmp-colunas),minmax(68px,1fr)); gap:.65rem; background:repeating-linear-gradient(to bottom,var(--line) 0 1px,transparent 1px 25%); background-size:100% var(--cmp-altura); background-repeat:no-repeat; }
+.cmp-coluna{ min-width:0; text-align:center; }
+.cmp-seg{ display:flex; flex-direction:column-reverse; width:52px; max-width:100%; height:var(--cmp-altura); margin:0 auto; border-radius:12px; overflow:hidden; background:var(--vazio); }
+.cmp-seg i{ display:flex; align-items:center; justify-content:center; width:100%; min-height:0; flex-shrink:0; font-style:normal; }
+.cmp-seg i span{ font-size:.67rem; font-weight:700; font-variant-numeric:tabular-nums; }
+.cmp-presenca{ background:var(--ok); color:var(--bg); }
+.cmp-ausencia{ background:color-mix(in srgb,var(--ink-3) 48%,var(--line)); color:var(--ink); }
+.cmp-ano{ display:block; margin-top:.5rem; color:var(--ink-2); font-size:.78rem; font-weight:700; white-space:nowrap; }
+.cmp-ano small{ display:block; margin-top:.15rem; color:var(--ink-3); font-size:.68rem; font-weight:400; }
+.cmp-legenda{ display:flex; flex-wrap:wrap; gap:.5rem 1.2rem; color:var(--ink-2); font-size:.78rem; }
 .cmp-legenda span{ display:flex; align-items:center; gap:.4rem; }
 .cmp-legenda i{ flex:0 0 9px; width:9px; height:9px; border-radius:50%; }
 .cmp-cor-presenca{ background:var(--ok); }
-.cmp-cor-ausencia{ background:var(--ink-3); }
-.cmp-v{ color:var(--ink-3); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.cmp-cor-ausencia{ background:color-mix(in srgb,var(--ink-3) 48%,var(--line)); }
 
 /* gráfico de linha do patrimônio declarado na ficha do candidato */
 .pat-linha{ display:block; width:100%; height:auto; margin:.2rem 0 .5rem; }

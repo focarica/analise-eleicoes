@@ -811,7 +811,6 @@ export async function abrirMunicipio(cd, nomeMapa){
 
   h += `<details class="mun-mais-dados"><summary>Mais dados do município</summary><div class="mun-mais-conteudo">`;
 
-  // Comparecimento e abstenção em barras de largura proporcional ao eleitorado apto.
   const ibge = m.indicadoresIbge || [];
   if (ibge.length){
     const anosIbge = [...new Set(ibge.map(r=>+r.ano))].sort((a,b)=>b-a);
@@ -833,18 +832,31 @@ export async function abrirMunicipio(cd, nomeMapa){
   } else faltam.push("escolaridade do Censo 2022");
 
   if (m.comparecimento.length){
+    const comparecimento = [...m.comparecimento].sort((a,b)=>a.ano-b.ano || a.turno-b.turno);
     h += `<h3>Comparecimento e abstenção</h3>
       <div class="comp-grafico">
-        ${m.comparecimento.map(c=>{
-          const p = c.aptos ? c.comparecimento / c.aptos * 100 : 0;
-          const ausencia = c.aptos ? c.abstencao / c.aptos * 100 : 0;
-          return `<div class="cmp-linha">
-            <span class="cmp-ano">${c.ano}, ${c.turno}º turno</span>
-            <div class="cmp-seg" role="img" aria-label="${fmt.format(c.comparecimento)} compareceram (${p.toLocaleString("pt-BR",{maximumFractionDigits:1})}%) e ${fmt.format(c.abstencao)} se abstiveram (${ausencia.toLocaleString("pt-BR",{maximumFractionDigits:1})}%) de ${fmt.format(c.aptos)} eleitores aptos"><i class="cmp-presenca" style="width:${p.toFixed(2)}%" title="Compareceram ${fmt.format(c.comparecimento)} (${p.toLocaleString("pt-BR",{maximumFractionDigits:1})}%)"></i><i class="cmp-ausencia" style="width:${ausencia.toFixed(2)}%" title="Abstenção: ${fmt.format(c.abstencao)} (${ausencia.toLocaleString("pt-BR",{maximumFractionDigits:1})}%)"></i></div>
-            <div class="cmp-legenda"><span><i class="cmp-cor-presenca"></i>${fmt.format(c.comparecimento)} compareceram · ${p.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span><span><i class="cmp-cor-ausencia"></i>${fmt.format(c.abstencao)} faltaram · ${ausencia.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span></div>
-          </div>`;
-        }).join("")}
-        <p class="aviso-mini">Cada barra representa 100% do eleitorado apto. Os números ao lado mostram quantas pessoas compareceram e quantas se abstiveram.</p>
+        <div class="cmp-legenda"><span><i class="cmp-cor-presenca"></i>Comparecimento</span><span><i class="cmp-cor-ausencia"></i>Abstenção</span></div>
+        <div class="cmp-plot">
+          <div class="cmp-eixo-y" aria-hidden="true">${[100,75,50,25,0].map(p=>`<span>${p}%</span>`).join("")}</div>
+          <div class="cmp-rolagem" tabindex="0" role="region" aria-label="Comparecimento e abstenção por ano e turno; role horizontalmente para ver todas as eleições">
+            <div class="cmp-colunas" style="--cmp-colunas:${comparecimento.length}">
+              ${comparecimento.map(c=>{
+                const p = c.aptos ? c.comparecimento / c.aptos * 100 : 0;
+                const ausencia = c.aptos ? c.abstencao / c.aptos * 100 : 0;
+                const percentual = v => v.toLocaleString("pt-BR",{maximumFractionDigits:1})+"%";
+                const descricao = `${c.ano}, ${c.turno}º turno: ${fmt.format(c.comparecimento)} compareceram (${percentual(p)}) e ${fmt.format(c.abstencao)} se abstiveram (${percentual(ausencia)}) de ${fmt.format(c.aptos)} eleitores aptos`;
+                return `<div class="cmp-coluna">
+                  <div class="cmp-seg" role="img" tabindex="0" aria-label="${descricao}" title="${descricao}">
+                    <i class="cmp-presenca" style="height:${p.toFixed(4)}%" title="${fmt.format(c.comparecimento)} compareceram · ${percentual(p)}">${p>=10 ? `<span>${percentual(p)}</span>` : ""}</i>
+                    <i class="cmp-ausencia" style="height:${ausencia.toFixed(4)}%" title="${fmt.format(c.abstencao)} se abstiveram · ${percentual(ausencia)}">${ausencia>=10 ? `<span>${percentual(ausencia)}</span>` : ""}</i>
+                  </div>
+                  <span class="cmp-ano">${c.ano}<small>${c.turno}º turno</small></span>
+                </div>`;
+              }).join("")}
+            </div>
+          </div>
+        </div>
+        <p class="aviso-mini">Cada coluna representa 100% do eleitorado apto naquele ano e turno. Passe o cursor sobre as colunas para ver os totais de pessoas.</p>
       </div>`;
   } else faltam.push("comparecimento");
 
