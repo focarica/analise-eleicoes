@@ -110,20 +110,31 @@ function idadeEm(data?: string, ano?: number) {
 }
 function frase(a: Perfil, b: Perfil, sa: ReturnType<typeof resumir>, sb: ReturnType<typeof resumir>) {
   const fatos: string[] = [];
-  const ratio = (x:number,y:number) => y > 0 ? x/y : null;
-  if (sa.gastos !== sb.gastos) {
-    const [lider,outro,nome] = sa.gastos > sb.gastos ? [sa.gastos,sb.gastos,a.nm_candidato] : [sb.gastos,sa.gastos,b.nm_candidato];
-    const q = ratio(lider,outro);
-    fatos.push(q ? `${titulo(nome)} declarou ${q.toLocaleString("pt-BR",{maximumFractionDigits:1})}× as despesas de campanha do outro — ${dinheiro(lider)} contra ${dinheiro(outro)}.` : `${titulo(nome)} declarou ${dinheiro(lider)} em despesas de campanha; o outro não tem despesa registrada.`);
-  }
+  const nomeA=titulo(a.nm_candidato), nomeB=titulo(b.nm_candidato);
   const comuns = sa.years.filter(y=>sb.years.includes(y));
   let maior: {year:number; aa:number; ab:number} | null = null;
   for (const y of comuns) { const aa=idadeEm(a.dt_nascimento,y), ab=idadeEm(b.dt_nascimento,y); if (aa != null && ab != null && (!maior || Math.abs(aa-ab)>Math.abs(maior.aa-maior.ab))) maior={year:y,aa,ab}; }
-  if (maior && maior.aa !== maior.ab) fatos.push(`Em ${maior.year}, ${titulo(a.nm_candidato)} tinha ${maior.aa} anos; ${titulo(b.nm_candidato)}, ${maior.ab}.`);
-  if (sa.votos !== sb.votos) { const nome = sa.votos>sb.votos?a.nm_candidato:b.nm_candidato; fatos.push(`Somando as candidaturas da base, ${titulo(nome)} recebeu mais votos: ${fmt.format(Math.max(sa.votos,sb.votos))} contra ${fmt.format(Math.min(sa.votos,sb.votos))}.`); }
-  if (sa.receitas !== sb.receitas) { const nome = sa.receitas>sb.receitas?a.nm_candidato:b.nm_candidato; fatos.push(`${titulo(nome)} arrecadou mais nas campanhas registradas: ${dinheiro(Math.max(sa.receitas,sb.receitas))} no total.`); }
-  if (sa.years.length !== sb.years.length) { const nome=sa.years.length>sb.years.length?a.nm_candidato:b.nm_candidato; fatos.push(`${titulo(nome)} voltou às urnas em ${Math.abs(sa.years.length-sb.years.length)} ${Math.abs(sa.years.length-sb.years.length)===1?"eleição":"eleições"} a mais.`); }
-  if (!fatos.length) fatos.push("Empate curioso: os números disponíveis ficaram iguais nos recortes comparáveis.");
+  if (maior && Math.abs(maior.aa-maior.ab)>=10) {
+    const maisVelho=maior.aa>maior.ab?nomeA:nomeB, jovem=maior.aa>maior.ab?nomeB:nomeA, diff=Math.abs(maior.aa-maior.ab);
+    fatos.push(`Em ${maior.year}, ${jovem} tinha ${Math.min(maior.aa,maior.ab)} anos. ${maisVelho} era ${diff} anos mais velho.`);
+  }
+  const topA=maiorRegistro(sa.cs,"votos"), topB=maiorRegistro(sb.cs,"votos");
+  if(topA&&topB) {
+    const high=n(topA.votos)>=n(topB.votos)?topA:topB, low=high===topA?topB:topA, who=high===topA?nomeA:nomeB, other=high===topA?nomeB:nomeA;
+    const ratio=n(low.votos)>0?n(high.votos)/n(low.votos):null;
+    if(n(high.votos)-n(low.votos)>=10000 && ratio!=null && ratio>=2) fatos.push(`A maior votação de ${who} chegou a ${fmt.format(n(high.votos))} votos em ${high.ano}. Isso é mais que o dobro do recorde de ${other}.`);
+  }
+  const topGastoA=maiorRegistro(sa.cs,"total_despesas"), topGastoB=maiorRegistro(sb.cs,"total_despesas");
+  if(topGastoA&&topGastoB) {
+    const high=n(topGastoA.total_despesas)>=n(topGastoB.total_despesas)?topGastoA:topGastoB, low=high===topGastoA?topGastoB:topGastoA, who=high===topGastoA?nomeA:nomeB, other=high===topGastoA?nomeB:nomeA;
+    const ratio=n(low.total_despesas)>0?n(high.total_despesas)/n(low.total_despesas):null;
+    if(n(high.total_despesas)-n(low.total_despesas)>=100000 && ratio!=null && ratio>=2) fatos.push(`A campanha mais cara de ${who} custou ${dinheiro(high.total_despesas)}. Foi pelo menos o dobro do maior gasto de ${other}, em valores nominais.`);
+  }
+  const diffEleicoes=Math.abs(sa.years.length-sb.years.length), maxEleicoes=Math.max(sa.years.length,sb.years.length);
+  if(diffEleicoes>=2 && diffEleicoes/maxEleicoes>=.4) {
+    const mais=sa.years.length>sb.years.length?nomeA:nomeB, menos=sa.years.length>sb.years.length?nomeB:nomeA;
+    fatos.push(`${mais} apareceu nas urnas em pelo menos o dobro de anos eleitorais que ${menos}.`);
+  }
   return fatos;
 }
 function detalheLista(items: any[], rotulo: string, key: string, contexto = "") {
@@ -154,47 +165,48 @@ function fraseDaCandidatura(c: Candidatura, nome: string, nascimento?: string) {
   const votos = c.votos == null ? "votos não informados" : `${fmt.format(n(c.votos))} votos`;
   const idadeTxt = idade == null ? "" : `Aos ${idade} anos, `;
   const eleito = ["ELEITO","ELEITO POR QP","ELEITO POR MÉDIA"].includes(String(c.situacao).toUpperCase());
-  const abertura = eleito
-    ? `${idadeTxt}${titulo(nome)} foi eleito para ${disputa} com ${votos}.`
-    : `${idadeTxt}${titulo(nome)} disputou ${disputa}, teve ${votos} e terminou como ${c.situacao ? sitTxt(c.situacao) : "resultado não informado"}.`;
-  const campanha = `Na mesma campanha, arrecadou ${dinheiro(c.total_receitas)}, registrou ${dinheiro(c.total_despesas)} em despesas pagas e declarou ${dinheiro(c.patrimonio_declarado)} em bens.`;
-  return `${abertura} ${campanha}`;
+  if (eleito) return `${idadeTxt}${titulo(nome)} venceu a disputa para ${disputa}, com ${votos}.`;
+  const situacao=String(c.situacao||"").toUpperCase();
+  if (situacao.includes("2º TURNO") || situacao.includes("SEGUNDO TURNO")) return `${idadeTxt}${titulo(nome)} levou a disputa para ${disputa} ao segundo turno, com ${votos}.`;
+  if (situacao.includes("SUPLENTE")) return `${idadeTxt}${titulo(nome)} terminou como suplente na disputa para ${disputa}, com ${votos}.`;
+  if (n(c.votos)>=10000) return `${idadeTxt}${titulo(nome)} reuniu ${votos} na disputa para ${disputa}. O resultado registrado foi ${c.situacao ? sitTxt(c.situacao) : "não informado"}.`;
+  return `${idadeTxt}${titulo(nome)} entrou na disputa para ${disputa}. O resultado registrado foi ${c.situacao ? sitTxt(c.situacao) : "não informado"}.`;
 }
 function resumoCenario(a: Perfil, b: Perfil, sa: ReturnType<typeof resumir>, sb: ReturnType<typeof resumir>, comuns: number[]) {
   const inicioA=sa.years[0], inicioB=sb.years[0], fimA=sa.years.at(-1)!, fimB=sb.years.at(-1)!;
   const anosA=sa.years.length, anosB=sb.years.length, faixaA=fimA-inicioA, faixaB=fimB-inicioB;
   if (!comuns.length && fimA < inicioB) return {
-    titulo: "Uma trajetória registrada terminou antes da outra começar",
-    texto: `A última candidatura de ${titulo(a.nm_candidato)} nesta amostra foi em ${fimA}; ${titulo(b.nm_candidato)} aparece pela primeira vez em ${inicioB}, ${inicioB-fimA} anos depois.`,
+    titulo: "As candidaturas registradas não se sobrepõem",
+    texto: `${titulo(a.nm_candidato)} já tinha encerrado sua sequência de candidaturas registradas quando ${titulo(b.nm_candidato)} apareceu pela primeira vez, ${inicioB-fimA} anos depois.`,
   };
   if (!comuns.length && fimB < inicioA) return {
-    titulo: "Uma trajetória registrada terminou antes da outra começar",
-    texto: `${titulo(b.nm_candidato)} tem seu último registro em ${fimB}. ${titulo(a.nm_candidato)} só aparece na amostra em ${inicioA}, ${inicioA-fimB} anos depois.`,
+    titulo: "As estreias eleitorais aconteceram em épocas diferentes",
+    texto: `${titulo(b.nm_candidato)} já tinha sua última candidatura registrada quando ${titulo(a.nm_candidato)} estreou nas urnas da amostra, ${inicioA-fimB} anos depois.`,
   };
   if (!comuns.length) return {
-    titulo: "As trajetórias se alternam, sem um pleito em comum",
-    texto: `${titulo(a.nm_candidato)} aparece nos anos ${sa.years.join(", ")}; ${titulo(b.nm_candidato)}, em ${sb.years.join(", ")}. Os intervalos se cruzam no calendário, mas não há eleição registrada para os dois no mesmo ano.`,
+    titulo: "As campanhas passaram perto, mas nunca dividiram o mesmo ano",
+    texto: `Os registros de ${titulo(a.nm_candidato)} e ${titulo(b.nm_candidato)} se alternam no calendário. Mesmo com períodos próximos, a base não mostra candidaturas dos dois no mesmo ano.`,
   };
   if (inicioA===inicioB && fimA===fimB) return {
-    titulo: `Os dois aparecem pela primeira vez em ${inicioA} e têm registros até ${fimA}`,
-    texto: `A base registra ${anosA} anos eleitorais para ${titulo(a.nm_candidato)} e ${anosB} para ${titulo(b.nm_candidato)}; as aparições entre esses extremos é que diferem.`,
+    titulo: `Duas estreias no mesmo ano: ${inicioA}`,
+    texto: `Tanto ${titulo(a.nm_candidato)} quanto ${titulo(b.nm_candidato)} aparecem pela primeira vez em ${inicioA}, e os registros dos dois chegam até ${fimA}.`,
   };
   if (inicioA===inicioB) return {
-    titulo: `Os dois estrearam nos registros em ${inicioA}; depois, suas trilhas se separaram`,
-    texto: `${titulo(a.nm_candidato)} aparece pela última vez em ${fimA}; ${titulo(b.nm_candidato)}, em ${fimB}. Na amostra, são ${anosA} e ${anosB} anos eleitorais registrados, respectivamente.`,
+    titulo: `Começaram no mesmo ano e seguiram caminhos diferentes`,
+    texto: `A primeira candidatura registrada dos dois é de ${inicioA}. O registro mais recente de ${titulo(a.nm_candidato)} é de ${fimA}, e o de ${titulo(b.nm_candidato)} é de ${fimB}.`,
   };
   if (anosA-anosB>=2 || faixaA-faixaB>=8) return {
-    titulo: `${titulo(a.nm_candidato)} tem uma trajetória registrada mais longa`,
-    texto: `Aparece em ${anosA} anos eleitorais, de ${inicioA} a ${fimA}; ${titulo(b.nm_candidato)} aparece em ${anosB}, de ${inicioB} a ${fimB}.`,
+    titulo: `Mais tempo aparecendo nas urnas: ${titulo(a.nm_candidato)}`,
+    texto: `${titulo(a.nm_candidato)} tem candidaturas registradas em ${anosA} anos eleitorais, ao longo de ${faixaA} anos.`,
   };
   if (anosB-anosA>=2 || faixaB-faixaA>=8) return {
-    titulo: `${titulo(b.nm_candidato)} tem uma trajetória registrada mais longa`,
-    texto: `Aparece em ${anosB} anos eleitorais, de ${inicioB} a ${fimB}; ${titulo(a.nm_candidato)} aparece em ${anosA}, de ${inicioA} a ${fimA}.`,
+    titulo: `Mais tempo aparecendo nas urnas: ${titulo(b.nm_candidato)}`,
+    texto: `${titulo(b.nm_candidato)} tem candidaturas registradas em ${anosB} anos eleitorais, ao longo de ${faixaB} anos.`,
   };
   const cedo=inicioA<inicioB?a:b, tarde=cedo===a?b:a;
   return {
-    titulo: `${titulo(cedo.nm_candidato)} aparece primeiro nos registros`,
-    texto: `A primeira candidatura de ${titulo(cedo.nm_candidato)} é de ${Math.min(inicioA,inicioB)}; a de ${titulo(tarde.nm_candidato)} vem em ${Math.max(inicioA,inicioB)}. As trajetórias se encontram em ${comuns.length} ${comuns.length===1?"ano":"anos"} eleitorais.`,
+    titulo: `${titulo(cedo.nm_candidato)} chegou primeiro às urnas`,
+    texto: `${titulo(cedo.nm_candidato)} estreou nos registros em ${Math.min(inicioA,inicioB)}. ${titulo(tarde.nm_candidato)} aparece pela primeira vez ${Math.max(inicioA,inicioB)-Math.min(inicioA,inicioB)} anos depois, e os dois têm ${comuns.length} ${comuns.length===1?"ano eleitoral":"anos eleitorais"} em comum.`,
   };
 }
 function maiorRegistro(cs: Candidatura[], campo: string) {
@@ -202,33 +214,105 @@ function maiorRegistro(cs: Candidatura[], campo: string) {
 }
 function fatosTrajetoria(a: Perfil, b: Perfil, sa: ReturnType<typeof resumir>, sb: ReturnType<typeof resumir>) {
   const fatos: string[] = [];
+  const nomeA=titulo(a.nm_candidato), nomeB=titulo(b.nm_candidato);
+  const plural=(q:number,um:string,varios=um+"s")=>`${q} ${q===1?um:varios}`;
   const estreiaA=idadeEm(a.dt_nascimento,sa.years[0]), estreiaB=idadeEm(b.dt_nascimento,sb.years[0]);
-  if (estreiaA!=null && estreiaB!=null) fatos.push(`Na primeira candidatura registrada, ${titulo(a.nm_candidato)} tinha ${estreiaA} anos (${sa.years[0]}); ${titulo(b.nm_candidato)} tinha ${estreiaB} (${sb.years[0]}).`);
-  fatos.push(`${titulo(a.nm_candidato)} aparece em ${sa.years.length} anos eleitorais e ${sa.cs.length} candidaturas; ${titulo(b.nm_candidato)}, em ${sb.years.length} anos e ${sb.cs.length} candidaturas.`);
-  if (sa.eleito || sb.eleito) fatos.push(`A base registra ${sa.eleito} candidatura${sa.eleito===1?" eleita":"s eleitas"} para ${titulo(a.nm_candidato)} e ${sb.eleito} para ${titulo(b.nm_candidato)}.`);
+  const idadeBNaEstreiaA=idadeEm(b.dt_nascimento,sa.years[0]), idadeANaEstreiaB=idadeEm(a.dt_nascimento,sb.years[0]);
+  if (idadeBNaEstreiaA!=null && idadeANaEstreiaB!=null && (idadeBNaEstreiaA<0 || idadeBNaEstreiaA<4 || idadeBNaEstreiaA>=10)) {
+    if (idadeBNaEstreiaA<0) fatos.push(`Quando ${nomeA} estreou nas urnas, ${nomeB} ainda não tinha nascido. A primeira candidatura de ${nomeB} veio em ${sb.years[0]}.`);
+    else if (idadeBNaEstreiaA<4) fatos.push(`Quando ${nomeA} começou a disputar eleições, ${nomeB} ainda era bebê: tinha cerca de ${idadeBNaEstreiaA} anos.`);
+    else fatos.push(`Quando ${nomeA} estreou nas urnas, ${nomeB} tinha ${idadeBNaEstreiaA} anos. A estreia eleitoral de ${nomeB} veio em ${sb.years[0]}.`);
+  }
+  if (estreiaA!=null && estreiaB!=null && estreiaA!==estreiaB) {
+    const jovem=estreiaA<estreiaB?nomeA:nomeB, idadeJovem=Math.min(estreiaA,estreiaB), velho=estreiaA<estreiaB?nomeB:nomeA, idadeVelho=Math.max(estreiaA,estreiaB);
+    if(idadeVelho-idadeJovem>=10) fatos.push(`${jovem} já disputava eleições aos ${idadeJovem} anos. ${velho} só estreou nas urnas aos ${idadeVelho}.`);
+  }
+  if (sa.cs.length!==sb.cs.length && Math.abs(sa.cs.length-sb.cs.length)>=2 && Math.abs(sa.cs.length-sb.cs.length)/Math.max(sa.cs.length,sb.cs.length)>=.4) {
+    const mais=sa.cs.length>sb.cs.length?nomeA:nomeB, menos=sa.cs.length>sb.cs.length?nomeB:nomeA, diff=Math.abs(sa.cs.length-sb.cs.length);
+    fatos.push(`${mais} entrou em ${plural(diff,"disputa eleitoral","disputas eleitorais")} a mais que ${menos} nos registros disponíveis.`);
+  }
+  if (sa.eleito!==sb.eleito && Math.abs(sa.eleito-sb.eleito)>=2) {
+    const mais=sa.eleito>sb.eleito?nomeA:nomeB, q=Math.max(sa.eleito,sb.eleito);
+    const diff=Math.abs(sa.eleito-sb.eleito), menos=sa.eleito>sb.eleito?nomeB:nomeA;
+    fatos.push(`${mais} conquistou ${plural(q,"eleição","eleições")} nas candidaturas registradas, ${plural(diff,"vitória","vitórias")} a mais que ${menos}.`);
+  } else if ((sa.eleito===0)!==(sb.eleito===0)) {
+    const quem=sa.eleito>0?nomeA:nomeB;
+    fatos.push(`${quem} tem vitória registrada nas urnas. O outro ainda não aparece como eleito nesta amostra.`);
+  }
   const cargosA=new Set(sa.cs.map(c=>c.cargo).filter(Boolean)), cargosB=new Set(sb.cs.map(c=>c.cargo).filter(Boolean));
-  fatos.push(`Disputaram ${cargosA.size} tipo${cargosA.size===1?"":"s"} de cargo (${titulo(a.nm_candidato)}) e ${cargosB.size} (${titulo(b.nm_candidato)}).`);
+  if (Math.abs(cargosA.size-cargosB.size)>=2) {
+    const quem=cargosA.size>cargosB.size?nomeA:nomeB, q=Math.max(cargosA.size,cargosB.size);
+    fatos.push(`${quem} tentou a sorte em ${plural(q,"tipo de cargo","tipos de cargo")} diferentes ao longo da trajetória registrada.`);
+  }
   const partidosA=new Set(sa.cs.map(c=>c.partido).filter(Boolean)), partidosB=new Set(sb.cs.map(c=>c.partido).filter(Boolean));
-  if (partidosA.size>1 || partidosB.size>1) fatos.push(`As candidaturas aparecem sob ${partidosA.size} sigla${partidosA.size===1?"":"s"} partidária${partidosA.size===1?"":"s"} para ${titulo(a.nm_candidato)} e ${partidosB.size} para ${titulo(b.nm_candidato)}.`);
+  const trocas=(cs:Candidatura[],campo:string)=>{
+    const ordered=[...cs].sort((x,y)=>Number(x.ano_eleicao)-Number(y.ano_eleicao));
+    return ordered.slice(1).flatMap((c,i)=>{
+      const anterior=ordered[i][campo], atual=c[campo];
+      return anterior&&atual&&anterior!==atual?[{ano:Number(c.ano_eleicao),de:String(anterior),para:String(atual)}]:[];
+    });
+  };
+  const mudancasPartidoA=trocas(sa.cs,"partido"), mudancasPartidoB=trocas(sb.cs,"partido");
+  const todasTrocasPartido=[...mudancasPartidoA.map(m=>({...m,nome:nomeA})),...mudancasPartidoB.map(m=>({...m,nome:nomeB}))].sort((x,y)=>x.ano-y.ano);
+  if(todasTrocasPartido.length) { const m=todasTrocasPartido[0]; fatos.push(`Em ${m.ano}, ${m.nome} trocou de partido: saiu de ${m.de} e concorreu por ${m.para}.`); }
+  else if(Math.max(partidosA.size,partidosB.size)>=3) { const quem=partidosA.size>partidosB.size?nomeA:nomeB; fatos.push(`${quem} concorreu por ${Math.max(partidosA.size,partidosB.size)} siglas diferentes ao longo da trajetória registrada.`); }
+  const estados=(cs:Candidatura[])=>new Set(cs.map(c=>String(c.uf||"").trim()).filter(Boolean));
+  const estadosA=estados(sa.cs), estadosB=estados(sb.cs);
+  const trocaUF=(cs:Candidatura[])=>trocas(cs,"uf").filter(t=>t.de!==t.para);
+  const mudancasUF=[...trocaUF(sa.cs).map(m=>({...m,nome:nomeA})),...trocaUF(sb.cs).map(m=>({...m,nome:nomeB}))].sort((x,y)=>x.ano-y.ano);
+  if(mudancasUF.length) { const m=mudancasUF[0]; fatos.push(`${m.nome} levou a campanha para outro estado: saiu de ${m.de} e concorreu em ${m.para} em ${m.ano}.`); }
+  else if(estadosA.size>1 || estadosB.size>1) { const quem=estadosA.size>estadosB.size?nomeA:nomeB; fatos.push(`${quem} tem candidaturas registradas em ${Math.max(estadosA.size,estadosB.size)} estados diferentes.`); }
+  const mudancasCargoA=trocas(sa.cs,"cargo"), mudancasCargoB=trocas(sb.cs,"cargo");
+  const mudancasCargo=[...mudancasCargoA.map(m=>({...m,nome:nomeA})),...mudancasCargoB.map(m=>({...m,nome:nomeB}))].sort((x,y)=>x.ano-y.ano);
+  if(mudancasCargo.length) { const m=mudancasCargo[0]; fatos.push(`${m.nome} mudou de disputa em ${m.ano}: passou de ${cargoNome(m.de)} para ${cargoNome(m.para)}.`); }
+  const situacaoEleito=(c:Candidatura)=>["ELEITO","ELEITO POR QP","ELEITO POR MÉDIA"].includes(String(c.situacao).toUpperCase());
+  const viradaEleitoral=(cs:Candidatura[])=>{
+    const ordered=[...cs].sort((x,y)=>Number(x.ano_eleicao)-Number(y.ano_eleicao));
+    for(let i=0;i<ordered.length-1;i++) if(!situacaoEleito(ordered[i])&&situacaoEleito(ordered[i+1])) return {primeira:ordered[i],vitoria:ordered[i+1]};
+    return null;
+  };
+  const viradaA=viradaEleitoral(sa.cs), viradaB=viradaEleitoral(sb.cs);
+  const viradas=[viradaA?{...viradaA,nome:nomeA}:null,viradaB?{...viradaB,nome:nomeB}:null].filter((v):v is {primeira:Candidatura;vitoria:Candidatura;nome:string}=>!!v).sort((x,y)=>Number(x.vitoria.ano_eleicao)-Number(y.vitoria.ano_eleicao));
+  if(viradas.length) { const v=viradas[0]; fatos.push(`${v.nome} tentou antes de vencer: não foi eleito em ${v.primeira.ano_eleicao} e conquistou uma vitória em ${v.vitoria.ano_eleicao}.`); }
   const maiorIntervalo=(s:ReturnType<typeof resumir>)=>s.years.slice(1).reduce((best,y,i)=>Math.max(best,y-s.years[i]),0);
   const intervaloA=maiorIntervalo(sa), intervaloB=maiorIntervalo(sb);
-  if (intervaloA>=4 || intervaloB>=4) fatos.push(`Maior intervalo entre anos eleitorais com candidatura registrada: ${titulo(a.nm_candidato)} ficou ${intervaloA} anos entre registros; ${titulo(b.nm_candidato)}, ${intervaloB} anos.`);
+  if (intervaloA>=4 || intervaloB>=4) {
+    const quem=intervaloA>=intervaloB?nomeA:nomeB, q=Math.max(intervaloA,intervaloB);
+    fatos.push(`A maior pausa entre duas eleições registradas foi de ${plural(q,"ano","anos")} na trajetória de ${quem}.`);
+  }
   const locais=(s:ReturnType<typeof resumir>)=>new Set(s.cs.map(c=>[c.nm_municipio,c.uf].filter(Boolean).join(" · ")).filter(Boolean));
   const locaisA=locais(sa), locaisB=locais(sb);
-  if (locaisA.size || locaisB.size) fatos.push(`Municípios/UF distintos nos registros: ${titulo(a.nm_candidato)} aparece em ${locaisA.size}; ${titulo(b.nm_candidato)}, em ${locaisB.size}.`);
-  const generoA=a.ds_genero&&titulo(a.ds_genero), generoB=b.ds_genero&&titulo(b.ds_genero);
-  if (generoA && generoB && generoA!==generoB) fatos.push(`Os perfis cadastrais informam gêneros diferentes: ${titulo(a.nm_candidato)}, ${generoA}; ${titulo(b.nm_candidato)}, ${generoB}.`);
-  const escolaridadeA=a.ds_grau_instrucao&&titulo(a.ds_grau_instrucao), escolaridadeB=b.ds_grau_instrucao&&titulo(b.ds_grau_instrucao);
-  if (escolaridadeA && escolaridadeB && escolaridadeA!==escolaridadeB) fatos.push(`Escolaridade declarada no cadastro: ${titulo(a.nm_candidato)}, ${escolaridadeA}; ${titulo(b.nm_candidato)}, ${escolaridadeB}.`);
-  const racaA=a.ds_cor_raca&&titulo(a.ds_cor_raca), racaB=b.ds_cor_raca&&titulo(b.ds_cor_raca);
-  if (racaA && racaB && racaA!==racaB) fatos.push(`Raça/cor informada no cadastro: ${titulo(a.nm_candidato)}, ${racaA}; ${titulo(b.nm_candidato)}, ${racaB}.`);
-  for (const [campo,rotulo] of [["votos","maior votação registrada"],["total_despesas","maior despesa de campanha"],["total_receitas","maior arrecadação em uma campanha"],["patrimonio_declarado","maior patrimônio declarado"]] as [string,string][]) {
-    const x=maiorRegistro(sa.cs,campo), y=maiorRegistro(sb.cs,campo);
-    if (x && y) fatos.push(`${rotulo}: ${titulo(a.nm_candidato)} — ${campo==="votos"?fmt.format(n(x[campo]))+" votos":dinheiro(x[campo])} em ${x.ano_eleicao}, ${cargoNome(x.cargo)}; ${titulo(b.nm_candidato)} — ${campo==="votos"?fmt.format(n(y[campo]))+" votos":dinheiro(y[campo])} em ${y.ano_eleicao}, ${cargoNome(y.cargo)}. Valores financeiros nominais.`);
+  if (Math.abs(locaisA.size-locaisB.size)>=3) { const quem=locaisA.size>locaisB.size?nomeA:nomeB; fatos.push(`${quem} fez campanha em uma variedade maior de municípios/UF: ${Math.max(locaisA.size,locaisB.size)} locais aparecem no histórico.`); }
+  const xV=maiorRegistro(sa.cs,"votos"), yV=maiorRegistro(sb.cs,"votos");
+  if(xV&&yV&&n(xV.votos)!==n(yV.votos)) {
+    const maior=n(xV.votos)>n(yV.votos)?xV:yV, nomeMaior=maior===xV?nomeA:nomeB, menor=maior===xV?yV:xV;
+    const razao=n(menor.votos)>0?n(maior.votos)/n(menor.votos):null;
+    if(razao!=null && razao>=2 && n(maior.votos)-n(menor.votos)>=10000) fatos.push(`${nomeMaior} teve sua maior votação em ${maior.ano}, com ${fmt.format(n(maior.votos))} votos, mais que o dobro do recorde de ${maior===xV?nomeB:nomeA}.`);
+  }
+  const xG=maiorRegistro(sa.cs,"total_despesas"), yG=maiorRegistro(sb.cs,"total_despesas");
+  if(xG&&yG&&n(xG.total_despesas)!==n(yG.total_despesas)) {
+    const maior=n(xG.total_despesas)>n(yG.total_despesas)?xG:yG, menor=maior===xG?yG:xG, nomeMaior=maior===xG?nomeA:nomeB, nomeMenor=maior===xG?nomeB:nomeA;
+    const razao=n(menor.total_despesas)>0?n(maior.total_despesas)/n(menor.total_despesas):null;
+    if(razao!=null && razao>=2 && n(maior.total_despesas)-n(menor.total_despesas)>=100000) fatos.push(`A campanha mais cara de ${nomeMaior} foi em ${maior.ano}: ${dinheiro(maior.total_despesas)}, pelo menos o dobro do maior gasto de ${nomeMenor}. Valores nominais, sem ajuste pela inflação.`);
+  }
+  const xR=maiorRegistro(sa.cs,"total_receitas"), yR=maiorRegistro(sb.cs,"total_receitas");
+  if(xR&&yR&&n(xR.total_receitas)!==n(yR.total_receitas)) {
+    const maior=n(xR.total_receitas)>n(yR.total_receitas)?xR:yR, menor=maior===xR?yR:xR, quem=maior===xR?nomeA:nomeB;
+    const razao=n(menor.total_receitas)>0?n(maior.total_receitas)/n(menor.total_receitas):null;
+    if(razao!=null && razao>=2 && n(maior.total_receitas)-n(menor.total_receitas)>=100000) fatos.push(`A maior arrecadação de campanha foi de ${quem}, em ${maior.ano}: ${dinheiro(maior.total_receitas)}, pelo menos o dobro da maior arrecadação do outro. Valores nominais, sem ajuste pela inflação.`);
+  }
+  const xP=maiorRegistro(sa.cs,"patrimonio_declarado"), yP=maiorRegistro(sb.cs,"patrimonio_declarado");
+  if(xP&&yP&&n(xP.patrimonio_declarado)!==n(yP.patrimonio_declarado)) {
+    const maior=n(xP.patrimonio_declarado)>n(yP.patrimonio_declarado)?xP:yP, quem=maior===xP?nomeA:nomeB;
+    const menor=maior===xP?yP:xP;
+    if(n(maior.patrimonio_declarado)>=2*n(menor.patrimonio_declarado) && n(maior.patrimonio_declarado)-n(menor.patrimonio_declarado)>=1000000) fatos.push(`O maior patrimônio declarado em uma candidatura foi o de ${quem}: ${dinheiro(maior.patrimonio_declarado)}, mais que o dobro do outro maior registro. Foi declarado em ${maior.ano}.`);
   }
   const maiorParcelaPublica=(cs:Candidatura[])=>cs.filter(c=>n(c.total_receitas)>0).reduce<Candidatura|null>((best,c)=>!best || n(c.receitas_publicas)/n(c.total_receitas)>n(best.receitas_publicas)/n(best.total_receitas)?c:best,null);
   const pubA=maiorParcelaPublica(sa.cs), pubB=maiorParcelaPublica(sb.cs);
-  if (pubA && pubB) fatos.push(`Maior parcela pública entre as receitas de campanha: ${titulo(a.nm_candidato)} teve ${(100*n(pubA.receitas_publicas)/n(pubA.total_receitas)).toLocaleString("pt-BR",{maximumFractionDigits:0})}% em ${pubA.ano_eleicao}; ${titulo(b.nm_candidato)} teve ${(100*n(pubB.receitas_publicas)/n(pubB.total_receitas)).toLocaleString("pt-BR",{maximumFractionDigits:0})}% em ${pubB.ano_eleicao}.`);
+  if (pubA && pubB) {
+    const percA=100*n(pubA.receitas_publicas)/n(pubA.total_receitas), percB=100*n(pubB.receitas_publicas)/n(pubB.total_receitas);
+    if(Math.abs(percA-percB)>=10) { const quem=percA>percB?nomeA:nomeB, q=Math.max(percA,percB); fatos.push(`Em ${quem}, o financiamento público chegou a ${q.toLocaleString("pt-BR",{maximumFractionDigits:0})}% da receita em uma campanha. Foi a maior proporção pública entre os dois históricos.`); }
+  }
   return fatos;
 }
 function anosSemPar(a: Perfil, b: Perfil, sa: ReturnType<typeof resumir>, sb: ReturnType<typeof resumir>) {
@@ -244,7 +328,7 @@ function anosSemPar(a: Perfil, b: Perfil, sa: ReturnType<typeof resumir>, sb: Re
     let contexto: string;
     if (ano < primeiro) contexto = `Antes de ${titulo(ausente.nm_candidato)} aparecer entre as candidaturas desta amostra, em ${ano} `;
     else if (ano > ultimo) contexto = `Depois da última candidatura de ${titulo(ausente.nm_candidato)} registrada nesta amostra, em ${ano} `;
-    else contexto = `Em ${ano}, ${titulo(ausente.nm_candidato)} não tem candidatura registrada nesta amostra; enquanto isso, `;
+    else contexto = `Em ${ano}, enquanto ${titulo(ausente.nm_candidato)} não aparece entre as candidaturas registradas, `;
     const nome = presente.nm_candidato;
     return [`${contexto}${registros.map(c=>fraseDaCandidatura(c,nome,presente.dt_nascimento)).join(" ")}`];
   });
@@ -256,13 +340,23 @@ function rotuloCandidatura(c: Candidatura) {
   return [c.ano_eleicao,cargoNome(c.cargo),c.partido,[c.nm_municipio,c.uf].filter(Boolean).join(" · ")].filter(Boolean).join(" · ");
 }
 function fatosEntreAnos(ca: Candidatura, cb: Candidatura, a: Perfil, b: Perfil) {
-  const fatos = [`${titulo(a.nm_candidato)} teve ${ca.votos==null?"votos sem dado":`${fmt.format(n(ca.votos))} votos`} na candidatura de ${ca.ano_eleicao}; ${titulo(b.nm_candidato)} teve ${cb.votos==null?"votos sem dado":`${fmt.format(n(cb.votos))} votos`} na de ${cb.ano_eleicao}.`];
+  const fatos: string[] = [];
   const ia=idadeEm(a.dt_nascimento,Number(ca.ano_eleicao)), ib=idadeEm(b.dt_nascimento,Number(cb.ano_eleicao));
-  if (ia!=null && ib!=null && (ca.ano_eleicao!==cb.ano_eleicao || ia!==ib)) fatos.push(`Em ${ca.ano_eleicao}, ${titulo(a.nm_candidato)} tinha ${ia} anos; em ${cb.ano_eleicao}, ${titulo(b.nm_candidato)} tinha ${ib}.`);
+  if (ia!=null && ib!=null && Math.abs(ia-ib)>=10) {
+    const velho=ia>ib?titulo(a.nm_candidato):titulo(b.nm_candidato), jovem=ia>ib?titulo(b.nm_candidato):titulo(a.nm_candidato);
+    fatos.push(`Na campanha selecionada, ${jovem} tinha ${Math.min(ia,ib)} anos. ${velho} era ${Math.abs(ia-ib)} anos mais velho.`);
+  }
+  const va=n(ca.votos), vb=n(cb.votos), maiorVotos=Math.max(va,vb), menorVotos=Math.min(va,vb);
+  if(menorVotos>0 && maiorVotos/menorVotos>=2 && maiorVotos-menorVotos>=10000) {
+    const nomeMaior=va>vb?titulo(a.nm_candidato):titulo(b.nm_candidato), anoMaior=va>vb?ca.ano_eleicao:cb.ano_eleicao;
+    fatos.push(`${nomeMaior} recebeu ${fmt.format(maiorVotos)} votos na campanha de ${anoMaior}, pelo menos o dobro da votação da outra candidatura selecionada.`);
+  }
   const comparacao = (rotulo: string, va: unknown, vb: unknown) => {
-    const x=n(va), y=n(vb); if (x===y) return null;
-    const nome=x>y?a.nm_candidato:b.nm_candidato, maior=Math.max(x,y), menor=Math.min(x,y);
-    return menor>0 ? `${titulo(nome)} registrou ${(maior/menor).toLocaleString("pt-BR",{maximumFractionDigits:1})}× ${rotulo} na candidatura de ${x>y?ca.ano_eleicao:cb.ano_eleicao} (${dinheiro(maior)} contra ${dinheiro(menor)}).` : `${titulo(nome)} registrou ${dinheiro(maior)} em ${rotulo}; o outro registro mostra ${dinheiro(menor)}.`;
+    const x=n(va), y=n(vb); if (!x || !y || x===y) return null;
+    const maior=Math.max(x,y), menor=Math.min(x,y), razao=maior/menor;
+    if (razao<2 || maior-menor<100000) return null;
+    const nomeMaior=x>y?titulo(a.nm_candidato):titulo(b.nm_candidato), nomeMenor=x>y?titulo(b.nm_candidato):titulo(a.nm_candidato), anoMaior=x>y?ca.ano_eleicao:cb.ano_eleicao;
+    return `${rotulo}: ${nomeMaior} registrou ${dinheiro(maior)} em ${anoMaior}, pelo menos o dobro do valor de ${nomeMenor}. Valores nominais, sem ajuste pela inflação.`;
   };
   for (const [label,x,y] of [["despesas de campanha",ca.total_despesas,cb.total_despesas],["arrecadação de campanha",ca.total_receitas,cb.total_receitas],["patrimônio declarado",ca.patrimonio_declarado,cb.patrimonio_declarado]] as [string,unknown,unknown][]) {
     const f=comparacao(label,x,y); if (f) fatos.push(f);
@@ -311,7 +405,8 @@ function desenharResultado() {
   const comuns=sa.years.filter(y=>sb.years.includes(y));
   const foraDoPar=anosSemPar(a,b,sa,sb);
   const cenario=resumoCenario(a,b,sa,sb,comuns);
-  const fatosCarreira=`<section class="duelo-trivia" aria-labelledby="duelo-fatos-trajetoria"><h3 id="duelo-fatos-trajetoria">${esc(cenario.titulo)}</h3><p>${esc(cenario.texto)}</p><ol>${fatosTrajetoria(a,b,sa,sb).map((f,i)=>`<li><span>${String(i+1).padStart(2,"0")}</span><p>${esc(f)}</p></li>`).join("")}</ol></section>`;
+  const fatosDestaque=fatosTrajetoria(a,b,sa,sb);
+  const fatosCarreira=fatosDestaque.length?`<section class="duelo-trivia" aria-labelledby="duelo-fatos-trajetoria"><h3 id="duelo-fatos-trajetoria">${esc(cenario.titulo)}</h3><p>${esc(cenario.texto)}</p><ol>${fatosDestaque.map((f,i)=>`<li><span>${String(i+1).padStart(2,"0")}</span><p>${esc(f)}</p></li>`).join("")}</ol></section>`:"";
   const avatar = (p:Perfil, s:string) => {
     const foto = [...p.candidacies].sort((x,y)=>Number(y.ano_eleicao)-Number(x.ano_eleicao)).find(c=>Number(c.ano_eleicao)<=2016 && c.sq_candidato);
     const src = foto ? `/api/photo/${Number(foto.ano_eleicao)}/${Number(foto.sq_candidato)}` : "";
@@ -328,7 +423,8 @@ function desenharResultado() {
   }
   const summary = (p:Perfil,s:ReturnType<typeof resumir>) => `<dl class="duelo-resumo"><div><dt>Nas urnas</dt><dd>${s.years.length} eleições</dd></div><div><dt>Votos somados</dt><dd>${fmt.format(s.votos)}</dd></div><div><dt>Receita de campanha</dt><dd>${dinheiro(s.receitas)}</dd></div><div><dt>Despesas</dt><dd>${dinheiro(s.gastos)}</dd></div><div><dt>Vitórias registradas</dt><dd>${s.eleito}</dd></div><div><dt>Escolaridade</dt><dd>${esc(titulo(p.ds_grau_instrucao||"Não informada"))}</dd></div></dl>`;
   const carreira = `<div class="duelo-placar">${identidades}<div class="duelo-saldos">${summary(a,sa)}<span class="duelo-saldo-vs" aria-hidden="true">×</span>${summary(b,sb)}</div></div>`;
-  const curiosidades = `<section class="duelo-trivia" aria-labelledby="duelo-fatos"><h3 id="duelo-fatos">A urna também conta histórias</h3><ol>${frase(a,b,sa,sb).map((f,i)=>`<li><span>${String(i+1).padStart(2,"0")}</span><p>${esc(f)}</p></li>`).join("")}</ol></section>`;
+  const fatosHeadToHead=frase(a,b,sa,sb);
+  const curiosidades = fatosHeadToHead.length ? `<section class="duelo-trivia" aria-labelledby="duelo-fatos"><h3 id="duelo-fatos">A urna também conta histórias</h3><ol>${fatosHeadToHead.map((f,i)=>`<li><span>${String(i+1).padStart(2,"0")}</span><p>${esc(f)}</p></li>`).join("")}</ol></section>` : "";
   const contextoComum = `<section class="duelo-contexto-comum">${identidades}<p>Os números lado a lado abaixo se limitam aos anos em que os dois têm candidatura registrada.</p></section>`;
   const cronologiaComum = `<section class="duelo-linha"><div class="duelo-linha-cab"><h3>Quando os anos coincidem</h3><p>Idade no dia do 1º turno. Valores financeiros nominais, sem correção pela inflação.</p></div>${comuns.map(y=>`<article class="duelo-ano"><h4>${y}</h4><div class="duelo-ano-lados"><div>${candidaturas(sa.cs.filter(c=>Number(c.ano_eleicao)===y),a.dt_nascimento)}</div><div>${candidaturas(sb.cs.filter(c=>Number(c.ano_eleicao)===y),b.dt_nascimento)}</div></div></article>`).join("")}</section>`;
   out.innerHTML = `${foraDoPar.length ? contextoComum : `${carreira}${curiosidades}`}${foraDoPar.length?fatosCarreira:""}${narrativa}${foraDoPar.length?compararAnos:""}${cronologiaComum}`;
