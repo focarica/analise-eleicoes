@@ -84,6 +84,7 @@ export default {
   resumo: "Despesas de campanha divididas pelas cadeiras conquistadas, por cargo.",
   usaAno: true,
   async montar(el) {
+    if (UF && !ANO) { el.innerHTML = `<p class="aviso-mini">Escolha um ano acima para ver o custo por cadeira.</p>`; return; }
     el.innerHTML = `<p class="nota">Relação entre as despesas de campanha e as cadeiras conquistadas por cargo.</p>
 <div id="custo-cadeira"></div>`;
     const alvo = el.querySelector("#custo-cadeira");

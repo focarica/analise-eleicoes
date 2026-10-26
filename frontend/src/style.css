@@ -19,10 +19,9 @@ button,input,select{ font:inherit; color:inherit; }
 .num{ font-variant-numeric:tabular-nums; }
 
 /* navegação entre estados */
-.topo{ position:sticky; top:env(safe-area-inset-top,0px); z-index:30; background:var(--bg); box-shadow:0 1px 0 var(--line); padding:.55rem 0; margin:0 0 .35rem; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem 1.5rem; }
+.topo{ position:sticky; top:env(safe-area-inset-top,0px); z-index:15; background:var(--bg); box-shadow:0 1px 0 var(--line); padding:.55rem 0; margin:0 0 .35rem; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem 1.5rem; }
 .marca{ font-weight:700; font-size:.95rem; color:var(--ink-2); }
 .estados{ display:flex; gap:.35rem; flex-wrap:wrap; }
-.estados.escondido{ display:none; }
 .estados a{ display:flex; flex-direction:column; align-items:center; gap:.15rem; text-decoration:none; color:var(--ink-3); font-weight:700; font-size:.78rem; padding:.35rem .5rem; border-radius:8px; }
 .estados a svg{ width:34px; height:30px; }
 .estados a svg path{ fill:var(--vazio); }
@@ -305,7 +304,7 @@ html.sem-rolagem{ overflow:hidden; }
 .q-num{ display:inline-block; padding:.12rem .5rem; border-radius:999px; background:var(--ink); color:var(--bg); font-size:.72rem; font-weight:800; letter-spacing:.04em; }
 .q-scrim{ position:fixed; inset:0; background:var(--scrim); z-index:30; opacity:0; pointer-events:none; transition:opacity .2s; }
 .q-scrim.on{ opacity:1; pointer-events:auto; }
-.q-painel{ position:fixed; top:max(1rem, env(safe-area-inset-top, 0px)); bottom:1rem; left:0; right:0; z-index:31; width:min(1180px, calc(100% - 2rem)); margin:0 auto; padding:0 clamp(1rem,3vw,2rem) 2rem; background:var(--bg); border:1px solid var(--line); border-radius:14px; box-shadow:0 24px 64px rgba(0,0,0,.28); overflow-y:auto; overscroll-behavior:contain; }
+.q-painel{ position:fixed; top:calc(var(--topo-h,0px) + 1rem); bottom:1rem; left:0; right:0; z-index:31; width:min(1180px, calc(100% - 2rem)); margin:0 auto; padding:0 clamp(1rem,3vw,2rem) 2rem; background:var(--bg); border:1px solid var(--line); border-radius:14px; box-shadow:0 24px 64px rgba(0,0,0,.28); overflow-y:auto; overscroll-behavior:contain; }
 .q-painel[hidden]{ display:none; }
 .q-painel:focus{ outline:none; }
 .q-painel-cab{ position:sticky; top:0; z-index:3; display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:1.1rem 0 .7rem; background:var(--bg); border-bottom:1px solid var(--line); }
@@ -318,5 +317,5 @@ html.sem-rolagem{ overflow:hidden; }
 .q-sub{ margin:1.6rem 0 .3rem; font-size:1.05rem; font-weight:700; }
 .q-painel-corpo > .q-sub:first-child{ margin-top:.4rem; }
 @media (max-width:640px){
-  .q-painel{ top:0; bottom:0; width:100%; border:0; border-radius:0; }
+  .q-painel{ top:var(--topo-h,0px); bottom:0; width:100%; border:0; border-radius:0; }
 }
