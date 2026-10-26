@@ -44,9 +44,45 @@ As chaves S3 compatíveis com R2 ainda são necessárias para administrar e carr
 
 ## Dados e estrutura
 
-O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2004–2024. A interface mostra o partido vencedor em cada município no mapa, filtro de cargo, faixas de gastos da questão 2, busca de candidatos/municípios e detalhes em gaveta.
+O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2004–2024. A interface mostra o partido vencedor em cada município no mapa, filtro de cargo, busca de candidatos/municípios, detalhes em gaveta e um card por questão, que abre a questão num painel próprio.
 
 Os pleitos de 2014 e 2016 já estão carregados: 2014 cobre os cargos estaduais/federais da eleição geral; 2016 cobre prefeito e vereador, com lacunas de votos por cargo em Guarulhos, Itapetininga, Itupeva e Lins. A votação presidencial está disponível para 2018 e 2022, carregada como complemento dos arquivos do TSE por seção; os demais anos gerais não têm esse complemento. A ausência de um município nessa tabela indica que não há votação publicada naquele grão; não a interprete como zero votos.
+
+### Uma pasta por questão
+
+Cada questão tem os próprios arquivos, para que cada pessoa mexa só na sua e os commits não se cruzem:
+
+| Questão | Frontend | API |
+|---|---|---|
+| P1 custo por cadeira | `src/questoes/p1-custo-cadeira.ts` (+ `.css`) | `api/questoes/p1-custo-cadeira.ts` |
+| P2 patrimônio e gasto × sucesso | `src/questoes/p2-patrimonio-gasto.ts` | `api/questoes/p2-patrimonio-gasto.ts` |
+| P4 escolaridade | `src/questoes/p4-escolaridade.ts` | `api/questoes/p4-escolaridade.ts` |
+| P5 votos de legenda | `src/questoes/p5-legenda.ts` | `api/questoes/p5-legenda.ts` |
+| P8 financiamento público | `src/questoes/p8-financiamento.ts` | `api/questoes/p8-financiamento.ts` |
+| P9 propaganda (nuvens) | `src/questoes/p9-propaganda.ts` | `api/questoes/p9-propaganda.ts` |
+| P10 reeleição | `src/questoes/p10-reeleicao.ts` | `api/questoes/p10-reeleicao.ts` |
+
+O núcleo, que todas usam, fica à parte: `src/presentation.ts` (mapa, busca, gavetas, rotas), `src/painel.ts` (cards e painel), `src/util.ts`, `src/style.css`, `server.ts` (rotas do mapa, busca, ficha e município) e `api/banco.ts` (conexões com o MotherDuck, cache, `rows`, `json`). Mudanças nesses arquivos afetam todas as questões.
+
+**Frontend.** Cada `src/questoes/pN-*.ts` exporta por padrão um objeto com `id`, `numero`, `titulo`, `pergunta`, `resumo` e `montar(el)`, que desenha a questão dentro do painel; o contrato completo está em `src/questoes/tipos.ts`. `usaAno: true` faz o painel mostrar os anos do estado escolhido (P1, P2). Uma questão também pode acrescentar algo às gavetas sem mexer nelas: `gavetaMunicipio(m)` (a P4 põe a escolaridade na gaveta do município), `fichaCandidatura(c, h)` e `aoAbrirGaveta(corpo)` (a P9 põe as nuvens na ficha do candidato). `montar` é chamado ao abrir o painel e a cada troca de estado ou ano; leia o estado e o ano de `UF` e `ANO`, importados de `../presentation`.
+
+**API.** Cada `api/questoes/pN-*.ts` exporta `rotas` (caminho → função que recebe a `URL` e devolve a resposta) e, se precisar, `municipio(codigo)` ou `candidato(id, candidaturas)`, cujo resultado é mesclado à resposta de `/api/municipality/:id` ou `/api/candidate/:id`. Use `rows`, `comCache`, `json` e `viewDisponivel` de `../banco`.
+
+**Questão nova.** Crie `src/questoes/pN-nome.ts` e, se tiver API, `api/questoes/pN-nome.ts`; acrescente uma linha em `src/questoes/index.ts` (a ordem ali é a dos cards) e outra em `api/questoes/index.ts`. Esses dois registros são os únicos arquivos compartilhados entre as questões.
+
+**Painel e endereço.** O endereço acompanha o painel: `#/SP/p4` abre a questão 4 com São Paulo, `#/p4` com a amostra inteira, `#/SP` fecha o painel. Esc fecha a gaveta e depois o painel; o botão Voltar do navegador também fecha. Com a gaveta ou o painel abertos, a página por baixo não rola.
+
+### Cargos no mapa
+
+O cargo escolhido continua selecionado ao trocar de ano ou de estado, para comparar a mesma disputa ao longo do tempo. Anos gerais e municipais têm cargos diferentes, então cada tipo guarda o seu: Senador em 2018 continua Senador em 2022, 2014, 2010...; ao ir para 2024, volta o último cargo municipal escolhido (Vereador, por exemplo), e ao voltar para um ano geral, Senador de novo.
+
+### Escolaridade: os eleitos se parecem com a população? (P4)
+
+A seção lê `/api/escolaridade?uf&ano&cargo`, sobre `vw_questao_4_escolaridade` (`sql/motherduck/07_views_escolaridade.sql`): por cargo (prefeito e vereador, juntos ou separados) e eleição, a distribuição de candidatos, eleitos e população de 18+ do Censo 2022 nos quatro níveis do IBGE, e a lista de municípios pela diferença na parcela com superior completo (eleitos − população), nos dois sentidos. O ano padrão é o mais próximo do Censo. A gaveta de cada município traz a mesma comparação para o município.
+
+### Eleitos com a ajuda do partido (P5)
+
+A seção "Eleitos com a ajuda do partido" lê `/api/legenda` e `/api/legenda/pessoas`, sobre `vw_questao_5_legenda` (`sql/motherduck/11_views_legenda.sql`). Para cada cargo proporcional e eleição: quantos eleitos tiveram menos votos próprios que o quociente eleitoral, a evolução de 2004 a 2024 (clicar num ano o seleciona), a tabela por partido (clicar num partido filtra a lista) e quem se elegeu com a menor fração do quociente. Sem estado escolhido, soma a amostra inteira.
 
 ### Mapa de municípios
 
