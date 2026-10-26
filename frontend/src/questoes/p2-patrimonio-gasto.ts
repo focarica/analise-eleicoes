@@ -69,6 +69,7 @@ export default {
   resumo: "Taxa de eleição por faixa de bens declarados e por faixa de gasto de campanha, por cargo.",
   usaAno: true,
   async montar(el) {
+    if (UF && !ANO) { el.innerHTML = `<p class="aviso-mini">Escolha um ano acima para ver patrimônio e gasto.</p>`; return; }
     el.innerHTML = `<h3 class="q-sub">Ter mais bens declarados ajuda a se eleger?</h3>
 <p class="nota">Candidatos divididos em faixas de patrimônio. A primeira faixa concentra quem declarou R$ 0. Os demais foram divididos em quatro faixas (quartis) contendo o mesmo número de candidatos, do menor ao maior patrimônio declarado.</p>
 <div class="quartis" id="patrimonio-quartis"></div>

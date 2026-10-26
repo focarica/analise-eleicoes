@@ -96,7 +96,7 @@ document.getElementById("estados").innerHTML = UFS.map(uf => {
 /* ===================== Estado da página ===================== */
 // UF null = nenhum estado escolhido: a página abre no mapa do Brasil e os
 // filtros (estado no topo, busca, cargos) só valem depois de uma escolha.
-export let UF = null, ANO = 2022, CARGO = null, LINHAS = [], VENCEDORES = new Map();
+export let UF = null, ANO = null, CARGO = null, LINHAS = [], VENCEDORES = new Map();
 // Cargo escolhido por tipo de eleição: ao trocar de ano (ou de estado) o mapa continua
 // no cargo escolhido, para comparar ao longo do tempo. Anos gerais e municipais têm
 // cargos diferentes, então cada tipo guarda o seu: 2018 → 2022 mantém Senador;
@@ -175,10 +175,13 @@ function enquadrar(ms){
 }
 function verBrasil(ms){
   VISTA.sigla = null; VISTA.mun = null;
-  document.getElementById("estados").classList.add("escondido");
   desenharForma(false);
   enquadrar(ms);
 }
+
+// painel e gaveta começam abaixo do cabeçalho, que fica sempre visível
+const topoPagina = document.querySelector(".topo");
+new ResizeObserver(() => document.documentElement.style.setProperty("--topo-h", `${topoPagina.offsetHeight}px`)).observe(topoPagina);
 
 const dica = document.getElementById("zoom-dica");
 dica.textContent = `Use ${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl"} + roda do mouse para dar zoom no mapa`;
@@ -206,9 +209,8 @@ export function anosDisponiveis(uf){ return uf === "DF" ? ANOS.filter(a => ANOS_
 async function abrirEstado(uf, voar){
   UF = uf; MALHA = null; MALHA_ERRO = false; MUN_SEL = null;
   VISTA.mun = null;
-  document.getElementById("estados").classList.remove("escondido");
   if (voar) VISTA.sigla = uf; // a carga inicial da página abre no mapa do Brasil inteiro
-  if (!anosDisponiveis(uf).includes(ANO)) ANO = 2022;
+  if (ANO && !anosDisponiveis(uf).includes(ANO)) ANO = null;
   document.querySelectorAll("#estados a").forEach(a => a.setAttribute("aria-current", a.dataset.uf===uf ? "page" : "false"));
   document.getElementById("uf-nome").textContent = GEO[uf].properties.nome;
   document.title = GEO[uf].properties.nome + ": partido vencedor por município";
@@ -240,7 +242,7 @@ function nenhumEstado(voar){
   busca.disabled = true;
   busca.value = ""; fecharResultados();
   busca.placeholder = "Escolha um estado para buscar";
-  document.getElementById("anos").innerHTML = "";
+  montarAnos(); // anos ficam visíveis também sem estado; escolher um não carrega nada até o estado
   document.getElementById("cargos").innerHTML = "";
   document.getElementById("legenda").innerHTML = "";
   desenharForma(false);
@@ -252,7 +254,18 @@ function escolherUF(sigla){
   location.hash = `#/${sigla}`;
 }
 // pelo mapa: os da amostra voam; os fora dela só são marcados (2º clique desmarca)
+// desmarca o estado e volta ao mapa do Brasil, mantendo a questão aberta
+function desselecionarEstado(){
+  const questao = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean).find(p => !UFS.includes(p)) || null;
+  irPara(null, questao);
+}
+// o estado aberto, clicado no menu, é desmarcado (no mapa, vale o mesmo no Brasil inteiro)
+document.getElementById("estados").addEventListener("click", ev => {
+  const a = ev.target.closest("a");
+  if (a && a.dataset.uf === UF){ ev.preventDefault(); desselecionarEstado(); }
+});
 function escolherNoMapa(sigla){
+  if (sigla === UF && !VISTA.sigla) return desselecionarEstado();
   if (AMOSTRA.has(sigla)) return escolherUF(sigla);
   SELECIONADA = SELECIONADA === sigla ? null : sigla;
   desenharForma(false);
@@ -265,6 +278,7 @@ function montarAnos(){
 }
 
 async function carregarAno(){
+  if (!UF || !ANO){ desenharForma(false); return; } // sem ano escolhido, o mapa espera a escolha
   const [linhas, malha, vencedores] = await Promise.all([
     api.partidos(UF, ANO), carregarMalha(UF), api.mapa(UF, ANO),
   ]);
@@ -279,7 +293,15 @@ export function mudarAno(ano){
   atualizarPainel();
 }
 
+// visão do Brasil ou sem ano: a coluna fica com o título, sem cargos nem lista
+function limparLegenda(){
+  document.getElementById("cargos").innerHTML = "";
+  document.getElementById("legenda").innerHTML = "";
+  document.getElementById("leg-nota").textContent = "";
+}
+
 function montarCargos(){
+  if (!VISTA.sigla) return limparLegenda();
   let cargos = ORDEM_COD.filter(c => VENCEDORES.get(c)?.size);
   // Presidente é da federação: incluído nos anos de eleição geral mesmo sem
   // vencedor municipal carregado (a cor por município vem de votacao_partido, cd_cargo 1)
@@ -319,17 +341,6 @@ function desenharForma(animar){
   // tudo que é desenhado fica num grupo que recebe a transformação do zoom (a "câmera")
   gMapa = svg.append("g").attr("class","mapa").attr("transform", d3.zoomTransform(svg.node()));
 
-  // a coluna "partido vencedor por município" só existe com um estado aberto
-  // e enquadrado; no mapa do Brasil inteiro some, sem deixar buraco;
-  // quando surge (ou é reaberta), entra deslizando com a lista em cascata
-  const leg = document.querySelector(".leg");
-  if (leg){
-    const mostrar = !!(UF && VISTA.sigla === UF);
-    const antes = leg.hidden;
-    leg.hidden = !mostrar;
-    if (mostrar && antes){ leg.classList.remove("surge"); void leg.offsetWidth; leg.classList.add("surge"); }
-    else if (!mostrar) leg.classList.remove("surge");
-  }
 
   // camada de estados: cores pela classe (os da amostra claros, os demais escuros em style.css)
   const gUfs = gMapa.append("g").attr("class","ufs");
@@ -354,14 +365,16 @@ function desenharForma(animar){
   const desenharDemarcacoes = () => {
     if (SELECIONADA && SELECIONADA !== UF)
       gMapa.append("path").attr("class","uf-sel uf-demarcada").attr("d", path(GEO[SELECIONADA]));
-    if (UF) gMapa.append("path").attr("class","uf-sel").attr("d", path(MALHA?.contorno || GEO[UF]));
+    if (UF && VISTA.sigla === UF) gMapa.append("path").attr("class","uf-sel").attr("d", path(MALHA?.contorno || GEO[UF]));
   };
 
   const partes = agregados(), total = d3.sum(partes, p=>p.qt);
   const vazio = document.getElementById("forma-vazia");
   const noEstado = UF && VISTA.sigla === UF;
+  const semAno = !!UF && !ANO;
   document.getElementById("resumo").textContent = !UF
     ? "Escolha um estado da amostra — no switch acima, no mapa ou na busca — para aproximar e ver as votações."
+    : !ANO ? `Escolha um ano acima para ver as votações de ${GEO[UF].properties.nome}.`
     : (() => {
         const cargosTxt = [...new Set(LINHAS.map(r=>r.ds_cargo))].sort((a,b)=>ordemCargo(a)-ordemCargo(b)).map(c=>cargoNome(c).toLowerCase());
         const totAno = d3.sum(LINHAS, r=>+r.qt_eleitos);
@@ -369,7 +382,10 @@ function desenharForma(animar){
           ? `${fmt.format(totAno)} eleitos na base em ${ANO}, de ${new Set(LINHAS.map(r=>r.sg_partido)).size} partidos, para ${cargosTxt.join(", ").replace(/, ([^,]*)$/," e $1")}.`
           : `Nenhum eleito na base para ${ANO}.`;
       })();
-  if (!noEstado) vazio.hidden = true;
+  if (semAno){
+    vazio.hidden = false;
+    vazio.textContent = "Escolha um ano acima para ver o partido vencedor de cada município.";
+  } else if (!noEstado) vazio.hidden = true;
   else if (MALHA_ERRO){
     vazio.hidden = false;
     vazio.textContent = "Não foi possível carregar os limites dos municípios.";
@@ -377,7 +393,8 @@ function desenharForma(animar){
     vazio.hidden = false;
     vazio.textContent = UF==="DF" && ANOS_MUNICIPAIS.has(ANO) ? "O Distrito Federal não tem eleições municipais." : "Sem votação por município na base para este ano.";
   } else vazio.hidden = true;
-  montarLegenda(partes, total);
+  if (UF && VISTA.sigla && MALHA && ANO){ montarCargos(); montarLegenda(partes, total); }
+  else limparLegenda();
   btnBrasil.hidden = !VISTA.sigla;
   if (!noEstado || !MALHA){ desenharDemarcacoes(); return; }
 
@@ -775,15 +792,11 @@ export function irPara(uf, questao){
 window.addEventListener("hashchange", rota);
 (async () => {
   const origem = document.getElementById("origem");
-  try {
-    await request("/api/health");
-    origem.textContent = api.origem;
-    montarCards();
-    rota();
-  } catch(e){
-    console.error(e);
-    document.getElementById("carregando").innerHTML = `<span class="erro">${esc(e.message || "Não foi possível carregar os dados. Verifique MOTHERDUCK_TOKEN e atualize a página.")}</span>`;
-    return;
-  }
+  // o mapa e o cabeçalho não esperam a API: sem ela, a página abre e o rodapé avisa
+  montarCards();
+  rota();
   document.getElementById("carregando").hidden = true;
+  request("/api/health")
+    .then(() => origem.textContent = api.origem)
+    .catch(e => { console.error(e); origem.textContent = `Sem conexão com a API: ${e.message || "verifique MOTHERDUCK_TOKEN"}.`; });
 })();
