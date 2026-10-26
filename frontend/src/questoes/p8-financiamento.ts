@@ -16,11 +16,9 @@ const FAIXA_TXT = {
   "sem receita": "Sem receita declarada",
 };
 // sel: "todos" (padrão) ou Set de anos marcados nos chips; graf: aba do gráfico
-const FIN = { cargo: null, sel: "todos", graf: "taxa", log: false, ocultas: new Set(), dados: null, cargaId: null, quemFaixa: null, quemLista: [], quemDesde: 0, quemTemMais: false };
-const FIN_COMPACTO = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
+const FIN = { cargo: null, sel: "todos", dados: null, cargaId: null, quemFaixa: null, quemLista: [], quemDesde: 0, quemTemMais: false };
 const FIN_FAIXA_CURTO = { "[00,25)": "até 24%", "[25,50)": "25–49%", "[50,75)": "50–74%", "[75,100]": "75%+", "sem receita": "sem receita" };
 const FIN_FAIXA_COR = { "[00,25)": "var(--faixa-0)", "[25,50)": "var(--faixa-1)", "[50,75)": "var(--faixa-2)", "[75,100]": "var(--faixa-3)", "sem receita": "var(--faixa-4)" };
-const FIN_FONTE_SERIE = { "Fundo especial (FEFC)": "var(--ink)", "Fundo partidário": "color-mix(in srgb, var(--ink) 45%, var(--bg))", "Outros recursos": "var(--ink-3)" };
 // A TSE escreve a mesma fonte com maiúsculas e acentos variando (e typos: "Fundo
 // Partidáo", "Recursos Proprios"); sem essa redução a lista fica com uma linha
 // por grafia em vez de uma linha por fonte.
@@ -53,7 +51,6 @@ const finFonteNome = f => {
     "DESCRICOES DAS DOACOES RELATIVAS A COMERCIALIZACAO OU EVENTO": "Descrição das doações relativas à comercialização",
   })[n] || titulo(f);
 };
-const finFonteCor = f => FIN_FONTE_SERIE[f] || "var(--ink-2)";
 
 // anos disponíveis do cargo (só existem os anos em que o cargo foi disputado)
 // e os que estão marcados; desmarcar tudo volta ao padrão
@@ -65,40 +62,26 @@ function finAnosSel(c, cargo){
   return { anos, marcados };
 }
 
-// gráfico de linhas genérico: uma linha por série, pontos = anos marcados
-function grafFin(anos, series, { fixo0100=false, log=false, fmtV, eixoX = "ano", eixoY = "" }){
-  const W = 640, H = 234, L = 54, DR = 16, T = 12, B = 50;
-  const todas = series.flatMap(s=>s.pts).filter(p=>log ? p.v > 0 : true);
-  if (!todas.length) return "";
-  const y = fixo0100 ? d3.scaleLinear().domain([0, 100]).range([H - B, T])
-    : log ? d3.scaleLog().domain([d3.min(todas, p=>p.v) * 0.8, d3.max(todas, p=>p.v) * 1.15]).range([H - B, T])
-    : d3.scaleLinear().domain([0, d3.max(todas, p=>p.v) * 1.08]).range([H - B, T]).nice();
-  const x = d3.scalePoint().domain(anos.map(String)).range([L + 10, W - DR]).padding(0.55);
-  const ticks = fixo0100 ? [0, 25, 50, 75, 100]
-    : log ? [1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11].filter(v=>v > y.domain()[0] && v < y.domain()[1])
-    : y.ticks(4);
-  const fmtY = fixo0100 ? v=>`${v}%` : v=>log || v >= 1e5 ? `R$ ${FIN_COMPACTO.format(v)}` : brlc(v);
-  const grade = ticks.map(v => `<line x1="${L}" x2="${W - DR + 4}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--line)" stroke-width="0.7"/>
-    <text x="${L - 5}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end" font-size="9.5" fill="var(--ink-3)">${fmtY(v)}</text>`).join("");
-  const rotulosAnos = anos.map(a => `<text x="${x(String(a)).toFixed(1)}" y="${H - 32}" text-anchor="middle" font-size="10" fill="var(--ink-3)">${a}</text>`).join("");
-  const titulos =
-    `<text x="${((L + W - DR) / 2).toFixed(1)}" y="${H - 12}" text-anchor="middle" font-size="10" font-weight="600" fill="var(--ink-2)">${esc(eixoX)}</text>` +
-    (eixoY ? `<text transform="rotate(-90 14 ${((T + H - B) / 2).toFixed(1)})" x="14" y="${((T + H - B) / 2).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="600" fill="var(--ink-2)">${esc(eixoY)}</text>` : "");
-  const corpo = series.map(s => {
-    if (FIN.ocultas.has(s.nome) || !s.pts.length) return "";
-    const pts = s.pts.filter(p=>log ? p.v > 0 : true);
-    if (!pts.length) return "";
-    const d = pts.map((p,j)=>`${j ? "L" : "M"}${x(String(p.ano)).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" ");
-    const circ = pts.map(p => `<circle cx="${x(String(p.ano)).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3.2" fill="${s.cor}">
-      <title>${esc(s.nome)}, ${p.ano}: ${fmtV(p.v)}${p.extra ? ` · ${esc(p.extra)}` : ""}</title></circle>`).join("");
-    return `<path d="${d}" fill="none" stroke="${s.cor}" stroke-width="2"/>${circ}`;
+// barras: um intervalo de fundo público por coluna (eixo X), taxa de eleição no eixo Y
+function grafBarrasFaixas(faixas){
+  const W = 640, H = 234, L = 54, DR = 16, T = 18, B = 50;
+  const y = d3.scaleLinear().domain([0, 100]).range([H - B, T]);
+  const slot = (W - L - DR) / faixas.length, bw = Math.min(90, slot * 0.6);
+  const cx = i => L + slot * (i + 0.5);
+  const grade = [0, 25, 50, 75, 100].map(v => `<line x1="${L}" x2="${W - DR + 4}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--line)" stroke-width="0.7"/>
+    <text x="${L - 5}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end" font-size="9.5" fill="var(--ink-3)">${v}%</text>`).join("");
+  const barras = faixas.map((q, i) => {
+    const x = cx(i).toFixed(1), rotulos = `<text x="${x}" y="${H - B + 14}" text-anchor="middle" font-size="10" font-weight="600" fill="var(--ink-2)">${FIN_FAIXA_CURTO[q.faixa]}</text>
+      <text x="${x}" y="${H - B + 27}" text-anchor="middle" font-size="9.5" fill="var(--ink-3)">${q.candidaturas ? fmt.format(q.candidaturas) + " cand." : "sem candidaturas"}</text>`;
+    if (!q.candidaturas) return `<text x="${x}" y="${(y(0) - 6).toFixed(1)}" text-anchor="middle" font-size="11" fill="var(--ink-3)">–</text>` + rotulos;
+    const taxa = q.eleitas * 100 / q.candidaturas, rotuloTaxa = `${taxa.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+    return `<rect x="${(cx(i) - bw / 2).toFixed(1)}" y="${y(taxa).toFixed(1)}" width="${bw.toFixed(1)}" height="${(y(0) - y(taxa)).toFixed(1)}" fill="${FIN_FAIXA_COR[q.faixa]}">
+        <title>${esc(FAIXA_TXT[q.faixa])}: ${fmt.format(q.eleitas)} eleitas de ${fmt.format(q.candidaturas)} candidaturas (${rotuloTaxa})</title></rect>
+      <text x="${x}" y="${(y(taxa) - 6).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="600" fill="var(--ink)">${rotuloTaxa}</text>` + rotulos;
   }).join("");
-  return `<svg class="fin-grafico" viewBox="0 0 ${W} ${H}" role="img" aria-label="Linhas de comparação por ano">${grade}${rotulosAnos}${titulos}${corpo}</svg>`;
-}
-
-function legendaFin(series){
-  return `<div class="fin-legenda" role="group" aria-label="Séries do gráfico; clique para ligar ou desligar">${series.map(s =>
-    `<button data-serie="${esc(s.nome)}" aria-pressed="${!FIN.ocultas.has(s.nome)}"><i style="background:${s.cor}"></i>${esc(s.nome)}</button>`).join("")}</div>`;
+  const eixoX = `<text x="${((L + W - DR) / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="10" font-weight="600" fill="var(--ink-2)">fração da receita vinda de fundo público</text>`;
+  const eixoY = `<text transform="rotate(-90 14 ${((T + H - B) / 2).toFixed(1)})" x="14" y="${((T + H - B) / 2).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="600" fill="var(--ink-2)">taxa de eleição (%)</text>`;
+  return `<svg class="fin-grafico" viewBox="0 0 ${W} ${H}" role="img" aria-label="Taxa de eleição em cada faixa de dependência de fundo público">${grade}${barras}${eixoX}${eixoY}</svg>`;
 }
 
 // guarda os agregados por chave de escopo: o estado aberto e a presença da
@@ -182,44 +165,23 @@ function renderFinanciamento(){
 
   // chips multi-ano: "todos os anos" marca tudo; ano individual liga/desliga;
   // desmarcar tudo volta ao padrão
+  const todos = marcados.length === anos.length;
   botAno.innerHTML = anos.length > 1
-    ? [`<button data-ano="todos" aria-pressed="${FIN.sel==="todos"}">Todos os anos</button>`,
-       ...anos.map(a => `<button data-ano="${a}" aria-pressed="${selSet.has(a)}">${a}</button>`)].join("")
+    ? [`<button data-ano="todos" aria-pressed="${todos}">Todos os anos</button>`,
+       ...anos.map(a => `<button data-ano="${a}" aria-pressed="${!todos && selSet.has(a)}">${a}</button>`)].join("")
     : "";
   botAno.querySelectorAll("button").forEach(b => b.onclick = () => {
     if (b.dataset.ano === "todos") FIN.sel = "todos";
     else {
-      const base = FIN.sel === "todos" ? new Set(anos) : new Set(FIN.sel);
+      // partindo de "Todos os anos", um ano clicado começa uma seleção só com ele
+      const base = FIN.sel === "todos" ? new Set() : new Set(FIN.sel);
       base.has(+b.dataset.ano) ? base.delete(+b.dataset.ano) : base.add(+b.dataset.ano);
-      FIN.sel = base.size ? base : "todos";
+      FIN.sel = base.size && !anos.every(a => base.has(a)) ? base : "todos";
     }
     renderFinanciamento();
   });
 
-  // série do gráfico conforme a aba: taxa de eleição por faixa | verba por fonte
-  const series = FIN.graf === "taxa"
-    ? FAIXA_ORDEM.flatMap(fi => {
-        const porAno = new Map(c.faixas.filter(r => junto(r) && r.faixa===fi).map(r=>[r.ano, r]));
-        const pts = marcados.filter(a=>porAno.has(a)).map(a => { const q = porAno.get(a);
-          return { ano: a, v: q.candidaturas ? q.eleitas * 100 / q.candidaturas : 0, extra: `${fmt.format(q.candidaturas)} candidaturas, ${fmt.format(q.eleitas)} eleitas` }; });
-        return pts.length ? [{ nome: FIN_FAIXA_CURTO[fi], cor: FIN_FAIXA_COR[fi], pts }] : [];
-      })
-    : (() => {
-        // agrupa por fonte canônica (reduce grafias) antes de abrir as séries por ano
-        const fams = new Map();
-        for (const r of c.fontes.filter(junto)){
-          const f = finFonteNome(r.fonte);
-          const porAno = fams.get(f) || new Map();
-          porAno.set(r.ano, (porAno.get(r.ano)||0) + r.total);
-          fams.set(f, porAno);
-        }
-        return [...fams.entries()].map(([f, porAno]) => {
-          const pts = marcados.filter(a=>(porAno.get(a)||0)>0).map(a=>({ ano:a, v: porAno.get(a) }));
-          return pts.length ? { nome: f, cor: finFonteCor(f), pts } : null;
-        }).filter(Boolean);
-      })().sort((a,b)=> d3.max(b.pts,p=>p.v) - d3.max(a.pts,p=>p.v));
-
-  // agregados dos cards: soma só dos anos marcados, taxa recalculada
+  // agregados dos cards e das barras: soma só dos anos marcados, taxa recalculada
   const faixas = FAIXA_ORDEM.map(fi => {
     const rows = c.faixas.filter(r => junto(r) && r.faixa===fi);
     return { faixa: fi, candidaturas: d3.sum(rows, r=>r.candidaturas) || 0, eleitas: d3.sum(rows, r=>r.eleitas) || 0 };
@@ -250,20 +212,9 @@ function renderFinanciamento(){
 
   el.innerHTML = `
     <div class="fin-bloco fin-largo">
-      <h3>Comparar anos — ${cargoNome(CARGO_COD[cargo]).toLowerCase()}</h3>
-      <div class="cargos" role="group" aria-label="Tipo de comparação no gráfico">
-        <button data-graf="taxa" aria-pressed="${FIN.graf==="taxa"}">Taxa de eleição por faixa</button>
-        <button data-graf="fonte" aria-pressed="${FIN.graf==="fonte"}">Verba por fonte (R$)</button>
-      </div>
-      ${series.length
-        ? (FIN.graf === "taxa"
-            ? grafFin(marcados, series, { fixo0100: true, fmtV: v => `${v.toLocaleString("pt-BR",{maximumFractionDigits:1})}%`, eixoY: "taxa de eleição (%)" })
-            : grafFin(marcados, series, { log: FIN.log, fmtV: v => brlc(v), eixoY: FIN.log ? "verba (R$, escala log)" : "verba (R$)" })) + legendaFin(series)
-        : `<p class="aviso-mini">Sem valores nos anos marcados para desenhar o gráfico.</p>`}
-      ${FIN.graf==="fonte" ? `<label class="fin-log"><input type="checkbox" id="fin-log" ${FIN.log?"checked":""}> escala logarítmica</label>` : ""}
-      <p class="aviso-mini">${FIN.graf==="taxa"
-        ? "Cada ponto é a taxa de eleição das candidaturas da faixa naquele ano (sobre quem tem receita na base). As eleições gerais (2006, 2010, 2014, 2018, 2022) e municipais (2004, 2008, 2012, 2016, 2020, 2024) são ciclos distintos e não se comparam entre si."
-        : "Verba declarada como receita, por fonte, em cada ano — não é gasto. Use a escala log quando a diferença de magnitude entre as fontes espremer as linhas menores."}</p>
+      <h3>Taxa de eleição por faixa — ${cargoNome(CARGO_COD[cargo]).toLowerCase()} ${periodo}</h3>
+      ${grafBarrasFaixas(faixas)}
+      <p class="aviso-mini">Cada barra é a taxa de eleição das candidaturas de uma faixa de dependência de fundo público, somando os anos marcados nos filtros (taxa recalculada sobre o total, não média de taxas). Cargo e anos são os filtros acima.</p>
     </div>
     <div class="fin-bloco">
       <h3>Parcela do fundo público na receita arrecadada (${fmt.format(totalCand)} ${totalCand===1?"candidatura":"candidaturas"} ${periodo})</h3>
@@ -292,18 +243,6 @@ function renderFinanciamento(){
         <td class="v">${r.pctPublico!=null ? `${r.pctPublico.toLocaleString("pt-BR")}%` : "–"}</td>
       </tr>`).join("")}</tbody></table></div></details>
     </div>`;
-  el.querySelectorAll("[data-graf]").forEach(b => b.onclick = () => {
-    if (FIN.graf === b.dataset.graf) return;
-    FIN.graf = b.dataset.graf;
-    renderFinanciamento();
-  });
-  const caixaLog = document.getElementById("fin-log");
-  if (caixaLog) caixaLog.onchange = () => { FIN.log = caixaLog.checked; renderFinanciamento(); };
-  el.querySelectorAll("[data-serie]").forEach(b => b.onclick = () => {
-    const k = b.dataset.serie;
-    FIN.ocultas.has(k) ? FIN.ocultas.delete(k) : FIN.ocultas.add(k);
-    renderFinanciamento();
-  });
   el.querySelectorAll("[data-faixa]").forEach(b => b.onclick = () => {
     const alvo = document.getElementById("fin-quem");
     if (FIN.quemFaixa === b.dataset.faixa){ // de novo na mesma faixa: colapsa a lista
