@@ -46,6 +46,10 @@ As chaves S3 compatíveis com R2 ainda são necessárias para administrar e carr
 
 O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2004–2024. A interface mostra o partido vencedor em cada município no mapa, filtro de cargo, busca de candidatos/municípios, detalhes em gaveta e um card por questão, que abre a questão num painel próprio.
 
+### Duelo de candidatos
+
+O modo **Dois nomes. Uma disputa de histórias.** permite buscar dois candidatos independentemente do estado e comparar o histórico de cada um por eleição. A busca usa `/api/candidate-search`; os perfis e candidaturas vêm da mesma rota `/api/candidate/:id` usada pelas fichas. O comparativo mostra idade no primeiro turno, partido, cargo, município, resultado, votos, receitas de campanha (incluindo origens públicas e privadas), despesas pagas, patrimônio declarado e os lançamentos detalhados disponíveis. As curiosidades são calculadas a partir desses registros. Valores financeiros entre anos são nominais e não têm correção pela inflação. A busca cobre o conteúdo carregado no `BDR-TSE`; como no restante do painel, a base é uma amostra de estados e eleições, não o universo completo do TSE.
+
 Os pleitos de 2014 e 2016 já estão carregados: 2014 cobre os cargos estaduais/federais da eleição geral; 2016 cobre prefeito e vereador, com lacunas de votos por cargo em Guarulhos, Itapetininga, Itupeva e Lins. A votação presidencial está disponível para 2018 e 2022, carregada como complemento dos arquivos do TSE por seção; os demais anos gerais não têm esse complemento. A ausência de um município nessa tabela indica que não há votação publicada naquele grão; não a interprete como zero votos.
 
 ### Uma pasta por questão
