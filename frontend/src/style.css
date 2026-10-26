@@ -30,6 +30,9 @@ button,input,select{ font:inherit; color:inherit; }
 .estados a[aria-current="page"] svg path{ fill:var(--ink); }
 
 .topo-dir{ display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
+.duelo-abrir{ display:inline-flex; align-items:center; justify-content:center; gap:.5rem; min-height:2.5rem; padding:.45rem .85rem; border:1.5px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--bg); cursor:pointer; font-size:.84rem; font-weight:700; white-space:nowrap; transition:transform .15s, background .15s; }
+.duelo-abrir:hover{ transform:translateY(-1px); background:var(--ink-2); }
+.duelo-abrir svg{ width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
 .tema{ display:inline-flex; align-items:center; gap:.45rem; border:1.5px solid var(--line); background:var(--raised); border-radius:999px; padding:.4rem .8rem; cursor:pointer; font-size:.85rem; font-weight:600; }
 .tema:hover{ border-color:var(--ink); }
 .tema svg{ width:16px; height:16px; fill:none; stroke:var(--ink); stroke-width:2; stroke-linecap:round; }
@@ -317,8 +320,21 @@ html.sem-rolagem{ overflow:hidden; }
 .q-sub{ margin:1.6rem 0 .3rem; font-size:1.05rem; font-weight:700; }
 .q-painel-corpo > .q-sub:first-child{ margin-top:.4rem; }
 
-/* comparação de candidatos: jogo editorial dentro da identidade do painel */
-.duelo{ margin:2rem 0 2.6rem; padding:clamp(1.2rem,3vw,2rem); border:1px solid var(--line); border-radius:16px; background:var(--raised); }
+/* comparação de candidatos: diálogo editorial dentro da identidade do painel */
+.duelo-modal{ position:fixed; inset:1rem; width:min(1080px,calc(100vw - 2rem)); max-width:none; max-height:calc(100dvh - 2rem); margin:auto; padding:0 0 1.5rem; overflow-y:auto; overscroll-behavior:contain; border:1px solid var(--line); border-radius:14px; background:var(--bg); color:var(--ink); box-shadow:0 24px 64px rgba(0,0,0,.28); }
+.duelo-modal::backdrop{ background:var(--scrim); }
+.duelo-modal-cab{ position:sticky; top:0; z-index:4; display:flex; align-items:flex-start; gap:1rem; padding:.95rem clamp(1rem,3vw,2rem) .75rem; border-bottom:1px solid var(--line); background:var(--bg); }
+.duelo-modal .duelo-intro{ flex:1; padding:0; border:0; }
+.duelo-modal .duelo-intro > div > p:last-child{ margin:.45rem 0 0; }
+.duelo-modal .duelo-marca{ padding-top:.7rem; }
+.duelo-modal .duelo-fechar{ position:static; float:none; flex:none; margin:0; }
+.duelo-apresentacao,.duelo-seletores,.duelo-resultado{ margin-right:clamp(1rem,3vw,2rem); margin-left:clamp(1rem,3vw,2rem); }
+.duelo-apresentacao{ margin-top:1rem; padding:.9rem 1rem .8rem; border-radius:10px; background:var(--surface); }
+.duelo-apresentacao > p{ margin:0; color:var(--ink-2); font-size:.86rem; }
+.duelo-cobertura{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.5rem; margin:.8rem 0 0; padding:.7rem 0 0; border-top:1px solid var(--line); list-style:none; }
+.duelo-cobertura li{ display:flex; flex-direction:column; gap:.08rem; min-width:0; }
+.duelo-cobertura b{ font-size:.78rem; }
+.duelo-cobertura span{ color:var(--ink-3); font-size:.7rem; }
 .duelo-intro{ display:flex; justify-content:space-between; align-items:center; gap:1rem; padding-bottom:1.35rem; border-bottom:1px solid var(--line); }
 .duelo-selo{ margin:0 0 .45rem; color:var(--ink-3); font-size:.76rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
 .duelo-intro h2{ margin:0; max-width:22ch; font-size:clamp(1.55rem,3vw,2.35rem); line-height:1.06; letter-spacing:-.03em; }
@@ -357,9 +373,8 @@ html.sem-rolagem{ overflow:hidden; }
 .duelo-placar{ padding:1.25rem 0 1rem; }
 .duelo-identidades,.duelo-saldos{ display:grid; grid-template-columns:minmax(0,1fr) 2.5rem minmax(0,1fr); gap:1rem; align-items:center; }
 .duelo-identidade{ display:flex; align-items:center; gap:.8rem; min-width:0; }
-.duelo-avatar{ position:relative; flex:none; display:grid; place-items:center; overflow:hidden; width:3.2rem; height:3.2rem; border:1px solid var(--line); border-radius:50%; background:var(--surface); font-size:.9rem; font-weight:800; }
-.duelo-avatar img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:top; }
-.lado-b .duelo-avatar{ background:color-mix(in srgb,var(--faixa-0) 17%,var(--surface)); }
+.duelo-foto{ position:relative; display:grid; place-items:center; flex:none; background:var(--surface); font-size:1rem; font-weight:800; }
+.duelo-foto img{ position:absolute; inset:0; object-fit:cover; object-position:top; }
 .duelo-identidade h3{ margin:0; font-size:clamp(1rem,2.1vw,1.35rem); line-height:1.15; }
 .duelo-identidade p{ margin:.25rem 0 0; color:var(--ink-3); font-size:.76rem; }
 .duelo-vs.pequeno{ font-size:1.2rem; }
@@ -399,7 +414,7 @@ html.sem-rolagem{ overflow:hidden; }
 .duelo-detalhes li span{ overflow-wrap:anywhere; }
 .duelo-detalhes li b{ flex:none; font-variant-numeric:tabular-nums; }
 @media (max-width:680px){
-  .duelo{ padding:1rem; }
+  .duelo-cobertura{ grid-template-columns:repeat(2,minmax(0,1fr)); }
   .duelo-seletores{ grid-template-columns:minmax(0,1fr); gap:.55rem; }
   .duelo-vs{ padding:.1rem; }
   .duelo-identidades,.duelo-saldos{ grid-template-columns:minmax(0,1fr); gap:.65rem; }
@@ -411,6 +426,13 @@ html.sem-rolagem{ overflow:hidden; }
   .duelo-cargo{ align-items:flex-start; }
   .duelo-intro{ align-items:flex-start; }
   .duelo-marca{ padding-top:.1rem; }
+}
+@media (max-width:520px){
+  .duelo-abrir{ min-height:2.3rem; padding:.4rem .65rem; font-size:.78rem; }
+  .duelo-modal{ inset:0; width:100vw; max-height:100dvh; height:100dvh; border:0; border-radius:0; padding-bottom:env(safe-area-inset-bottom,1rem); }
+  .duelo-modal-cab{ padding-top:calc(env(safe-area-inset-top,0px) + .8rem); }
+  .duelo-modal .duelo-marca{ display:none; }
+  .duelo-identidade{ align-items:flex-start; }
 }
 @media (prefers-reduced-motion:reduce){ .duelo-carregando span{ animation:none; } }
 @media (max-width:640px){

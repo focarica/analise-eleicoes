@@ -8,6 +8,21 @@ const escolhidos: Record<string, Candidato | null> = { a: null, b: null };
 const perfis: Record<string, Perfil | null> = { a: null, b: null };
 const timers: Record<string, ReturnType<typeof setTimeout> | null> = { a: null, b: null };
 const aborts: Record<string, AbortController | null> = { a: null, b: null };
+const modal = document.getElementById("duelo-modal") as HTMLDialogElement;
+const abrirModal = document.getElementById("duelo-abrir") as HTMLButtonElement;
+const fecharModal = document.getElementById("duelo-fechar") as HTMLButtonElement;
+abrirModal.addEventListener("click", () => {
+  if (modal.open) return;
+  modal.showModal();
+  abrirModal.setAttribute("aria-expanded","true");
+  document.getElementById("duelo-busca-a")?.focus({preventScroll:true});
+});
+fecharModal.addEventListener("click", () => modal.close());
+modal.addEventListener("click", ev => { if (ev.target === modal) modal.close(); });
+modal.addEventListener("close", () => {
+  abrirModal.setAttribute("aria-expanded","false");
+  abrirModal.focus({preventScroll:true});
+});
 const n = (v: unknown) => Number(v) || 0;
 const anos = (p: Perfil) => [...new Set((p.candidacies || []).map(c => Number(c.ano_eleicao)))].sort((a,b) => a-b);
 const dinheiro = (v: unknown) => brlc(n(v));
@@ -143,7 +158,7 @@ function desenharResultado() {
   const avatar = (p:Perfil, s:string) => {
     const foto = [...p.candidacies].sort((x,y)=>Number(y.ano_eleicao)-Number(x.ano_eleicao)).find(c=>Number(c.ano_eleicao)<=2016 && c.sq_candidato);
     const src = foto ? `/api/photo/${Number(foto.ano_eleicao)}/${Number(foto.sq_candidato)}` : "";
-    return `<div class="duelo-identidade lado-${s}"><span class="duelo-avatar">${esc((p.nm_candidato||"?").trim().split(/\s+/).slice(0,2).map(x=>x[0]).join("").toUpperCase())}${src?`<img data-duelo-foto src="${src}" alt="" aria-hidden="true">`:""}</span><div><h3>${esc(titulo(p.nm_candidato))}</h3><p>${esc([p.ds_genero,p.ds_cor_raca].filter(Boolean).map(titulo).join(" · ") || "Perfil eleitoral")}</p></div></div>`;
+    return `<div class="duelo-identidade lado-${s}"><span class="foto-frame foto-topo duelo-foto">${esc((p.nm_candidato||"?").trim().split(/\s+/).slice(0,2).map(x=>x[0]).join("").toUpperCase())}${src?`<img data-duelo-foto src="${src}" alt="" aria-hidden="true">`:""}</span><div><h3>${esc(titulo(p.nm_candidato))}</h3><p>${esc([p.ds_genero,p.ds_cor_raca].filter(Boolean).map(titulo).join(" · ") || "Perfil eleitoral")}</p></div></div>`;
   };
   const summary = (p:Perfil,s:ReturnType<typeof resumir>) => `<dl class="duelo-resumo"><div><dt>Nas urnas</dt><dd>${s.years.length} eleições</dd></div><div><dt>Votos somados</dt><dd>${fmt.format(s.votos)}</dd></div><div><dt>Receita de campanha</dt><dd>${dinheiro(s.receitas)}</dd></div><div><dt>Despesas</dt><dd>${dinheiro(s.gastos)}</dd></div><div><dt>Vitórias registradas</dt><dd>${s.eleito}</dd></div><div><dt>Escolaridade</dt><dd>${esc(titulo(p.ds_grau_instrucao||"Não informada"))}</dd></div></dl>`;
   out.innerHTML = `<div class="duelo-placar"><div class="duelo-identidades">${avatar(a,"a")}<span class="duelo-vs pequeno">×</span>${avatar(b,"b")}</div><div class="duelo-saldos">${summary(a,sa)}<span class="duelo-saldo-vs" aria-hidden="true">×</span>${summary(b,sb)}</div></div><section class="duelo-trivia" aria-labelledby="duelo-fatos"><h3 id="duelo-fatos">A urna também conta histórias</h3><ol>${frase(a,b,sa,sb).map((f,i)=>`<li><span>${String(i+1).padStart(2,"0")}</span><p>${esc(f)}</p></li>`).join("")}</ol></section><section class="duelo-linha"><div class="duelo-linha-cab"><h3>Uma eleição de cada vez</h3><p>Idade no dia do 1º turno. Valores financeiros nominais, sem correção pela inflação.</p></div>${all.map(y=>`<article class="duelo-ano"><h4>${y}</h4><div class="duelo-ano-lados"><div>${candidaturas(sa.cs.filter(c=>Number(c.ano_eleicao)===y),a.dt_nascimento)}</div><div>${candidaturas(sb.cs.filter(c=>Number(c.ano_eleicao)===y),b.dt_nascimento)}</div></div></article>`).join("")}</section>`;
