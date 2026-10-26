@@ -48,7 +48,10 @@ api = {
     return {
       cd: d.id, nome: d.nome, uf: d.uf, ibge: d.ibge,
       comparecimento: d.attendance.map(c => ({ ano: c.ano_eleicao, turno: c.nr_turno, aptos: c.qt_aptos, comparecimento: c.qt_comparecimento, abstencao: c.qt_abstencao })),
-      eleitorado: d.electorate.map(e => ({ ano: e.ano_eleicao, faixa: e.ds_faixa_etaria, qt: e.qt_eleitores })),
+      eleitorado: (d.perfilEleitorado || d.electorate.map(e => ({ ano_eleicao: e.ano_eleicao, tp_dimensao: "FAIXA_ETARIA", ds_categoria: e.ds_faixa_etaria, qt_eleitores: e.qt_eleitores }))).map(e => ({ ano: e.ano_eleicao, dimensao: e.tp_dimensao, categoria: e.ds_categoria, qt: e.qt_eleitores })),
+      indicadoresIbge: d.indicadoresIbge || [],
+      idhmAtlas: d.idhmAtlas || [],
+      escolaridadeCenso: d.escolaridadeCenso || [],
       mais_votados: d.topCandidates.map(c => ({ ano: c.ano_eleicao, cargo: c.cd_cargo, id: c.id_pessoa_projeto, nome: c.nm_urna_candidato, partido: c.sg_partido, votos: c.qt_votos_nominais })),
       votacao_partido: d.parties.map(p => ({ ano: p.ano_eleicao, cargo: p.cd_cargo, partido: p.sg_partido, nominais: p.qt_votos_nominais, legenda: p.qt_votos_legenda })),
       candidaturas_locais: d.localCandidacies.map(c => ({ ano: c.ano_eleicao, cargo: c.cargo, id: c.id_pessoa_projeto, nome: c.nm_urna_candidato || c.nm_candidato, partido: c.sg_partido, situacao: c.ds_sit_tot_turno, votos: c.qt_votos_nominais })),
@@ -663,6 +666,26 @@ export async function abrirMunicipio(cd, nomeMapa){
   let h = `<h2 id="g-titulo">${esc(titulo(m.nome))}</h2><p class="sub">${esc(m.uf)}, código TSE ${esc(m.cd)}${m.ibge ? `, código IBGE ${esc(m.ibge)}` : ""}</p>`;
   const faltam = [];
 
+  const ibge = m.indicadoresIbge || [];
+  if (ibge.length){
+    const anosIbge = [...new Set(ibge.map(r=>+r.ano))].sort((a,b)=>b-a);
+    const anoInicial = anosIbge.includes(2022) ? 2022 : anosIbge[0];
+    h += `<h3>Indicadores municipais · IBGE</h3><div class="ctrl"><label for="ibge-ano">Ano de referência</label><select id="ibge-ano">${anosIbge.map(a=>`<option value="${a}" ${a===anoInicial?"selected":""}>${a}</option>`).join("")}</select></div><div id="ibge-indicadores" class="indicador-grid"></div>`;
+  } else faltam.push("indicadores IBGE");
+
+  const idhm = m.idhmAtlas || [];
+  if (idhm.length){
+    const dec = v => v == null ? "–" : Number(v).toLocaleString("pt-BR",{minimumFractionDigits:3,maximumFractionDigits:3});
+    h += `<h3>IDHM · Atlas do Desenvolvimento Humano</h3><div class="tabw"><table class="tab"><thead><tr><th>Censo</th><th class="v">IDHM</th><th class="v">Renda</th><th class="v">Longevidade</th><th class="v">Educação</th></tr></thead><tbody>${idhm.map(r=>`<tr><td>${r.ano_referencia}</td><td class="v">${dec(r.idhm)}</td><td class="v">${dec(r.idhm_r)}</td><td class="v">${dec(r.idhm_l)}</td><td class="v">${dec(r.idhm_e)}</td></tr>`).join("")}</tbody></table></div><p class="aviso-mini">Indicadores censitários; a base disponível contém 2000 e 2010.</p>`;
+  } else faltam.push("IDHM do Atlas");
+
+  const escolaridade = m.escolaridadeCenso || [];
+  if (escolaridade.length){
+    const rows = escolaridade.slice().sort((a,b)=>(Number(b.pct_populacao)||0)-(Number(a.pct_populacao)||0));
+    const max = Math.max(1,...rows.map(r=>Number(r.pct_populacao)||0));
+    h += `<h3>Escolaridade da população · Censo 2022</h3><p class="aviso-mini">Pessoas de 18 anos ou mais; distribuição por nível de instrução.</p>${rows.map(r=>`<div class="hb indicador-barra"><span>${esc(r.ds_nivel_instrucao)}</span><i class="t" style="width:${(Number(r.pct_populacao)||0)/max*100}%"></i><span class="v">${fmt.format(Number(r.qt_pessoas)||0)} · ${(Number(r.pct_populacao)||0).toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span></div>`).join("")}`;
+  } else faltam.push("escolaridade do Censo 2022");
+
   // comparecimento: tabela e gráfico alternáveis
   if (m.comparecimento.length){
     h += `<h3>Comparecimento</h3>
@@ -716,10 +739,13 @@ export async function abrirMunicipio(cd, nomeMapa){
       [...new Map(vp.map(r=>[`${r.ano}|${r.cargo}`, r])).values()].sort((a,b)=>b.ano-a.ano||a.cargo-b.cargo).map(r=>`<option value="${r.ano}|${r.cargo}">${r.ano}, ${CARGO_COD[r.cargo]||r.cargo}</option>`).join("")}</select></div><div id="vp-lista"></div>`;
   } else faltam.push("votação por partido");
 
-  // eleitorado
+  // dimensões marginais independentes do cadastro eleitoral TSE
   const el = m.eleitorado || [];
   if (el.length){
-    h += `<h3>Eleitorado por faixa etária</h3><div class="ctrl"><select id="el-sel" aria-label="Ano">${[...new Set(el.map(e=>e.ano))].sort().reverse().map(a=>`<option>${a}</option>`).join("")}</select></div><div id="el-lista"></div>`;
+    const dimNomes = {FAIXA_ETARIA:"Faixa etária",GENERO:"Gênero",ESTADO_CIVIL:"Estado civil",GRAU_INSTRUCAO:"Grau de instrução"};
+    const dimensoes = [...new Set(el.map(e=>e.dimensao))].sort();
+    const anosEl = [...new Set(el.map(e=>+e.ano))].sort((a,b)=>b-a);
+    h += `<h3>Perfil do eleitorado · TSE</h3><div class="ctrl"><label for="el-dim">Dimensão</label><select id="el-dim">${dimensoes.map(d=>`<option value="${esc(d)}">${dimNomes[d]||esc(d)}</option>`).join("")}</select><label for="el-sel">Eleição</label><select id="el-sel">${anosEl.map(a=>`<option value="${a}">${a}</option>`).join("")}</select></div><div id="el-lista"></div><p class="aviso-mini">Cada dimensão é uma distribuição separada; não representa cruzamento entre idade, gênero, estado civil e instrução.</p>`;
   } else faltam.push("perfil do eleitorado");
 
   // o que cada questão acrescenta à gaveta do município (ex.: escolaridade da P4)
@@ -742,9 +768,37 @@ export async function abrirMunicipio(cd, nomeMapa){
     return rows.map(r=>`<div class="hb"><button class="link" data-cand="${r.id}" style="font-weight:500">${esc(titulo(r.nome))} <span style="color:var(--ink-3)">${esc(r.partido)}</span></button><i class="t" style="width:${r.votos/mx*100}%;background:${corP(r.partido)}"></i><span class="v">${fmt.format(r.votos)}</span></div>`).join(""); });
   ligar("vp-sel","vp-lista", v => { const [a,c] = v.split("|").map(Number); const rows = vp.filter(r=>r.ano===a && r.cargo===c).map(r=>({...r, t:r.nominais+r.legenda})).sort((x,y)=>y.t-x.t).slice(0,10); const mx = d3.max(rows, r=>r.t)||1;
     return rows.map(r=>`<div class="hb"><span>${esc(r.partido)}</span><i class="t" style="width:${r.t/mx*100}%;background:${corP(r.partido)}"></i><span class="v">${fmt.format(r.t)}</span></div>`).join("") + `<p class="aviso-mini">Soma de votos nominais e de legenda; 10 partidos mais votados.</p>`; });
-  ligar("el-sel","el-lista", v => { const ini = s => parseInt(s,10) || 0;
-    const rows = el.filter(e=>String(e.ano)===v && e.qt>0 && /\d/.test(e.faixa)).sort((x,y)=>ini(x.faixa)-ini(y.faixa)); const tot = d3.sum(rows, r=>r.qt), mx = d3.max(rows, r=>r.qt)||1;
-    return rows.map(r=>`<div class="hb"><span>${esc(r.faixa)}</span><i class="t" style="width:${r.qt/mx*100}%"></i><span class="v">${(r.qt/tot*100).toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span></div>`).join("") + `<p class="aviso-mini">${fmt.format(tot)} eleitores cadastrados.</p>`; });
+  const renderPerfil = () => {
+    const selDim = document.getElementById("el-dim"), selAno = document.getElementById("el-sel"), lista = document.getElementById("el-lista");
+    if (!selDim || !selAno || !lista) return;
+    const rows = el.filter(e=>String(e.ano)===selAno.value && e.dimensao===selDim.value).sort((a,b)=>{
+      if (selDim.value === "FAIXA_ETARIA") return (parseInt(a.categoria,10)||0)-(parseInt(b.categoria,10)||0) || a.categoria.localeCompare(b.categoria,"pt-BR");
+      return (Number(b.qt)||0)-(Number(a.qt)||0) || a.categoria.localeCompare(b.categoria,"pt-BR");
+    });
+    const total = d3.sum(rows,r=>Number(r.qt)||0), max = d3.max(rows,r=>Number(r.qt)||0)||1;
+    lista.innerHTML = rows.length ? rows.map(r=>`<div class="hb"><span>${esc(r.categoria)}</span><i class="t" style="width:${(Number(r.qt)||0)/max*100}%"></i><span class="v">${fmt.format(Number(r.qt)||0)} · ${total?((Number(r.qt)||0)/total*100).toLocaleString("pt-BR",{maximumFractionDigits:1}):"0"}%</span></div>`).join("")+`<p class="aviso-mini">${fmt.format(total)} eleitores na dimensão selecionada.</p>` : `<p class="aviso-mini">Sem valores publicados para esta eleição e dimensão.</p>`;
+  };
+  document.getElementById("el-dim")?.addEventListener("change",renderPerfil);
+  document.getElementById("el-sel")?.addEventListener("change",renderPerfil);
+  renderPerfil();
+  const renderIbge = ano => {
+    const container = document.getElementById("ibge-indicadores");
+    if (!container) return;
+    const r = ibge.find(x=>+x.ano===+ano);
+    if (!r) { container.innerHTML=""; return; }
+    const val = (v,format) => v == null ? "Sem dado publicado" : format(v);
+    const cards = [
+      ["População",val(r.populacao,v=>fmt.format(v))+(r.tipo_populacao?` <small>${esc(r.tipo_populacao==="CENSITARIA"?"Censitária":"Estimativa")}</small>`:"")],
+      ["PIB",val(r.pib,brlc)], ["PIB per capita",val(r.pib_per_capita,brl)],
+      ["VAB agropecuária",val(r.vab_agropecuaria,brlc)], ["VAB indústria",val(r.vab_industria,brlc)],
+      ["VAB serviços",val(r.vab_servicos,brlc)], ["VAB administração pública",val(r.vab_administracao_publica,brlc)],
+      ["Área",val(r.area_km2,v=>`${Number(v).toLocaleString("pt-BR")} km²`)],
+      ["Densidade demográfica",val(r.densidade_hab_km2,v=>`${Number(v).toLocaleString("pt-BR")} hab./km²`)],
+    ];
+    container.innerHTML = cards.map(([label,value])=>`<div class="indicador-card"><small>${label}</small><b>${value}</b></div>`).join("")+`<p class="aviso-mini indicador-fonte">PIB e VAB são valores correntes do ano de referência. PIB per capita é derivado de PIB/população quando ambos estão disponíveis; população pode ser censitária ou estimada. Fonte: ${esc(r.fonte||"IBGE/SIDRA")}.</p>`;
+  };
+  document.getElementById("ibge-ano")?.addEventListener("change",ev=>renderIbge(ev.target.value));
+  renderIbge(document.getElementById("ibge-ano")?.value);
   extrasQuestoes.forEach(x => x.ligar?.(corpo));
 }
 

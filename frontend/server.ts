@@ -3,6 +3,7 @@ import {
   ConsultaLenta, DATABASE, UFS, YEARS, buscaCacheVersionado, comCache, errorMessage, json, rows, seguido,
 } from "./api/banco";
 import { EXTENSOES_CANDIDATO, EXTENSOES_MUNICIPIO, ROTAS_QUESTOES } from "./api/questoes";
+import { carregarIndicadoresMunicipio } from "./api/indicadores-municipio";
 import { fundoPublico } from "./api/questoes/p8-financiamento";
 
 // Núcleo da API: mapa, busca, fotos, ficha do candidato e gaveta do município.
@@ -381,7 +382,11 @@ async function route(request: Request) {
             ORDER BY c.ano_eleicao, c.ds_cargo, c.ds_sit_tot_turno, c.nm_urna_candidato`, [code]),
     ]));
     // dados que as questões acrescentam à gaveta (ex.: escolaridade da Q4)
-    const extras = Object.assign({}, ...await Promise.all(EXTENSOES_MUNICIPIO.map((ext) => ext(code))));
+    const [extrasQuestoes, indicadores] = await Promise.all([
+      Promise.all(EXTENSOES_MUNICIPIO.map((ext) => ext(code))),
+      carregarIndicadoresMunicipio(code),
+    ]);
+    const extras = Object.assign({}, ...extrasQuestoes, indicadores);
     return json({ ...municipality, attendance, electorate, parties, topCandidates, localCandidacies, ...extras });
   }
 
