@@ -1,0 +1,21 @@
+/* Estilos exclusivos da questão (p8-financiamento). Vem com o módulo src/questoes/p8-financiamento.ts. */
+.fin-largo{ grid-column:1 / -1; }
+.fin-grafico{ display:block; width:100%; height:auto; margin-top:.35rem; }
+.fin-legenda{ display:flex; flex-wrap:wrap; gap:.35rem; margin:.45rem 0 .2rem; }
+.fin-legenda button{ display:inline-flex; align-items:center; gap:.35rem; border:1.5px solid var(--line); background:var(--raised); border-radius:999px; padding:.25rem .7rem; font:inherit; font-size:.8rem; cursor:pointer; color:inherit; transition:border-color .15s; }
+.fin-legenda button:hover{ border-color:var(--ink); }
+.fin-legenda button i{ width:.85rem; height:.55rem; border-radius:2px; display:inline-block; }
+.fin-legenda button[aria-pressed="false"]{ opacity:.4; text-decoration:line-through; }
+.fin-log{ display:inline-flex; gap:.35rem; align-items:center; font-size:.78rem; color:var(--ink-3); margin-top:.3rem; }
+.fin-seg{ display:flex; height:1.15rem; border-radius:4px; overflow:hidden; background:var(--line); }
+.fin-seg i{ display:block; min-width:2px; }
+.fin-faixas{ list-style:none; margin:.75rem 0 0; padding:0; }
+.fin-faixas button{ display:grid; grid-template-columns:.9rem minmax(0,1fr) 3.2rem 6.5rem; gap:.55rem; align-items:center; width:100%; border:0; background:transparent; padding:.3rem 0; font:inherit; font-size:.85rem; text-align:left; cursor:pointer; border-bottom:1px solid var(--line); }
+.fin-faixas button:hover{ background:var(--surface); }
+.fin-faixas button[aria-pressed="true"]{ background:var(--ink); color:var(--bg); }
+.fin-faixas b{ text-align:right; }
+.fin-faixas span{ text-align:right; color:var(--ink-3); font-size:.78rem; }
+.fin-faixas button[aria-pressed="true"] span{ color:color-mix(in srgb, var(--bg) 80%, transparent); }
+.faixa-swatch{ width:.9rem; height:.9rem; border-radius:3px; }
+.fin-partidos summary{ cursor:pointer; color:var(--ink-3); font-size:.85rem; margin-top:.9rem; }
+.fin-partidos[open] summary{ margin-bottom:.3rem; }

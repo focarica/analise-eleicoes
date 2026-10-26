@@ -1,0 +1,18 @@
+/* Estilos exclusivos da questão (p10-reeleicao). Vem com o módulo src/questoes/p10-reeleicao.ts. */
+.reel-linha{ grid-column:1 / -1; }
+.reel-grafico{ display:block; width:100%; height:auto; }
+.reel-grafico text{ font-family:inherit; }
+tr.reel-atual td{ font-weight:700; }
+tr.reel-soma td{ border-top:1.5px solid var(--ink-3); }
+.reel-resumo th, .reel-resumo td{ padding-left:.85rem; padding-right:.85rem; }
+.reel-resumo th:first-child, .reel-resumo td:first-child{ padding-left:0; }
+.reel-resumo th{ white-space:nowrap; }
+.reel-resumo td:nth-child(2){ white-space:nowrap; }
+.reel-leg{ display:flex; flex-wrap:wrap; gap:.4rem 1.1rem; margin:.5rem 0 .1rem; font-size:.78rem; color:var(--ink-3); }
+.reel-leg i{ display:inline-block; width:.9rem; height:.65rem; border-radius:2px; margin-right:.35rem; vertical-align:-1px; }
+.reel-leg i.volt{ background:var(--ink); }
+.reel-leg i.perd{ background:color-mix(in srgb, var(--ink) 45%, var(--bg)); }
+.reel-leg i.nao{ background:repeating-linear-gradient(55deg, color-mix(in srgb, var(--ink) 22%, var(--bg)) 0 2px, transparent 2px 5px); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ink) 28%, transparent); }
+.reel-grafico .hach{ stroke:color-mix(in srgb, var(--ink) 22%, transparent); stroke-width:1.1; }
+.reel-grafico .hachura{ pointer-events:none; }
+.reel-busca{ width:100%; box-sizing:border-box; margin:.35rem 0 .6rem; padding:.35rem .6rem; border:1.5px solid var(--line); border-radius:8px; font:inherit; font-size:.85rem; background:transparent; color:inherit; }
