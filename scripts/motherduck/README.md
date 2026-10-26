@@ -11,7 +11,26 @@ python3 scripts/motherduck/gerar_carga_tse_flight.py
 ```
  Configure a autenticação MotherDuck no ambiente do Flight ou em `MOTHERDUCK_TOKEN`. O destino é o banco `BDR-TSE`; o script cria ou atualiza as tabelas do schema `public` e as seis views de `sql/motherduck/01_views_analiticas.sql` e `03_views_propaganda.sql`.
 
-O escopo inclui eleições municipais de 2004, 2008, 2012, 2016, 2020 e 2024 e eleições gerais de 2006, 2010, 2014, 2018 e 2022. Candidaturas nacionais são lidas dos arquivos BR quando disponíveis; os fatos municipais seguem o recorte de UFs. A carga principal não inclui Presidente (`CD_CARGO = 1`), publicado pelo TSE em arquivos separados por seção. No banco `BDR-TSE`, esse complemento está carregado para 2018 e 2022 nos seis estados do recorte, além dos totais nacionais de primeiro turno nas candidaturas. A extração e a carga complementares estão nos scripts `complementar_presidente.py` e `carga_presidente.ts`.
+O escopo inclui eleições municipais de 2004, 2008, 2012, 2016, 2020 e 2024 e eleições gerais de 2006, 2010, 2014, 2018 e 2022. Candidaturas nacionais são lidas dos arquivos BR quando disponíveis; os fatos municipais seguem o recorte de UFs. A carga principal não inclui Presidente (`CD_CARGO = 1`), publicado pelo TSE em arquivos separados. O complemento presidencial para os cinco pleitos gerais é executado por `complementar_votos_presidente.py`; ele substitui os fatos presidenciais dos cinco anos, exige cobertura dos 1.239 municípios do escopo nos dois turnos e verifica a igualdade dos totais por município entre votos nominais dos candidatos e do partido.
+
+## Complementos e limites das fontes
+
+Após reconstruir ou recarregar as receitas, aplique `../../sql/motherduck/11_classificar_origem_receita.sql`. A regra só classifica rubricas cuja natureza pública ou privada está explícita; fundos públicos conhecidos e origens privadas identificadas recebem classe, enquanto partido/comitê, origens genéricas e rubricas ambíguas permanecem `NULL`. A view de financiamento usa essa classificação. Em 2004, o TSE não fornece valores de receita nos arquivos usados, portanto a rubrica pode existir sem valor numérico.
+
+`DS_CATEGORIA_DESPESA` está carregada nos pleitos de 2004 a 2024. `VR_PAGO` só tem valor em 2018–2024: nos arquivos anteriores há despesas declaradas, mas não um campo equivalente que comprove pagamento. Não converter valor declarado em valor pago.
+
+O perfil do eleitorado tem linhas para todos os pleitos de 2004 a 2024. Em 2004 e 2006, porém, a fonte disponível só permite o total municipal (`#NE`), sem divisão por idade. As faixas etárias publicadas a partir de 2008 são mantidas como informadas pelo TSE.
+
+## Complementos temporais IBGE/Atlas
+
+`sql/motherduck/12_schema_dados_temporais.sql` cria os fatos temporais do IBGE, do perfil do eleitorado, da escolaridade censitária e do IDHM. As cargas já aplicadas estão nos scripts correspondentes:
+
+- `complementar_perfil_eleitorado.py`: quatro marginais independentes do TSE (idade, gênero, estado civil e instrução), para 2004–2024; não representa cruzamentos entre dimensões.
+- `carregar_serie_ibge.py`: PIB, população, VAB, área e densidade municipal publicados pelo SIDRA. O PIB per capita é derivado de PIB/população quando ambos têm o mesmo ano.
+- `sql/motherduck/10_censo_2022_escolaridade.sql`: escolaridade da população de 18 anos ou mais no Censo 2022.
+- `carregar_idhm_atlas.py`: IDHM geral, renda, longevidade e educação, para 2000 e 2010. Usa a planilha bruta do Atlas 2013; o endpoint institucional antigo não está mais disponível, então a URL da cópia pública e a fonte original estão registradas no script.
+
+Após a execução, validar as contagens e os anos diretamente nas tabelas `fato_perfil_eleitorado`, `fato_socioeconomico_ibge`, `fato_escolaridade_populacao` e `fato_idhm_atlas`. A escolaridade atualmente carregada é apenas Censo 2022 (18+); os universos não devem ser misturados.
 
 Depois da carga, aplique as views de reeleição e financiamento:
 

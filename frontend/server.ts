@@ -1,85 +1,14 @@
 import { resolve, sep } from "node:path";
-import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
-import { createDataCache } from './cache';
+import {
+  ConsultaLenta, DATABASE, UFS, YEARS, buscaCacheVersionado, comCache, errorMessage, json, rows, seguido,
+} from "./api/banco";
+import { EXTENSOES_CANDIDATO, EXTENSOES_MUNICIPIO, ROTAS_QUESTOES } from "./api/questoes";
+import { carregarIndicadoresMunicipio } from "./api/indicadores-municipio";
+import { fundoPublico } from "./api/questoes/p8-financiamento";
 
+// Núcleo da API: mapa, busca, fotos, ficha do candidato e gaveta do município.
+// As rotas de cada questão ficam em api/questoes/ (uma por arquivo).
 const PORT = Number(Bun.env.PORT || 3001);
-// Banco de referência compartilhado: contém eleições de 2004 a 2024.
-const DATABASE = "BDR-TSE";
-const UFS = new Set(["AC", "AL", "BA", "DF", "RO", "SP"]);
-const YEARS = new Set([2004, 2006, 2008, 2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024]);
-const CARGOS: Record<number, string> = { 1: "Presidente", 3: "Governador", 5: "Senador", 6: "Deputado federal", 7: "Deputado estadual", 8: "Deputado distrital", 11: "Prefeito", 13: "Vereador" };
-const UFS_LIST = ["AC", "AL", "BA", "DF", "RO", "SP"];
-// Várias conexões da mesma instância: as consultas rodam em paralelo no
-// MotherDuck em vez de esperarem numa fila única (a busca dispara uma requisição
-// por pausa na digitação e travava o resto do painel).
-const POOL_SIZE = Math.max(1, Number(Bun.env.DB_CONNECTIONS || 4));
-// Consulta mais lenta que isso é interrompida e vira erro 504 (em vez de a
-// conexão HTTP ser derrubada sem resposta).
-const QUERY_TIMEOUT_MS = Number(Bun.env.QUERY_TIMEOUT_MS || 60_000);
-let instancePromise: Promise<DuckDBInstance> | undefined;
-const livres: DuckDBConnection[] = [];
-const aguardando: ((con: DuckDBConnection) => void)[] = [];
-let criadas = 0;
-// faixas de dependência pública (Q8): bruto do TSE e rótulos idênticos às views
-const FAIXAS = new Set(["[00,25)", "[25,50)", "[50,75)", "[75,100]"]);
-const SEM_RECEITA_FAIXA = new Set(["sem receita"]);
-
-function instance() {
-  instancePromise ??= (async () => {
-    const token = Bun.env.MOTHERDUCK_TOKEN || Bun.env.motherduck_token;
-    if (!token) throw new Error("Configure MOTHERDUCK_TOKEN no arquivo .env local.");
-    // o token vai na connection string: o node-api não lê variáveis de ambiente
-    // do DuckDB de forma confiável e sem vínculo explícito pode cair no SSO do
-    // navegador (conta errada) em vez de usar o token do painel.
-    return DuckDBInstance.create(
-      `md:${DATABASE}?token=${encodeURIComponent(token)}&motherduck_open_browser=false`,
-    );
-  })().catch((error) => { instancePromise = undefined; throw error; });
-  return instancePromise;
-}
-
-async function acquire(): Promise<DuckDBConnection> {
-  const livre = livres.pop();
-  if (livre) return livre;
-  if (criadas < POOL_SIZE) {
-    criadas++;
-    try {
-      return await (await instance()).connect();
-    } catch (error) {
-      criadas--;
-      throw error;
-    }
-  }
-  return new Promise((resolve) => aguardando.push(resolve));
-}
-
-function release(con: DuckDBConnection) {
-  const proximo = aguardando.shift();
-  if (proximo) proximo(con);
-  else livres.push(con);
-}
-
-async function rows(sql: string, values: (string | number)[] = []) {
-  const con = await acquire();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let estourou = false;
-  try {
-    timer = setTimeout(() => { estourou = true; con.interrupt(); }, QUERY_TIMEOUT_MS);
-    const reader = await con.runAndReadAll(sql, values);
-    return reader.getRowObjectsJson() as Record<string, unknown>[];
-  } catch (error) {
-    if (estourou) throw new ConsultaLenta();
-    throw error;
-  } finally {
-    clearTimeout(timer);
-    release(con);
-  }
-}
-
-class ConsultaLenta extends Error {
-  constructor() { super("A consulta ao MotherDuck demorou demais. Tente de novo."); }
-}
-
 // A busca reaproveita consultas em curso e acompanha a revisão da carga.
 function buscaEmCache(chave: string, consulta: () => Promise<unknown>) {
   return buscaCacheVersionado(chave, consulta);
@@ -102,7 +31,7 @@ receita_linhas AS (
         COALESCE(
             NULLIF(rc.tp_origem_recurso, ''),
             CASE
-                WHEN rc.ds_fonte_receita IN ('FUNDO ESPECIAL', 'FUNDO PARTIDARIO') THEN 'PÚBLICO'
+                WHEN ${fundoPublico("rc.ds_fonte_receita")} THEN 'PÚBLICO'
                 WHEN rc.ds_fonte_receita = 'OUTROS RECURSOS' THEN 'PRIVADO'
                 ELSE 'INDEFINIDO'
             END
@@ -145,7 +74,8 @@ despesas AS (
         ano_eleicao,
         sq_candidato,
         SUM(vr_pago) AS total_despesas,
-        COUNT(*) AS qt_despesas,
+        COUNT(*)::INTEGER AS qt_despesas,
+        COUNT(vr_pago)::INTEGER AS qt_despesas_com_valor,
         TO_JSON(LIST(
             STRUCT_PACK(despesa := ds_despesa, valor := vr_pago)
             ORDER BY vr_pago DESC NULLS LAST
@@ -186,8 +116,9 @@ SELECT
     COALESCE(r.receitas_publicas, 0) AS receitas_publicas,
     COALESCE(r.receitas_privadas, 0) AS receitas_privadas,
     COALESCE(r.receitas, '[]'::JSON) AS receitas,
-    COALESCE(d.total_despesas, 0) AS total_despesas,
+    d.total_despesas AS total_despesas,
     COALESCE(d.qt_despesas, 0) AS qt_despesas,
+    COALESCE(d.qt_despesas_com_valor, 0) AS qt_despesas_com_valor,
     COALESCE(d.despesas, '[]'::JSON) AS despesas,
     COALESCE(b.total_bens, 0) AS patrimonio_declarado,
     COALESCE(b.bens, '[]'::JSON) AS bens
@@ -199,38 +130,6 @@ LEFT JOIN receitas r USING (ano_eleicao, sq_candidato)
 LEFT JOIN despesas d USING (ano_eleicao, sq_candidato)
 LEFT JOIN bens b USING (ano_eleicao, sq_candidato)
 ORDER BY c.ano_eleicao, c.ds_cargo`;
-// cache de memória + disco: os dados são estáticos (a carga fecha e as views só
-// mudam por atualização), então cada consulta caríssima precisa rodar uma vez
-// no máximo — recorrer ao banco de novo só queima o limite diário do plano
-// MotherDuck; o arquivo em disco também sobrevive aos reinícios do --hot em
-// desenvolvimento, que recriam o processo a cada edição.
-const CACHE_DIR = Bun.env.CACHE_DIR || (import.meta.dir + "/.cache-api");
-const comCache = createDataCache(CACHE_DIR, Bun.env.CACHE_VERSION);
-const buscaCacheVersionado = createDataCache(CACHE_DIR, Bun.env.CACHE_VERSION, {persist:false,maxEntries:500});
-
-// rota pesada: em vez de N consultas simultâneas sobre a mesma conexão (pico de
-// computação no MotherDuck e concorrência instável), rodar uma depois da outra
-const seguido = async (consultas: (() => Promise<any>)[]) => {
-  const out: any[] = [];
-  for (const f of consultas) out.push(await f());
-  return out;
-};
-
-// Views opcionais: a rota explica o que falta aplicar em vez de devolver o erro do banco.
-const viewsVistas = new Map<string, Promise<boolean>>();
-function viewDisponivel(nome: string) {
-  if (!viewsVistas.has(nome)) {
-    viewsVistas.set(nome, rows(
-      `SELECT 1 AS existe FROM information_schema.tables
-       WHERE table_catalog = current_database() AND table_schema = 'public' AND table_name = $1`, [nome],
-    ).then((r) => r.length > 0).catch((error) => { viewsVistas.delete(nome); throw error; }));
-  }
-  return viewsVistas.get(nome)!.then((existe) => { if (!existe) viewsVistas.delete(nome); return existe; });
-}
-
-const json = (data: unknown, status = 200) => Response.json(data, { status });
-const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Erro ao consultar MotherDuck.";
-
 async function route(request: Request) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -250,28 +149,92 @@ async function route(request: Request) {
     return json({ uf, years: years.map((r) => Number(r.ano_eleicao)) });
   }
 
+  if (path === "/api/candidate-search") {
+    const term = (url.searchParams.get("q") || "").trim();
+    if (term.length < 2) return json({ candidates: [] });
+    const pattern = `%${term}%`;
+    const candidates = await buscaEmCache(`cand-search-global:${term.toLowerCase()}`, () => rows(`
+      SELECT ca.id_pessoa_projeto AS id, ca.nm_candidato AS nome,
+             string_agg(DISTINCT c.nm_urna_candidato, ' / ' ORDER BY c.nm_urna_candidato) AS urna,
+             string_agg(DISTINCT CAST(c.ano_eleicao AS VARCHAR), ', ' ORDER BY CAST(c.ano_eleicao AS VARCHAR)) AS anos,
+             string_agg(DISTINCT c.ds_cargo, '|#|' ORDER BY c.ds_cargo) AS cargos,
+             string_agg(DISTINCT COALESCE(m.sg_uf, c.sg_ue), ', ' ORDER BY COALESCE(m.sg_uf, c.sg_ue)) AS estados
+      FROM public.candidato ca
+      JOIN public.candidatura c USING (id_pessoa_projeto)
+      LEFT JOIN public.municipio m ON m.cd_municipio_tse = c.cd_municipio_tse
+      WHERE ca.nm_candidato ILIKE $1 OR c.nm_urna_candidato ILIKE $1
+      GROUP BY ca.id_pessoa_projeto, ca.nm_candidato
+      ORDER BY MAX(CASE WHEN UPPER(TRIM(c.nm_urna_candidato)) = UPPER(TRIM($2)) THEN 1 ELSE 0 END) DESC,
+               (UPPER(TRIM(ca.nm_candidato)) = UPPER(TRIM($2))) DESC,
+               MAX(c.ano_eleicao) DESC, ca.nm_candidato
+      LIMIT 30`, [pattern, term]).then(rows => rows.map(r => ({
+        id: Number(r.id), nome: r.nome, urna: r.urna,
+        anos: String(r.anos || "").split(", ").filter(Boolean),
+        cargos: String(r.cargos || "").split("|#|").filter(Boolean), estados: r.estados,
+      }))));
+    return json({ candidates });
+  }
+
+  if (path === "/api/comparison-map") {
+    const personA = Number(url.searchParams.get("a"));
+    const personB = Number(url.searchParams.get("b"));
+    const year = Number(url.searchParams.get("year"));
+    const cargo = (url.searchParams.get("cargo") || "").toUpperCase();
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    const presidencial = cargo === "PRESIDENTE";
+    if (!Number.isSafeInteger(personA) || personA < 1 || !Number.isSafeInteger(personB) || personB < 1 || personA === personB || !YEARS.has(year)) {
+      return json({ error: "Candidatos ou ano inválido." }, 400);
+    }
+    if ((presidencial && uf !== "BR") || (!presidencial && !UFS.has(uf))) {
+      return json({ error: "Recorte geográfico inválido." }, 400);
+    }
+    const chave = `comparison-map:${personA}:${personB}:${year}:${cargo}:${uf}`;
+    const areas = await comCache(chave, () => presidencial
+      ? rows(`SELECT m.sg_uf AS codigo,
+                     ANY_VALUE(c.sg_partido) FILTER (WHERE c.id_pessoa_projeto = $1) AS partido_a,
+                     ANY_VALUE(c.sg_partido) FILTER (WHERE c.id_pessoa_projeto = $2) AS partido_b,
+                     SUM(CASE WHEN c.id_pessoa_projeto = $1 THEN COALESCE(v.qt_votos_nominais, 0) ELSE 0 END) AS votos_a,
+                     SUM(CASE WHEN c.id_pessoa_projeto = $2 THEN COALESCE(v.qt_votos_nominais, 0) ELSE 0 END) AS votos_b
+              FROM public.votacao_candidato_municipio v
+              JOIN public.candidatura c
+                ON c.ano_eleicao = v.ano_eleicao AND c.sq_candidato = v.sq_candidato AND c.cd_cargo = v.cd_cargo
+              JOIN public.municipio m ON m.cd_municipio_tse = v.cd_municipio_tse
+              WHERE v.ano_eleicao = $3 AND v.nr_turno = 1 AND c.ds_cargo = $4
+                AND c.id_pessoa_projeto IN ($1, $2)
+                AND m.sg_uf IN ('AC', 'AL', 'BA', 'DF', 'RO', 'SP')
+              GROUP BY m.sg_uf
+              HAVING SUM(COALESCE(v.qt_votos_nominais, 0)) > 0
+              ORDER BY m.sg_uf`, [personA, personB, year, cargo])
+      : rows(`SELECT m.cd_municipio_tse AS codigo, m.nm_municipio AS nome,
+                     ANY_VALUE(c.sg_partido) FILTER (WHERE c.id_pessoa_projeto = $1) AS partido_a,
+                     ANY_VALUE(c.sg_partido) FILTER (WHERE c.id_pessoa_projeto = $2) AS partido_b,
+                     SUM(CASE WHEN c.id_pessoa_projeto = $1 THEN COALESCE(v.qt_votos_nominais, 0) ELSE 0 END) AS votos_a,
+                     SUM(CASE WHEN c.id_pessoa_projeto = $2 THEN COALESCE(v.qt_votos_nominais, 0) ELSE 0 END) AS votos_b
+              FROM public.votacao_candidato_municipio v
+              JOIN public.candidatura c
+                ON c.ano_eleicao = v.ano_eleicao AND c.sq_candidato = v.sq_candidato AND c.cd_cargo = v.cd_cargo
+              JOIN public.municipio m ON m.cd_municipio_tse = v.cd_municipio_tse
+              WHERE v.ano_eleicao = $3 AND v.nr_turno = 1 AND c.ds_cargo = $4
+                AND c.id_pessoa_projeto IN ($1, $2) AND m.sg_uf = $5
+              GROUP BY m.cd_municipio_tse, m.nm_municipio
+              HAVING SUM(COALESCE(v.qt_votos_nominais, 0)) > 0
+              ORDER BY m.nm_municipio`, [personA, personB, year, cargo, uf]));
+    return json({ year, cargo, uf, tipo: presidencial ? "estados" : "municipios", areas });
+  }
+
   if (path === "/api/dashboard") {
     const uf = (url.searchParams.get("uf") || "").toUpperCase();
     const year = Number(url.searchParams.get("year"));
     if (!UFS.has(uf) || !YEARS.has(year)) return json({ error: "UF ou ano inválido." }, 400);
-    const [parties, spending] = await comCache(`dash:${uf}:${year}`, () => seguido([
+    const [parties] = await comCache(`dash2:${uf}:${year}`, () => seguido([
       // Presidente é eleito no Brasil inteiro (uf = "BR"): entra no painel dos
       // anos de eleição geral para que o botão de cargo tenha nome de partido.
       () => rows(`SELECT nr_partido, sg_partido, nm_partido, ds_cargo, qt_eleitos
             FROM public.v_partidos_eleitos
             WHERE (uf = $1 OR uf = 'BR') AND ano_eleicao = $2
             ORDER BY qt_eleitos DESC, sg_partido`, [uf, year]),
-      () => rows(`SELECT ds_cargo, faixa_financeira,
-                   "piso_faixa_r$" AS piso_faixa, "teto_faixa_r$" AS teto_faixa,
-                   qtd_candidatos_na_faixa, qtd_eleitos, taxa_sucesso_pct,
-                   media_gasto_eleitos, media_gasto_nao_eleitos,
-                   MAX("teto_faixa_r$") OVER (PARTITION BY uf, ano_eleicao, ds_cargo) AS gasto_maximo,
-                   ROUND((MAX("teto_faixa_r$") OVER (PARTITION BY uf, ano_eleicao, ds_cargo) + 0.01)
-                         * faixa_financeira / 4, 2) AS limite_superior_faixa
-          FROM public.vw_questao_2_despesas WHERE uf = $1 AND ano_eleicao = $2
-          ORDER BY ds_cargo, faixa_financeira`, [uf, year]),
     ]));
-    return json({ uf, year, parties, spending });
+    return json({ uf, year, parties });
   }
 
   // Partido vencedor em cada município: o mais votado no 1º turno de cada cargo
@@ -337,348 +300,6 @@ async function route(request: Request) {
     }));
   }
 
-  // P10a — reeleição: fichas por cargo com os ciclos de eleição seguinte.
-  // uf vazio = TODOS as UFs da amostra, somado aqui; `estados` traz sempre os
-  // ciclos estaduais de cada UF (para o mapa-calor estado a estado) e `media`
-  // a média dos municípios por cargo municipal (11 e 13).
-  if (path === "/api/reeleicao") {
-    const uf = (url.searchParams.get("uf") || "").toUpperCase();
-    if (uf && !UFS.has(uf)) return json({ error: "UF fora da amostra." }, 400);
-    const [estados, municipais] = await comCache("reel", () => seguido([
-      () => rows(`SELECT cd_cargo, uf, ano_eleito, ano_disputa, eleitos, tentaram,
-                   reeleitos, taxa, ha_proxima
-            FROM public.v_reeleicao_linhas
-            WHERE cd_municipio_tse IS NULL
-            ORDER BY cd_cargo, ano_eleito`),
-      () => rows(`SELECT cd_cargo, uf, ano_eleito, ano_disputa,
-                   SUM(eleitos) AS eleitos, SUM(tentaram) AS tentaram, SUM(reeleitos) AS reeleitos,
-                   COUNT(*) AS municipios,
-                   SUM(CASE WHEN tentaram > 0 THEN 1 ELSE 0 END) AS municipios_tentaram,
-                   ROUND(AVG(CASE WHEN tentaram > 0 THEN taxa END), 1) AS taxa_municipios,
-                   MAX(ha_proxima) AS ha_proxima
-            FROM public.v_reeleicao_linhas
-            WHERE cd_municipio_tse IS NOT NULL
-            GROUP BY 1, 2, 3, 4`),
-    ]));
-    const fechar = (r: any) => ({
-      cdCargo: Number(r.cd_cargo),
-      uf: r.uf ?? r.uf_state ?? null,
-      anoEleito: Number(r.ano_eleito),
-      anoDisputa: Number(r.ano_disputa),
-      eleitos: Number(r.eleitos),
-      tentaram: Number(r.tentaram),
-      reeleitos: Number(r.reeleitos),
-      taxa: r.taxa == null ? null : Number(r.taxa),
-      haProxima: r.ha_proxima === true,
-    });
-    const porCargo = (linhas: any) => {
-      const porAno = new Map();
-      for (const r of linhas) {
-        const chave = `${r.anoEleito}|${r.anoDisputa}`;
-        if (!porAno.has(chave)) porAno.set(chave, { ...r, eleitos: 0, tentaram: 0, reeleitos: 0 });
-        const c = porAno.get(chave);
-        c.eleitos += r.eleitos;
-        c.tentaram += r.tentaram;
-        c.reeleitos += r.reeleitos;
-        c.haProxima = c.haProxima || r.haProxima;
-        c.taxa = c.tentaram > 0 ? Math.round(c.reeleitos * 1000 / c.tentaram) / 10 : null;
-      }
-      return [...porAno.values()].sort((a, b) => a.anoEleito - b.anoEleito);
-    };
-    const municipaisFechados = municipais.map((r: any) => ({
-      ...fechar(r),
-      taxa: Number(r.tentaram) > 0 ? Math.round(Number(r.reeleitos) * 1000 / Number(r.tentaram)) / 10 : null,
-      municipios: Number(r.municipios),
-      municipiosComTentativa: Number(r.municipios_tentaram),
-      taxaMunicipios: r.taxa_municipios == null ? null : Number(r.taxa_municipios),
-    }));
-    const cargos = [3, 5, 6, 7, 8, 11, 13].map((cd) => {
-      const estado = estados.filter((r: any) => (!uf || r.uf === uf) && Number(r.cd_cargo) === cd).map(fechar);
-      // prefeito e vereador só têm grão municipal: os ciclos saem da soma dos municípios
-      const municipaisCargo = municipaisFechados.filter((r: any) => r.cdCargo === cd && (!uf || r.uf === uf));
-      const fonte = estado.length > 0 ? estado : municipaisCargo;
-      return {
-        cdCargo: cd,
-        cargo: CARGOS[cd],
-        ciclos: fonte.map((r: any) => ({ ...r, municipios: r.municipios ?? null, municipiosComTentativa: r.municipiosComTentativa ?? null, taxaMunicipios: r.taxaMunicipios ?? null })).sort((a: any, b: any) => a.anoEleito - b.anoEleito),
-        media: municipaisCargo.sort((a: any, b: any) => a.anoEleito - b.anoEleito),
-      };
-    });
-    const gradas = [3, 5, 6, 7, 8].map((cd) => ({
-      cdCargo: cd,
-      cargo: CARGOS[cd],
-      porUf: UFS_LIST.map((u) => ({
-        uf: u,
-        ciclos: porCargo(estados.filter((r: any) => r.uf === u && Number(r.cd_cargo) === cd).map(fechar)),
-      })),
-    }));
-    return json({ uf, cargos, estados: gradas });
-  }
-
-  if (path === "/api/reeleicao/pessoas") {
-    const uf = (url.searchParams.get("uf") || "").toUpperCase();
-    const cargo = Number(url.searchParams.get("cargo"));
-    const eleitosEm = Number(url.searchParams.get("eleitos_em"));
-    const grupo = url.searchParams.get("grupo") || "";
-    const q = (url.searchParams.get("q") || "").trim();
-    const limite = Math.min(Number(url.searchParams.get("limite")) || 60, 200);
-    const desde = Number(url.searchParams.get("desde")) || 0;
-    if (!UFS.has(uf) || !CARGOS[cargo]) return json({ error: "UF ou cargo inválido." }, 400);
-    if (!["voltou", "perderam", "nao"].includes(grupo)) return json({ error: "Grupo inválido." }, 400);
-    const pattern = `%${q}%`;
-    const pessoas = await comCache(`reelp:${uf}:${cargo}:${eleitosEm}:${grupo}:${q.toLowerCase()}:${limite}:${desde}`, () => rows(
-      `SELECT id_pessoa_projeto, sq_candidato, ano_foto, nm_urna_candidato,
-              sg_partido, nm_municipio, votos, grupo
-       FROM public.v_reeleicao_pessoas
-       WHERE uf = $1 AND cd_cargo = $2 AND ano_eleito = $3 AND grupo = $4
-         AND (nm_urna_candidato ILIKE $5 OR COALESCE(nm_municipio, '') ILIKE $5)
-       ORDER BY nm_urna_candidato
-       LIMIT $6 OFFSET $7`,
-      [uf, cargo, eleitosEm, grupo, pattern, limite + 1, desde],
-    ));
-    const temMais = pessoas.length > limite;
-    if (temMais) pessoas.pop();
-    return json({ uf, cargo, eleitosEm, grupo, pessoas, temMais });
-  }
-
-  // Q8 — financiamento: peso dos fundos públicos por cargo, faixa e partido.
-  // uf vazio = TODOS as UFs da amostra, agregado aqui; `cargo` opcional afina
-  // o corte (o frontend usa cargo=1 para trazer o Presidente nacional).
-  // P5 — eleitos com a ajuda dos votos do partido (vw_questao_5_legenda,
-  // sql/motherduck/11_views_legenda.sql). uf vazio agrega toda a amostra.
-  // P4 — escolaridade dos eleitos × população (vw_questao_4_escolaridade,
-  // sql/motherduck/07_views_escolaridade.sql). uf vazio agrega toda a amostra.
-  if (path === "/api/escolaridade") {
-    const uf = (url.searchParams.get("uf") || "").toUpperCase();
-    const ano = Number(url.searchParams.get("ano") || 0);
-    const cargo = (url.searchParams.get("cargo") || "TODOS").toUpperCase();
-    if ((uf && !UFS.has(uf)) || (ano && !YEARS.has(ano)) || !["TODOS", "PREFEITO", "VEREADOR"].includes(cargo))
-      return json({ error: "Filtro inválido." }, 400);
-    if (!(await viewDisponivel("vw_questao_4_escolaridade")))
-      return json({ error: "A view vw_questao_4_escolaridade ainda não foi aplicada no banco (sql/motherduck/10_censo_2022_escolaridade.sql, 06_municipio_ibge.sql e 07_views_escolaridade.sql)." }, 503);
-    const [anos, niveis, municipios] = await comCache(`q4:${uf || "*"}:${ano}:${cargo}`, () => seguido([
-      () => rows(`SELECT DISTINCT ano_eleicao, ano_censo FROM public.vw_questao_4_escolaridade
-            ${uf ? "WHERE sg_uf = $1" : ""} ORDER BY 1`, uf ? [uf] : []),
-      () => {
-        const params: (string | number)[] = [cargo]; const cond = ["ds_cargo = $1"];
-        if (ano){ params.push(ano); cond.push(`ano_eleicao = $${params.length}`); }
-        if (uf){ params.push(uf); cond.push(`sg_uf = $${params.length}`); }
-        return rows(`SELECT ano_eleicao, nr_nivel, ANY_VALUE(ds_nivel) AS ds_nivel,
-                     SUM(qt_candidatos) AS candidatos, SUM(qt_eleitos) AS eleitos, SUM(qt_populacao) AS populacao
-              FROM public.vw_questao_4_escolaridade WHERE ${cond.join(" AND ")}
-              GROUP BY 1, 2 ORDER BY 1, 2 NULLS LAST`, params);
-      },
-      () => {
-        // por município: superior completo entre eleitos e na população (ano escolhido)
-        if (!ano) return Promise.resolve([]);
-        const params: (string | number)[] = [cargo, ano]; const cond = ["ds_cargo = $1", "ano_eleicao = $2"];
-        if (uf){ params.push(uf); cond.push(`sg_uf = $${params.length}`); }
-        return rows(`SELECT cd_municipio_tse, ANY_VALUE(nm_municipio) AS nm_municipio, ANY_VALUE(sg_uf) AS uf,
-                     SUM(qt_eleitos) FILTER (WHERE nr_nivel = 4) AS eleitos_sup,
-                     SUM(qt_eleitos) FILTER (WHERE nr_nivel IS NOT NULL) AS eleitos_inf,
-                     SUM(qt_populacao) FILTER (WHERE nr_nivel = 4) AS pop_sup,
-                     SUM(qt_populacao) FILTER (WHERE nr_nivel IS NOT NULL) AS pop_inf
-              FROM public.vw_questao_4_escolaridade WHERE ${cond.join(" AND ")}
-              GROUP BY 1`, params);
-      },
-    ]));
-    const n = (v: unknown) => v == null ? null : Number(v);
-    return json({
-      anos: anos.map((r: Record<string, unknown>) => Number(r.ano_eleicao)),
-      anoCenso: n(anos[0]?.ano_censo),
-      niveis: niveis.map((r: Record<string, unknown>) => ({ ano: Number(r.ano_eleicao), nivel: n(r.nr_nivel), nome: r.ds_nivel,
-        candidatos: Number(r.candidatos), eleitos: Number(r.eleitos), populacao: n(r.populacao) })),
-      municipios: municipios.map((r: Record<string, unknown>) => ({ tse: r.cd_municipio_tse, nome: r.nm_municipio, uf: r.uf,
-        eleitosSup: Number(r.eleitos_sup || 0), eleitosInf: Number(r.eleitos_inf || 0),
-        popSup: n(r.pop_sup), popInf: n(r.pop_inf) })),
-    });
-  }
-
-  if (path === "/api/legenda") {
-    const uf = (url.searchParams.get("uf") || "").toUpperCase();
-    if (uf && !UFS.has(uf)) return json({ error: "UF fora da amostra." }, 400);
-    if (!(await viewDisponivel("vw_questao_5_legenda")))
-      return json({ error: "A view vw_questao_5_legenda ainda não foi aplicada no banco (sql/motherduck/11_views_legenda.sql)." }, 503);
-    const [condicao, params] = uf ? ["WHERE uf = $1", [uf]] : ["", []];
-    const [resumo, partidos] = await comCache(`legenda:${uf || "*"}`, () => seguido([
-      () => rows(`SELECT cd_cargo, ano_eleicao, COUNT(*) AS eleitos,
-                   COUNT(*) FILTER (WHERE eleito_abaixo_qe) AS abaixo_qe,
-                   COUNT(*) FILTER (WHERE eleito_abaixo_legenda) AS abaixo_legenda
-            FROM public.vw_questao_5_legenda ${condicao}
-            GROUP BY 1, 2 ORDER BY 1, 2`, params),
-      () => rows(`SELECT cd_cargo, ano_eleicao, sg_partido, COUNT(*) AS eleitos,
-                   COUNT(*) FILTER (WHERE eleito_abaixo_qe) AS abaixo_qe,
-                   COUNT(*) FILTER (WHERE eleito_abaixo_legenda) AS abaixo_legenda
-            FROM public.vw_questao_5_legenda ${condicao}
-            GROUP BY 1, 2, 3`, params),
-    ]));
-    const num = (r: Record<string, unknown>) => ({
-      cdCargo: Number(r.cd_cargo), ano: Number(r.ano_eleicao), eleitos: Number(r.eleitos),
-      abaixoQe: Number(r.abaixo_qe), abaixoLegenda: Number(r.abaixo_legenda),
-    });
-    return json({
-      uf: uf || null,
-      resumo: resumo.map((r: Record<string, unknown>) => num(r)),
-      partidos: partidos.map((r: Record<string, unknown>) => ({ ...num(r), partido: r.sg_partido })),
-    });
-  }
-
-  if (path === "/api/legenda/pessoas") {
-    const uf = (url.searchParams.get("uf") || "").toUpperCase();
-    const cargo = Number(url.searchParams.get("cargo"));
-    const ano = Number(url.searchParams.get("ano"));
-    const partido = (url.searchParams.get("partido") || "").toUpperCase();
-    if ((uf && !UFS.has(uf)) || ![6, 7, 8, 13].includes(cargo) || !YEARS.has(ano))
-      return json({ error: "Filtro inválido." }, 400);
-    const condicoes = ["l.cd_cargo = $1", "l.ano_eleicao = $2", "l.eleito_abaixo_qe"];
-    const params: (string | number)[] = [cargo, ano];
-    if (uf){ params.push(uf); condicoes.push(`l.uf = $${params.length}`); }
-    if (partido){ params.push(partido); condicoes.push(`l.sg_partido = $${params.length}`); }
-    const pessoas = await rows(`SELECT l.id_pessoa_projeto, l.nm_urna_candidato, l.sg_partido, l.uf,
-                 m.nm_municipio, l.votos_nominais, l.quociente_eleitoral, l.pct_do_quociente,
-                 l.votos_legenda_partido, l.eleito_abaixo_legenda
-          FROM public.vw_questao_5_legenda l
-          LEFT JOIN public.municipio m ON m.cd_municipio_tse = l.cd_municipio_tse
-          WHERE ${condicoes.join(" AND ")}
-          ORDER BY l.pct_do_quociente, l.votos_nominais LIMIT 40`, params);
-    return json({ pessoas });
-  }
-
-  if (path === "/api/financiamento") {
-    const uf = (url.searchParams.get("uf") || "").toUpperCase();
-    if (uf && !UFS.has(uf)) return json({ error: "UF fora da amostra." }, 400);
-    const cargo = Number(url.searchParams.get("cargo") || 0);
-    if (cargo && !(cargo in CARGOS)) return json({ error: "Cargo inválido." }, 400);
-    const [condicao, params] = uf && cargo ? [`WHERE uf = $1 AND cd_cargo = $2`, [uf, cargo]]
-      : uf ? ["WHERE uf = $1", [uf]]
-      : cargo ? [`WHERE cd_cargo = $1`, [cargo]]
-      : ["", []];
-    const [faixas, fontes, partidos] = await comCache(`fin:${uf || "*"}:${cargo}`, () => seguido([
-      () => rows(`SELECT cd_cargo, ano_eleicao, faixa,
-                   SUM(candidaturas) AS candidaturas, SUM(eleitas) AS eleitas,
-                   ROUND(SUM(eleitas) * 100.0 / NULLIF(SUM(candidaturas), 0), 1) AS taxa_eleicao
-            FROM public.v_financiamento_faixas ${condicao}
-            GROUP BY 1, 2, 3`, params),
-      () => rows(`SELECT cd_cargo, ano_eleicao, ds_fonte_receita, SUM(total) AS total
-            FROM public.v_financiamento_fontes ${condicao}
-            GROUP BY 1, 2, 3`, params),
-      () => rows(`SELECT cd_cargo, ano_eleicao, sg_partido,
-                   SUM(candidaturas) AS candidaturas, SUM(eleitas) AS eleitas,
-                   SUM(arrecadado) AS arrecadado, SUM(publicas) AS publicas
-            FROM public.v_financiamento_partidos ${condicao}
-            GROUP BY 1, 2, 3`, params),
-    ]));
-    const partidosFechados = partidos.map((r: any) => ({
-      cdCargo: Number(r.cd_cargo),
-      ano: Number(r.ano_eleicao),
-      partido: r.sg_partido,
-      candidaturas: Number(r.candidaturas),
-      eleitas: Number(r.eleitas),
-      arrecadado: Number(r.arrecadado),
-      publicas: Number(r.publicas),
-      pctPublico: Number(r.arrecadado) > 0 ? Math.round(Number(r.publicas) * 1000 / Number(r.arrecadado)) / 10 : null,
-    }));
-    return json({
-      uf,
-      faixas: faixas.map((r: any) => ({
-        cdCargo: Number(r.cd_cargo),
-        ano: Number(r.ano_eleicao),
-        faixa: r.faixa,
-        candidaturas: Number(r.candidaturas),
-        eleitas: Number(r.eleitas),
-        taxaEleicao: r.taxa_eleicao == null ? null : Number(r.taxa_eleicao),
-      })),
-      fontes: fontes.map((r: any) => ({
-        cdCargo: Number(r.cd_cargo),
-        ano: Number(r.ano_eleicao),
-        fonte: r.ds_fonte_receita,
-        total: Number(r.total),
-      })),
-      partidos: partidosFechados,
-    });
-  }
-
-  // Q8 — "quem são": candidaturas individuais dentro de uma faixa de
-  // dependência de fundo público. uf vazio = escopo inteiro (Presidente);
-  // `ano=all` pega todos os anos do escopo (agregado no cliente).
-  if (path === "/api/financiamento/pessoas") {
-    const uf = (url.searchParams.get("uf") || "").toUpperCase();
-    if (uf && !UFS.has(uf)) return json({ error: "UF fora da amostra." }, 400);
-    const cargo = Number(url.searchParams.get("cargo") || 0);
-    if (!cargo || !(cargo in CARGOS)) return json({ error: "Cargo inválido." }, 400);
-    const ano = url.searchParams.get("ano") || "";
-    const todosAnos = ano === "all";
-    const anosSel = todosAnos ? [] : ano.split(",").map(Number);
-    if (!todosAnos && (!anosSel.length || anosSel.some(a => !YEARS.has(a)))) return json({ error: "Ano inválido." }, 400);
-    const faixa = url.searchParams.get("faixa") || "";
-    if (!SEM_RECEITA_FAIXA.has(faixa) && !FAIXAS.has(faixa)) return json({ error: "Faixa inválida." }, 400);
-    const limite = Math.min(Number(url.searchParams.get("limite") || 30), 100);
-    const desde = Math.max(Math.trunc(Number(url.searchParams.get("desde")) || 0), 0);
-    const condicoes = ["v.cd_cargo = $1", "v.faixa = $2"];
-    const params: (string | number)[] = [cargo, faixa];
-    if (!todosAnos) {
-      condicoes.push(`v.ano_eleicao IN (${anosSel.map((_, i) => `$${params.length + i + 1}`).join(", ")})`);
-      params.push(...anosSel);
-    }
-    if (uf) { condicoes.push(`v.uf = $${params.length + 1}`); params.push(uf); }
-    const pessoas = await comCache(`finp:${uf || "*"}:${cargo}:${ano}:${faixa}:${limite}:${desde}`, () => rows(
-      `SELECT ca.id_pessoa_projeto AS id, ca.nm_urna_candidato AS urna, pc.nm_candidato AS nome,
-              v.sg_partido AS partido, v.ds_sit_tot_turno AS situacao, v.ano_eleicao AS ano,
-              COALESCE(m.sg_uf, ca.sg_ue) AS uf, m.nm_municipio AS municipio,
-              ROUND(v.pct_publico, 1) AS pct_publico, ROUND(v.publicas, 2) AS publicas,
-              ROUND(v.total, 2) AS total
-       FROM public.v_financiamento_candidatura v
-       JOIN public.candidatura ca ON ca.ano_eleicao = v.ano_eleicao AND ca.sq_candidato = v.sq_candidato
-       JOIN public.candidato pc ON pc.id_pessoa_projeto = ca.id_pessoa_projeto
-       LEFT JOIN public.municipio m ON m.cd_municipio_tse = ca.cd_municipio_tse
-       WHERE ${condicoes.join(" AND ")}
-       ORDER BY v.total DESC, id LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      [...params, limite + 1, desde],
-    ));
-    const temMais = pessoas.length > limite;
-    if (temMais) pessoas.pop();
-    return json({ uf, cargo, ano, faixa, pessoas, temMais });
-  }
-
-if (path === "/api/q1-custo-cadeira") {
-    const uf = (url.searchParams.get("uf") || "").toUpperCase();
-    const ano = Number(url.searchParams.get("ano"));
-    if (!UFS.has(uf) || !YEARS.has(ano)) return json({ error: "UF ou ano inválido." }, 400);
-    
-    const dados = await comCache(`q1-custo:${uf}:${ano}`, () => rows(
-      `SELECT * FROM public.vw_questao_1_custo_cadeira 
-       WHERE uf = $1 AND ano_eleicao = $2 
-       ORDER BY ds_cargo`, [uf, ano]
-    ));
-    return json({ uf, ano, dados });
-  }
-
-  if (path === "/api/q2-despesas") {
-    const uf = (url.searchParams.get("uf") || "").toUpperCase();
-    const ano = Number(url.searchParams.get("ano"));
-    if (!UFS.has(uf) || !YEARS.has(ano)) return json({ error: "UF ou ano inválido." }, 400);
-    
-    const dados = await comCache(`q2-desp:${uf}:${ano}`, () => rows(
-      `SELECT * FROM public.vw_questao_2_despesas 
-       WHERE uf = $1 AND ano_eleicao = $2 
-       ORDER BY ds_cargo, faixa_financeira`, [uf, ano]
-    ));
-    return json({ uf, ano, dados });
-  }
-
-  if (path === "/api/q2-patrimonio") {
-    const uf = (url.searchParams.get("uf") || "").toUpperCase();
-    const ano = Number(url.searchParams.get("ano"));
-    if (!UFS.has(uf) || !YEARS.has(ano)) return json({ error: "UF ou ano inválido." }, 400);
-    
-    const dados = await comCache(`q2-pat:${uf}:${ano}`, () => rows(
-      `SELECT * FROM public.vw_questao_2_patrimonio_sucesso 
-       WHERE uf = $1 AND ano_eleicao = $2 
-       ORDER BY ds_cargo, quartil_patrimonio`, [uf, ano]
-    ));
-    return json({ uf, ano, dados });
-  }
-
   const photoMatch = path.match(/^\/api\/photo\/(\d{4})\/(\d{1,20})$/);
   if (photoMatch) {
     const year = Number(photoMatch[1]);
@@ -705,36 +326,21 @@ if (path === "/api/q1-custo-cadeira") {
     // candidaturas da pessoa e filtra por (ano, sq) — o que o README das views da
     // Q9 já recomenda —, e o histórico usa a mesma regra da view com o filtro no
     // início (SQL_HISTORICO_CANDIDATO). Mantém o mesmo cálculo da view.
-    const [personRows, candidacies, propagandaValor, propagandaFrequencia] = await comCache(`cand:${id}`, async () => {
+    const [personRows, candidacies, extras] = await comCache(`cand-pagamentos-v3:${id}`, async () => {
       const chaves = await rows(`SELECT ano_eleicao, sq_candidato FROM public.candidatura
                                  WHERE id_pessoa_projeto = $1 ORDER BY 1, 2`, [id]);
-      const filtroChaves = chaves
-        .map((_, k) => `(ano_eleicao = CAST($${2 * k + 1} AS INTEGER) AND sq_candidato = CAST($${2 * k + 2} AS BIGINT))`)
-        .join(" OR ");
-      const valoresChaves = chaves.flatMap((c) => [String(c.ano_eleicao), String(c.sq_candidato)]);
-      const nuvem = (ordem: string, peso: string) => chaves.length
-        ? rows(`SELECT ano_eleicao, sq_candidato, ds_cargo, termo, ${peso},
-                       valor_pago_associado, qt_lancamentos
-                FROM public.vw_questao_9_nuvem_valor
-                WHERE ${filtroChaves}
-                QUALIFY ROW_NUMBER() OVER (
-                  PARTITION BY ano_eleicao, ds_cargo ORDER BY ${ordem} DESC, termo
-                ) <= 35
-                ORDER BY ano_eleicao, ds_cargo, ${ordem} DESC, termo`, valoresChaves)
-        : Promise.resolve([]);
       return Promise.all([
         rows(`SELECT nm_candidato, dt_nascimento, ds_grau_instrucao,
                      ds_genero, ds_cor_raca
               FROM public.candidato WHERE id_pessoa_projeto = $1`, [id]),
         rows(SQL_HISTORICO_CANDIDATO, [id]),
-        nuvem("peso", "peso"),
-        // Deriva frequência da mesma base de termos para evitar divergência entre as duas views.
-        nuvem("qt_lancamentos", "qt_lancamentos AS peso"),
+        // dados que as questões acrescentam à ficha (ex.: nuvens da Q9)
+        Promise.all(EXTENSOES_CANDIDATO.map((ext) => ext(id, chaves))).then((partes) => Object.assign({}, ...partes)),
       ]);
     });
     const person = personRows[0];
     if (!person) return json({ error: "Candidato não encontrado." }, 404);
-    return json({ ...person, candidacies, propagandaValor, propagandaFrequencia });
+    return json({ ...person, candidacies, ...extras });
   }
 
   const municipalityMatch = path.match(/^\/api\/municipality\/([0-9]+)$/);
@@ -745,19 +351,13 @@ if (path === "/api/q1-custo-cadeira") {
                                               pib_per_capita, idhm, populacao_total
                                        FROM public.municipio WHERE cd_municipio_tse = $1`, [code]);
     if (!municipality) return json({ error: "Município não encontrado." }, 404);
-    // P4: a view só existe depois de aplicar 06 e 07; a chave do cache registra isso
-    const temQ4 = await viewDisponivel("vw_questao_4_escolaridade");
-    const temEscolaridadeEleitorado = await viewDisponivel("escolaridade_eleitorado");
-    const [attendance, electorate, electorateEducation, parties, topCandidates, localCandidacies, education] = await comCache(`mun:${code}:visual1:perfil${temEscolaridadeEleitorado ? 1 : 0}:q4${temQ4 ? 1 : 0}`, () => seguido([
+    const [attendance, electorate, parties, topCandidates, localCandidacies] = await comCache(`mun-timeline-v2:${code}`, () => seguido([
       () => rows(`SELECT ano_eleicao, nr_turno, qt_aptos, qt_comparecimento, qt_abstencao
             FROM public.comparecimento_municipio WHERE cd_municipio_tse = $1
             ORDER BY ano_eleicao, nr_turno`, [code]),
       () => rows(`SELECT ano_eleicao, ds_faixa_etaria, qt_eleitores
             FROM public.perfil_eleitorado WHERE cd_municipio_tse = $1
             ORDER BY ano_eleicao, ds_faixa_etaria`, [code]),
-      () => temEscolaridadeEleitorado ? rows(`SELECT ano_eleicao, ds_grau_instrucao, qt_eleitores
-            FROM public.escolaridade_eleitorado WHERE cd_municipio_tse = $1
-            ORDER BY ano_eleicao, ds_grau_instrucao`, [code]) : Promise.resolve([]),
       () => rows(`SELECT ano_eleicao, cd_cargo, sg_partido, qt_votos_nominais, qt_votos_legenda
             FROM public.votacao_partido WHERE cd_municipio_tse = $1 AND nr_turno = 1
             ORDER BY ano_eleicao, cd_cargo, qt_votos_nominais DESC LIMIT 120`, [code]),
@@ -784,14 +384,18 @@ if (path === "/api/q1-custo-cadeira") {
               AND c.ano_eleicao IN (2004, 2008, 2012, 2016, 2020, 2024)
               AND c.ds_cargo IN ('PREFEITO', 'VEREADOR')
             ORDER BY c.ano_eleicao, c.ds_cargo, c.ds_sit_tot_turno, c.nm_urna_candidato`, [code]),
-      // P4: escolaridade dos candidatos e eleitos × população (Censo), por nível
-      () => temQ4 ? rows(`SELECT ano_eleicao, ano_censo, ds_cargo, nr_nivel, ds_nivel,
-                   qt_candidatos, qt_eleitos, qt_populacao
-            FROM public.vw_questao_4_escolaridade WHERE cd_municipio_tse = $1
-            ORDER BY ano_eleicao, ds_cargo, nr_nivel NULLS LAST`, [code]) : Promise.resolve(null),
     ]));
-    return json({ ...municipality, attendance, electorate, electorateEducation, parties, topCandidates, localCandidacies, education });
+    // dados que as questões acrescentam à gaveta (ex.: escolaridade da Q4)
+    const [extrasQuestoes, indicadores] = await Promise.all([
+      Promise.all(EXTENSOES_MUNICIPIO.map((ext) => ext(code))),
+      carregarIndicadoresMunicipio(code),
+    ]);
+    const extras = Object.assign({}, ...extrasQuestoes, indicadores);
+    return json({ ...municipality, attendance, electorate, parties, topCandidates, localCandidacies, ...extras });
   }
+
+  const rotaQuestao = ROTAS_QUESTOES[path];
+  if (rotaQuestao) return rotaQuestao(url);
 
   return json({ error: "Rota não encontrada." }, 404);
 }

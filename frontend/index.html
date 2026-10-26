@@ -19,6 +19,10 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
   <div class="topo">
     <span class="marca">Eleições nos estados da amostra</span>
     <div class="topo-dir">
+      <button class="duelo-abrir" id="duelo-abrir" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="duelo-modal">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h6.5v13H4zM13.5 5.5H20v13h-6.5zM10.5 9h3M10.5 15h3"/></svg>
+        <span>Comparar candidatos</span>
+      </button>
       <nav class="estados" id="estados" aria-label="Estados"></nav>
       <button class="tema" id="tema" type="button" aria-pressed="false">
         <svg class="ico-sol" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>
@@ -39,6 +43,45 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
     <input id="busca" type="search" autocomplete="off" placeholder="Buscar município ou candidato" aria-label="Buscar município ou candidato neste estado" aria-controls="resultados">
     <div class="resultados" id="resultados" hidden role="listbox"></div>
   </div>
+
+<dialog class="duelo-modal" id="duelo-modal" aria-labelledby="duelo-titulo">
+  <div class="duelo-modal-cab">
+    <div class="duelo-intro">
+      <div>
+        <p class="duelo-selo">Arquivo eleitoral · modo comparação</p>
+        <h2 id="duelo-titulo">Dois nomes. Uma disputa de histórias.</h2>
+        <p>Escolha quaisquer dois candidatos e descubra o que muda de uma eleição para outra.</p>
+      </div>
+      <span class="duelo-marca" aria-hidden="true">A × B</span>
+    </div>
+    <button class="fechar duelo-fechar" id="duelo-fechar" type="button" aria-label="Fechar comparação">✕</button>
+  </div>
+  <div class="duelo-apresentacao">
+    <p>Busque dois nomes na amostra e descubra como as histórias se cruzam. Compare <b>idade, votos, partido, resultado, arrecadação, despesas e patrimônio</b> em cada candidatura.</p>
+    <ul class="duelo-cobertura" aria-label="Cobertura dos dados">
+      <li><b>2004–2024</b><span>11 eleições</span></li>
+      <li><b>6 estados</b><span>na amostra</span></li>
+      <li><b>2 trajetórias</b><span>lado a lado</span></li>
+      <li><b>Valores nominais</b><span>sem correção pela inflação</span></li>
+    </ul>
+  </div>
+    <div class="duelo-seletores">
+      <div class="duelo-seletor" data-side="a">
+        <label for="duelo-busca-a"><span class="duelo-letra">A</span> Primeiro candidato</label>
+        <div class="duelo-campo"><input id="duelo-busca-a" type="search" autocomplete="off" placeholder="Digite um nome" aria-label="Buscar primeiro candidato em todos os anos e estados" aria-autocomplete="list" aria-expanded="false" aria-controls="duelo-opcoes-a"><button type="button" class="duelo-limpar" aria-label="Remover primeiro candidato" hidden>×</button><div class="duelo-opcoes" id="duelo-opcoes-a" role="listbox" hidden></div></div>
+        <p class="duelo-escolhido" id="duelo-escolhido-a">À espera de um nome</p>
+      </div>
+      <span class="duelo-vs" aria-hidden="true">VS</span>
+      <div class="duelo-seletor" data-side="b">
+        <label for="duelo-busca-b"><span class="duelo-letra">B</span> Segundo candidato</label>
+        <div class="duelo-campo"><input id="duelo-busca-b" type="search" autocomplete="off" placeholder="Digite outro nome" aria-label="Buscar segundo candidato em todos os anos e estados" aria-autocomplete="list" aria-expanded="false" aria-controls="duelo-opcoes-b"><button type="button" class="duelo-limpar" aria-label="Remover segundo candidato" hidden>×</button><div class="duelo-opcoes" id="duelo-opcoes-b" role="listbox" hidden></div></div>
+        <p class="duelo-escolhido" id="duelo-escolhido-b">À espera de um nome</p>
+      </div>
+    </div>
+    <div class="duelo-resultado" id="duelo-resultado" aria-live="polite">
+      <div class="duelo-vazio"><span aria-hidden="true">＋</span><p>Escolha dois candidatos para revelar as curiosidades que a história eleitoral guardou.</p></div>
+    </div>
+  </dialog>
 
   <div class="comp">
     <div class="forma-box">
@@ -63,54 +106,18 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
     </div>
   </div>
 
-  <section class="sec" aria-labelledby="gs-t">
-    <h2 id="gs-t">Quem gasta mais se elege mais?</h2>
-    <p class="nota">Candidatos que prestaram contas, em quatro faixas de despesa paga do mesmo tamanho em reais, de R$ 0 até o maior gasto de cada cargo. A barra mostra a parcela de eleitos em cada faixa; abaixo dela, o limite da faixa e quantos candidatos caíram nela.</p>
-    <div class="quartis" id="quartis"></div>
+  <section class="sec" aria-labelledby="q-t"><a id="questoes"></a>
+    <h2 id="q-t">As questões</h2>
+    <p class="nota">Cada questão abre em um painel próprio. O recorte é o estado escolhido no mapa, ou a amostra inteira; dentro do painel dá para trocar o estado e, quando a questão depende dele, o ano.</p>
+    <div class="q-grid" id="q-grid"></div>
   </section>
 
-  <section class="sec" aria-labelledby="pat-t">
-    <h2 id="pat-t">Ter mais bens declarados ajuda a se eleger?</h2>
-    <p class="nota">Candidatos divididos em faixas de patrimônio. A primeira faixa concentra quem declarou R$ 0. Os demais foram divididos em quatro faixas (quartis) contendo o mesmo número de candidatos, do menor ao maior patrimônio declarado.</p>
-    <div class="quartis" id="patrimonio-quartis"></div>
-  </section>
 
-  <section class="sec" aria-labelledby="custo-t">
-    <h2 id="custo-t">Qual o custo de uma cadeira?</h2>
-    <p class="nota">Relação entre as despesas de campanha e as cadeiras conquistadas por cargo.</p>
-    <div id="custo-cadeira"></div>
-  </section>
 
-  <section class="sec" aria-labelledby="fin-t"><a id="financiamento"></a>
-    <h2 id="fin-t">Depender de fundo público se elege mais?</h2>
-    <p class="nota">Cada candidatura é classificada pela fração <b>da receita que arrecadou</b> que veio de fundos públicos — fundo eleitoral (FEFC) + fundo partidário somados, divididos pelo total recebido; o resto veio de outras fontes, como recursos próprios e doadores privados. Não é a fração do gasto: é a das entradas. No escopo, o TSE só publica as fontes FUNDO ESPECIAL, FUNDO PARTIDARIO e OUTROS RECURSOS. <span id="fin-origem"></span> Clique em uma faixa para ver quem são.</p>
-    <div class="cargos" id="fin-cargos" role="group" aria-label="Cargo da seção de financiamento"></div>
-    <div class="cargos" id="fin-anos" role="group" aria-label="Anos considerados nesta questão"></div>
-    <div class="fin-grid" id="fin-conteudo"></div>
-  </section>
 
-  <section class="sec" aria-labelledby="reel-t"><a id="reeleicao"></a>
-    <h2 id="reel-t">Reeleição: quem volta?</h2>
-    <p class="nota">Dos eleitos em cada pleito, quantos voltaram a disputar o mesmo cargo, na mesma unidade, na eleição ordinária seguinte (senador, 8 anos depois) e quantos ganharam. <b>(% eleitos)</b> = dos eleitos, quantos tentaram de novo; <b>taxa</b> = dos que tentaram, quantos venceram; a <b>média municípios</b> só considera municípios em que alguém tentou. A ligação entre pleitos usa o mesmo identificador de pessoa do painel; candidaturas indeferidas contam como tentativa; Presidente (disputa nacional) e suplentes ficam fora; ciclos sem eleição seguinte na base ficam fora da conta (e aparecem listados). Deputado distrital (DF) entra na régua. <span id="reel-origem"></span></p>
-    <div class="cargos" id="reel-cargos" role="group" aria-label="Cargo da seção de reeleição"></div>
-    <div class="fin-grid" id="reel-conteudo"></div>
-  </section>
 
-  <section class="sec" aria-labelledby="q4-t"><a id="escolaridade"></a>
-    <h2 id="q4-t">Escolaridade: os eleitos se parecem com a população?</h2>
-    <p class="nota">Grau de instrução de quem se candidata e de quem se elege a prefeito e vereador, comparado com o da população de 18 anos ou mais no Censo 2022 (IBGE), nos quatro níveis do Censo. A escolaridade do candidato é a do cadastro no TSE; as candidaturas sem escolaridade informada ficam fora das porcentagens. O Censo é de 2022: as eleições mais próximas são as de 2020 e 2024. <span id="q4-origem"></span></p>
-    <div class="cargos" id="q4-cargos" role="group" aria-label="Cargo da seção de escolaridade"></div>
-    <div class="cargos" id="q4-anos" role="group" aria-label="Eleição da seção de escolaridade"></div>
-    <div id="q4-conteudo"></div>
-  </section>
 
-  <section class="sec" aria-labelledby="leg5-t"><a id="legenda-partido"></a>
-    <h2 id="leg5-t">Eleitos com a ajuda do partido</h2>
-    <p class="nota">Em vereador e deputado, as cadeiras são divididas primeiro entre os partidos, pela soma dos votos dos seus candidatos com os votos de legenda (no número do partido); dentro de cada partido, vão para os mais votados. Por isso dá para se eleger com poucos votos próprios. O <b>quociente eleitoral</b> é o total de votos válidos da disputa dividido pelas cadeiras: quem se elegeu <b>abaixo do quociente</b> não conquistaria a vaga sozinho e dependeu dos votos de legenda e dos colegas de partido. A segunda régua conta quem teve <b>menos votos que a legenda do próprio partido</b>. Votos do 1º turno; até 2018 os partidos podiam se coligar e a cadeira era da coligação. <span id="leg5-origem"></span></p>
-    <div class="cargos" id="leg5-cargos" role="group" aria-label="Cargo da seção de votos de legenda"></div>
-    <div class="cargos" id="leg5-anos" role="group" aria-label="Eleição da seção de votos de legenda"></div>
-    <div class="fin-grid" id="leg5-conteudo"></div>
-  </section>
+
 
   <footer>
     <span>Fonte: TSE, tabelas do projeto BD Relacionais (UFPI). A amostra não contém todos os candidatos de cada disputa.</span>
@@ -124,6 +131,18 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
   <button class="voltar" id="voltar" type="button" aria-label="Voltar ao município" hidden>←</button>
   <div id="g-corpo"></div>
 </aside>
+<div class="q-scrim" id="q-scrim"></div>
+<section class="q-painel" id="q-painel" role="dialog" aria-modal="true" aria-labelledby="qp-titulo" tabindex="-1" hidden>
+  <div class="q-painel-cab">
+    <div class="q-painel-tit"><span class="q-num" id="qp-num"></span><h2 id="qp-titulo"></h2><p class="q-pergunta" id="qp-pergunta"></p></div>
+    <button class="fechar" id="qp-fechar" type="button" aria-label="Fechar a questão">✕</button>
+  </div>
+  <div class="q-escopo">
+    <div class="cargos" id="qp-ufs" role="group" aria-label="Estado da questão"></div>
+    <div class="cargos" id="qp-anos" role="group" aria-label="Ano da questão" hidden></div>
+  </div>
+  <div class="q-painel-corpo" id="qp-corpo"></div>
+</section>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

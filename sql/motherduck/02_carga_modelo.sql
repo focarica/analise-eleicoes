@@ -248,16 +248,28 @@ SELECT p.ano_eleicao, p.sq_candidato,
 FROM parse p
 JOIN public.candidatura c USING (ano_eleicao,sq_candidato);
 
-CREATE OR REPLACE TABLE public.perfil_eleitorado AS
+CREATE OR REPLACE TABLE public.fato_perfil_eleitorado AS
 SELECT
     TRY_CAST(p.ano_eleicao AS INTEGER) AS ano_eleicao,
-    TRIM(p.cd_municipio_tse) AS cd_municipio_tse,
-    TRIM(p.ds_faixa_etaria) AS ds_faixa_etaria,
+    m.cd_municipio_ibge,
+    UPPER(TRIM(p.tp_dimensao)) AS tp_dimensao,
+    TRIM(p.ds_categoria) AS ds_categoria,
     TRY_CAST(SUM(TRY_CAST(p.qt_eleitores_perfil AS BIGINT)) AS INTEGER) AS qt_eleitores
 FROM stg_perfil p
 JOIN public.municipio m ON m.cd_municipio_tse = TRIM(p.cd_municipio_tse)
 WHERE TRY_CAST(p.qt_eleitores_perfil AS BIGINT) IS NOT NULL
-GROUP BY 1,2,3;
+  AND NULLIF(TRIM(p.tp_dimensao), '') IS NOT NULL
+  AND NULLIF(TRIM(p.ds_categoria), '') IS NOT NULL
+GROUP BY 1,2,3,4;
+
+-- Compatibilidade com o endpoint de eleitorado: a distribuição por idade é
+-- uma margem da tabela fato, não uma combinação com escolaridade/gênero.
+CREATE OR REPLACE VIEW public.perfil_eleitorado AS
+SELECT f.ano_eleicao, m.cd_municipio_tse,
+       f.ds_categoria AS ds_faixa_etaria, f.qt_eleitores
+FROM public.fato_perfil_eleitorado f
+JOIN public.municipio m USING (cd_municipio_ibge)
+WHERE f.tp_dimensao = 'FAIXA_ETARIA';
 
 CREATE OR REPLACE TABLE public.votacao_candidato_municipio AS
 SELECT

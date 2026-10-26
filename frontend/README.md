@@ -44,9 +44,47 @@ As chaves S3 compatíveis com R2 ainda são necessárias para administrar e carr
 
 ## Dados e estrutura
 
-O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2004–2024. A interface mostra o partido vencedor em cada município no mapa, filtro de cargo, faixas de gastos da questão 2, busca de candidatos/municípios e detalhes em gaveta.
+O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2004–2024. A interface mostra o partido vencedor em cada município no mapa, filtro de cargo, busca de candidatos/municípios, detalhes em gaveta e um card por questão, que abre a questão num painel próprio.
 
-Os pleitos de 2014 e 2016 já estão carregados: 2014 cobre os cargos estaduais/federais da eleição geral; 2016 cobre prefeito e vereador, com lacunas de votos por cargo em Guarulhos, Itapetininga, Itupeva e Lins. A votação presidencial está disponível para 2018 e 2022, carregada como complemento dos arquivos do TSE por seção; os demais anos gerais não têm esse complemento. A ausência de um município nessa tabela indica que não há votação publicada naquele grão; não a interprete como zero votos.
+### Linhas do tempo de município e candidato
+
+A ficha municipal apresenta a série dos candidatos mais votados para Presidente, Governador e Prefeito, com seleção de primeiro turno ou turno final. Os retratos de cada eleição abrem a trajetória da pessoa; a seta de retorno recupera o município. Os percentuais usam os votos nominais do próprio município, cargo, ano e turno, calculados antes de selecionar os cinco mais votados.
+
+A trajetória do candidato usa cartões horizontais e mantém patrimônio, receitas, despesas e as extensões das questões. Ausência de valor pago é exibida como dado não informado, com a quantidade de lançamentos disponíveis; as nuvens explicam suas limitações de cobertura.
+
+Os cartões de idade e escolaridade do eleitorado usam as marginais de `fato_perfil_eleitorado`. Gênero e estado civil ficam acessíveis em **Mais dados do município**, junto da série IBGE, IDHM 2000/2010 e escolaridade da população residente do Censo 2022 (18+). O cabeçalho usa o último ano com dado de cada indicador e mostra cada referência explicitamente. Escolaridade do cadastro eleitoral e da população censitária têm universos diferentes.
+
+### Duelo de candidatos
+
+O botão **Comparar candidatos** no cabeçalho abre o modo **Dois nomes. Uma disputa de histórias.** em uma janela de comparação. Nela é possível buscar dois candidatos independentemente do estado e comparar o histórico de cada um por eleição. Os anos em comum são comparados lado a lado; candidaturas de anos sem cruzamento aparecem como frases cronológicas, e a ação **Escolher anos para comparar** permite selecionar uma eleição de cada trajetória. Essa comparação deixa explícitos os anos e cargos selecionados, pois eleições diferentes não são a mesma disputa. A ausência de uma candidatura significa apenas que não há registro dela nesta amostra. A busca usa `/api/candidate-search`; os perfis e candidaturas vêm da mesma rota `/api/candidate/:id` usada pelas fichas. O comparativo mostra idade no primeiro turno, partido, cargo, município, resultado, votos, receitas de campanha (incluindo origens públicas e privadas), despesas pagas, patrimônio declarado e os lançamentos detalhados disponíveis. As curiosidades são calculadas a partir desses registros. Valores financeiros entre anos são nominais e não têm correção pela inflação. A busca cobre o conteúdo carregado no `BDR-TSE`; como no restante do painel, a base é uma amostra de estados e eleições, não o universo completo do TSE. As fotos seguem as dimensões e o tratamento usados nas fichas dos candidatos.
+
+Os pleitos de 2014 e 2016 já estão carregados: 2014 cobre os cargos estaduais/federais da eleição geral; 2016 cobre prefeito e vereador, com lacunas de votos por cargo em Guarulhos, Itapetininga, Itupeva e Lins. A votação presidencial está disponível para 2006, 2010, 2014, 2018 e 2022, carregada como complemento dos arquivos do TSE por seção e agregada por município nos dois turnos. A ausência de um município nessa tabela indica que não há votação publicada naquele grão; não a interprete como zero votos.
+
+A gaveta de município também apresenta fatos temporais IBGE/SIDRA (PIB, população, VAB, área e densidade), IDHM do Atlas para 2000 e 2010, escolaridade residente do Censo 2022 (18+) e perfil do eleitorado TSE (idade, gênero, estado civil e instrução). As dimensões do eleitorado são distribuições independentes, sem cruzamentos inferidos; indicadores sem publicação no ano selecionado são mostrados como ausentes.
+
+### Uma pasta por questão
+
+Cada questão tem os próprios arquivos, para que cada pessoa mexa só na sua e os commits não se cruzem:
+
+| Questão | Frontend | API |
+|---|---|---|
+| P1 custo por cadeira | `src/questoes/p1-custo-cadeira.ts` (+ `.css`) | `api/questoes/p1-custo-cadeira.ts` |
+| P2 patrimônio e gasto × sucesso | `src/questoes/p2-patrimonio-gasto.ts` | `api/questoes/p2-patrimonio-gasto.ts` |
+| P4 escolaridade | `src/questoes/p4-escolaridade.ts` | `api/questoes/p4-escolaridade.ts` |
+| P5 votos de legenda | `src/questoes/p5-legenda.ts` | `api/questoes/p5-legenda.ts` |
+| P8 financiamento público | `src/questoes/p8-financiamento.ts` | `api/questoes/p8-financiamento.ts` |
+| P9 propaganda (nuvens) | `src/questoes/p9-propaganda.ts` | `api/questoes/p9-propaganda.ts` |
+| P10 reeleição | `src/questoes/p10-reeleicao.ts` | `api/questoes/p10-reeleicao.ts` |
+
+O núcleo, que todas usam, fica à parte: `src/presentation.ts` (mapa, busca, gavetas, rotas), `src/painel.ts` (cards e painel), `src/util.ts`, `src/style.css`, `server.ts` (rotas do mapa, busca, ficha e município) e `api/banco.ts` (conexões com o MotherDuck, cache, `rows`, `json`). Mudanças nesses arquivos afetam todas as questões.
+
+**Frontend.** Cada `src/questoes/pN-*.ts` exporta por padrão um objeto com `id`, `numero`, `titulo`, `pergunta`, `resumo` e `montar(el)`, que desenha a questão dentro do painel; o contrato completo está em `src/questoes/tipos.ts`. `usaAno: true` faz o painel mostrar os anos do estado escolhido (P1, P2). Uma questão também pode acrescentar algo às gavetas sem mexer nelas: `gavetaMunicipio(m)` (a P4 põe a escolaridade na gaveta do município), `fichaCandidatura(c, h)` e `aoAbrirGaveta(corpo)` (a P9 põe as nuvens na ficha do candidato). `montar` é chamado ao abrir o painel e a cada troca de estado ou ano; leia o estado e o ano de `UF` e `ANO`, importados de `../presentation`.
+
+**API.** Cada `api/questoes/pN-*.ts` exporta `rotas` (caminho → função que recebe a `URL` e devolve a resposta) e, se precisar, `municipio(codigo)` ou `candidato(id, candidaturas)`, cujo resultado é mesclado à resposta de `/api/municipality/:id` ou `/api/candidate/:id`. Use `rows`, `comCache`, `json` e `viewDisponivel` de `../banco`.
+
+**Questão nova.** Crie `src/questoes/pN-nome.ts` e, se tiver API, `api/questoes/pN-nome.ts`; acrescente uma linha em `src/questoes/index.ts` (a ordem ali é a dos cards) e outra em `api/questoes/index.ts`. Esses dois registros são os únicos arquivos compartilhados entre as questões.
+
+**Painel e endereço.** O endereço acompanha o painel: `#/SP/p4` abre a questão 4 com São Paulo, `#/p4` com a amostra inteira, `#/SP` fecha o painel. Esc fecha a gaveta e depois o painel; o botão Voltar do navegador também fecha. Com a gaveta ou o painel abertos, a página por baixo não rola.
 
 ### Cargos no mapa
 

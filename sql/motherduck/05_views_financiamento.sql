@@ -1,16 +1,16 @@
 -- Q8 / P8 — Financiamento: peso das fontes de campanha por candidatura, faixa de
 -- dependência e partido. Banco BDR-TSE, schema public.
--- O consolidado do TSE traz apenas três fontes (FUNDO ESPECIAL, FUNDO PARTIDARIO
--- e OUTROS RECURSOS), sem detalhe por doador; o indicador público cobre a soma
--- dos fundos públicos (FEFC + fundo partidário) em relação ao total arrecadado.
+-- Usa a classificação explícita reconciliada em TP_ORIGEM_RECURSO. Fontes que
+-- não permitem separar com segurança público/privado permanecem sem classe;
+-- a porcentagem pública continua tendo o total arrecadado como denominador.
 
 CREATE OR REPLACE VIEW public.v_financiamento_candidatura AS
 WITH receptor AS (
     SELECT
         ano_eleicao, sq_candidato,
         SUM(vr_receita) AS total,
-        SUM(CASE WHEN ds_fonte_receita IN ('FUNDO ESPECIAL', 'FUNDO PARTIDARIO') THEN vr_receita ELSE 0 END) AS publicas,
-        SUM(CASE WHEN ds_fonte_receita = 'OUTROS RECURSOS' THEN vr_receita ELSE 0 END) AS outros
+        SUM(CASE WHEN tp_origem_recurso = 'PÚBLICO' THEN vr_receita ELSE 0 END) AS publicas,
+        SUM(CASE WHEN tp_origem_recurso = 'PRIVADO' THEN vr_receita ELSE 0 END) AS outros
     FROM public.receitas_campanha
     GROUP BY 1, 2
 )

@@ -1,0 +1,4 @@
+/* Estilos exclusivos da questão (p5-legenda). Vem com o módulo src/questoes/p5-legenda.ts. */
+.leg5-destaque{ font-size:1rem; margin:.1rem 0 .3rem; }
+.leg5-destaque b{ font-size:1.35rem; }
+tr.leg5-partido{ cursor:pointer; }

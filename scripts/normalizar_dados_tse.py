@@ -34,7 +34,7 @@ STAGES = {
     "votacao_candidato_munzona": ["ano_eleicao", "sg_uf", "cd_eleicao", "nr_turno", "cd_cargo", "cd_municipio_tse", "sq_candidato", "qt_votos_nominais", "source_file"],
     "votacao_partido_munzona": ["ano_eleicao", "sg_uf", "cd_eleicao", "nr_turno", "cd_cargo", "cd_municipio_tse", "nr_partido", "sg_partido", "qt_votos_legenda", "qt_votos_nominais", "source_file"],
     "detalhe_votacao_munzona": ["ano_eleicao", "sg_uf", "cd_eleicao", "nr_turno", "cd_cargo", "cd_municipio_tse", "nr_zona", "qt_aptos", "qt_comparecimento", "qt_abstencao", "source_file"],
-    "perfil_eleitorado_municipio": ["ano_eleicao", "sg_uf", "cd_municipio_tse", "nr_zona", "ds_faixa_etaria", "ds_genero", "ds_estado_civil", "ds_grau_instrucao", "qt_eleitores_perfil", "source_file"],
+    "perfil_eleitorado_municipio": ["ano_eleicao", "sg_uf", "cd_municipio_tse", "tp_dimensao", "ds_categoria", "qt_eleitores_perfil", "source_file"],
     "municipio_correspondencia": ["cd_municipio_tse", "cd_municipio_ibge", "nm_municipio", "sg_uf", "source_file"],
     "receita_candidato": ["ano_eleicao", "sq_candidato", "id_linha_origem", "ds_fonte_receita", "vr_receita", "tp_origem_recurso", "source_file"],
     "despesa_candidato": ["ano_eleicao", "sq_candidato", "id_linha_origem", "ds_despesa", "ds_categoria_despesa", "vr_pago", "source_file"],
@@ -527,9 +527,17 @@ def main():
                                 if code and val(r,"NM_MUNICIPIO"):
                                     municipalities.setdefault(code,(code,None,val(r,"NM_MUNICIPIO"),sg,source_file))
                                 qty=val(r,"QT_ELEITORES",val(r,"QT_ELEITORES_PERFIL")) or ""
-                                age=(val(r,"DS_FAIXA_ETARIA") or "").strip()
-                                if code and code.isdigit() and age and qty.isdigit():
-                                    profile_counts[(val(r,"ANO_ELEICAO",val(r,"AA_ELEICAO",str(year))),sg,code,age)]+=int(qty)
+                                election_year=val(r,"ANO_ELEICAO",val(r,"AA_ELEICAO",str(year)))
+                                dimensions=(
+                                    ("FAIXA_ETARIA", val(r,"DS_FAIXA_ETARIA")),
+                                    ("GENERO", val(r,"DS_GENERO")),
+                                    ("ESTADO_CIVIL", val(r,"DS_ESTADO_CIVIL")),
+                                    ("GRAU_INSTRUCAO", val(r,"DS_GRAU_INSTRUCAO")),
+                                )
+                                present=[(kind,(category or "").strip()) for kind,category in dimensions if (category or "").strip()]
+                                if code and code.isdigit() and present and qty.isdigit():
+                                    for kind,category in present:
+                                        profile_counts[(election_year,sg,code,kind,category)]+=int(qty)
                                 else:
                                     profile_invalid += 1
                         # Consuming every selected CSV to EOF verifies its ZIP CRC.
@@ -539,8 +547,8 @@ def main():
         # The destination grain is municipality/year/age band. Sum the other
         # source dimensions locally so the DB staging does not retain millions
         # of detail rows that 04 immediately aggregates away.
-        for (year,sg,code,age),qty in profile_counts.items():
-            out.put("perfil_eleitorado_municipio",[year,sg,code,"",age,"","","",qty,"perfil_agregado_local"])
+        for (year,sg,code,dimension,category),qty in profile_counts.items():
+            out.put("perfil_eleitorado_municipio",[year,sg,code,dimension,category,qty,"perfil_agregado_local"])
         for row in municipalities.values():
             out.put("municipio_correspondencia",row)
         for z in expected_zones:
