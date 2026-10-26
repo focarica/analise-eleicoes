@@ -46,11 +46,21 @@ As chaves S3 compatíveis com R2 ainda são necessárias para administrar e carr
 
 O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2004–2024. A interface mostra o partido vencedor em cada município no mapa, filtro de cargo, busca de candidatos/municípios, detalhes em gaveta e um card por questão, que abre a questão num painel próprio.
 
+### Linhas do tempo de município e candidato
+
+A ficha municipal apresenta a série dos candidatos mais votados para Presidente, Governador e Prefeito, com seleção de primeiro turno ou turno final. Os retratos de cada eleição abrem a trajetória da pessoa; a seta de retorno recupera o município. Os percentuais usam os votos nominais do próprio município, cargo, ano e turno, calculados antes de selecionar os cinco mais votados.
+
+A trajetória do candidato usa cartões horizontais e mantém patrimônio, receitas, despesas e as extensões das questões. Ausência de valor pago é exibida como dado não informado, com a quantidade de lançamentos disponíveis; as nuvens explicam suas limitações de cobertura.
+
+Os cartões de idade e escolaridade do eleitorado usam as marginais de `fato_perfil_eleitorado`. Gênero e estado civil ficam acessíveis em **Mais dados do município**, junto da série IBGE, IDHM 2000/2010 e escolaridade da população residente do Censo 2022 (18+). O cabeçalho usa o último ano com dado de cada indicador e mostra cada referência explicitamente. Escolaridade do cadastro eleitoral e da população censitária têm universos diferentes.
+
 ### Duelo de candidatos
 
 O botão **Comparar candidatos** no cabeçalho abre o modo **Dois nomes. Uma disputa de histórias.** em uma janela de comparação. Nela é possível buscar dois candidatos independentemente do estado e comparar o histórico de cada um por eleição. Os anos em comum são comparados lado a lado; candidaturas de anos sem cruzamento aparecem como frases cronológicas, e a ação **Escolher anos para comparar** permite selecionar uma eleição de cada trajetória. Essa comparação deixa explícitos os anos e cargos selecionados, pois eleições diferentes não são a mesma disputa. A ausência de uma candidatura significa apenas que não há registro dela nesta amostra. A busca usa `/api/candidate-search`; os perfis e candidaturas vêm da mesma rota `/api/candidate/:id` usada pelas fichas. O comparativo mostra idade no primeiro turno, partido, cargo, município, resultado, votos, receitas de campanha (incluindo origens públicas e privadas), despesas pagas, patrimônio declarado e os lançamentos detalhados disponíveis. As curiosidades são calculadas a partir desses registros. Valores financeiros entre anos são nominais e não têm correção pela inflação. A busca cobre o conteúdo carregado no `BDR-TSE`; como no restante do painel, a base é uma amostra de estados e eleições, não o universo completo do TSE. As fotos seguem as dimensões e o tratamento usados nas fichas dos candidatos.
 
-Os pleitos de 2014 e 2016 já estão carregados: 2014 cobre os cargos estaduais/federais da eleição geral; 2016 cobre prefeito e vereador, com lacunas de votos por cargo em Guarulhos, Itapetininga, Itupeva e Lins. A votação presidencial está disponível para 2018 e 2022, carregada como complemento dos arquivos do TSE por seção; os demais anos gerais não têm esse complemento. A ausência de um município nessa tabela indica que não há votação publicada naquele grão; não a interprete como zero votos.
+Os pleitos de 2014 e 2016 já estão carregados: 2014 cobre os cargos estaduais/federais da eleição geral; 2016 cobre prefeito e vereador, com lacunas de votos por cargo em Guarulhos, Itapetininga, Itupeva e Lins. A votação presidencial está disponível para 2006, 2010, 2014, 2018 e 2022, carregada como complemento dos arquivos do TSE por seção e agregada por município nos dois turnos. A ausência de um município nessa tabela indica que não há votação publicada naquele grão; não a interprete como zero votos.
+
+A gaveta de município também apresenta fatos temporais IBGE/SIDRA (PIB, população, VAB, área e densidade), IDHM do Atlas para 2000 e 2010, escolaridade residente do Censo 2022 (18+) e perfil do eleitorado TSE (idade, gênero, estado civil e instrução). As dimensões do eleitorado são distribuições independentes, sem cruzamentos inferidos; indicadores sem publicação no ano selecionado são mostrados como ausentes.
 
 ### Uma pasta por questão
 

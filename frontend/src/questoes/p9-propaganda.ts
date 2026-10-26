@@ -91,9 +91,8 @@ window.addEventListener("resize", () => {
 function nuvemPropaganda(c, h){
   const filtrar = rows => rows.filter(r => +r.ano_eleicao === +c.ano_eleicao && r.ds_cargo === c.cargo);
   const valor = filtrar(h.propagandaValor), frequencia = filtrar(h.propagandaFrequencia);
-  if (!valor.length && !frequencia.length) return "";
   const render = (rows, modo) => {
-    if (!rows.length) return `<p class="aviso-mini">Sem lançamentos classificados como propaganda nesta candidatura.</p>`;
+    if (!rows.length) return `<p class="aviso-mini">Nuvem indisponível: esta métrica depende de lançamentos com categoria reconhecida e valor pago informado. Se a fonte não traz o valor pago ou usa uma categoria histórica ainda não reconhecida, a nuvem fica vazia; isso não significa gasto zero nem ausência de despesas.</p>`;
     return `<div class="nuvem" data-modo="${modo}" role="list" aria-label="Termos de propaganda por ${modo === "valor" ? "valor gasto" : "frequência de lançamentos"}">${rows.map(r =>
       `<span role="listitem" tabindex="0" data-peso="${+r.peso || 0}" data-valor="${+r.valor_pago_associado || 0}" data-lancamentos="${+r.qt_lancamentos || 0}">${esc(r.termo)}</span>`
     ).join("")}<div class="nuvem-tooltip" role="tooltip" hidden></div></div>`;
@@ -106,7 +105,7 @@ function nuvemPropaganda(c, h){
       </div>
       <div data-q9-nuvem="valor">${render(valor, "valor")}</div>
       <div data-q9-nuvem="frequencia" hidden>${render(frequencia, "frequencia")}</div>
-      <p class="aviso-mini">Valor associa a cada termo os pagamentos dos lançamentos que o contêm; termos diferentes podem compartilhar o mesmo gasto. Frequência conta lançamentos, não unidades compradas, e pode incluir parcelas. Passe o cursor sobre um termo para ver os valores.</p>
+      <p class="aviso-mini">As duas nuvens atuais dependem de lançamentos com valor pago informado. Valor associa a cada termo os pagamentos dos lançamentos que o contêm; termos diferentes podem compartilhar o mesmo gasto. Frequência conta lançamentos, não unidades compradas, e pode incluir parcelas. Nos anos em que o TSE não informa valor pago, as nuvens não são calculadas. Passe o cursor sobre um termo para ver os valores.</p>
     </div>
   </details>`;
 }

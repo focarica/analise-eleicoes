@@ -272,7 +272,7 @@ function frase(a: Perfil, b: Perfil, sa: ReturnType<typeof resumir>, sb: ReturnT
 }
 function detalheLista(items: any[], rotulo: string, key: string, contexto = "") {
   if (!items.length) return "";
-  return `<details class="duelo-detalhes"><summary>${rotulo}: ${items.length} registros${contexto ? ` · ${esc(contexto)}` : ""}</summary><ul>${items.map(i=>`<li><span>${esc(i[key] || i.fonte || i.tipo || "Registro")}</span><b>${dinheiro(i.valor)}</b></li>`).join("")}</ul></details>`;
+  return `<details class="duelo-detalhes"><summary>${rotulo}: ${items.length} registros${contexto ? ` · ${esc(contexto)}` : ""}</summary><ul>${items.map(i=>`<li><span>${esc(i[key] || i.fonte || i.tipo || "Registro")}</span><b>${i.valor == null && rotulo === "Despesas pagas" ? "Valor não informado na fonte" : dinheiro(i.valor)}</b></li>`).join("")}</ul></details>`;
 }
 function candidaturas(cs: Candidatura[], nascimento?: string) {
   if (!cs.length) return `<p class="duelo-sem-candidatura">Sem candidatura nesta eleição na base.</p>`;
@@ -285,8 +285,8 @@ function candidaturas(cs: Candidatura[], nascimento?: string) {
     return `<article class="duelo-candidatura">
       <div class="duelo-cargo"><b>${esc(cargoNome(c.cargo))}</b><span>${esc(c.partido || "Partido não informado")} ${c.situacao ? `· ${esc(sitTxt(c.situacao))}` : ""}${turno}</span></div>
       ${c.nm_urna_candidato?`<p class="duelo-local">Na urna: ${esc(titulo(c.nm_urna_candidato))}</p>`:""}${cidade?`<p class="duelo-local">${esc(cidade)}</p>`:""}
-      <dl class="duelo-metricas"><div><dt>Idade no ano</dt><dd>${idade == null ? "Sem dado" : `${idade} anos`}</dd></div><div><dt>Votos</dt><dd>${c.votos==null?"Sem dado":fmt.format(n(c.votos))}</dd></div><div><dt>Arrecadado</dt><dd>${dinheiro(c.total_receitas)}</dd></div><div><dt>Despesas</dt><dd>${dinheiro(c.total_despesas)}</dd></div><div><dt>Patrimônio declarado</dt><dd>${dinheiro(c.patrimonio_declarado)}</dd></div></dl>
-      ${detalheLista(receitas,"Fontes de receita","fonte",origemReceita)}${detalheLista(despesas,"Despesas pagas","despesa",`${fmt.format(n(c.qt_despesas))} lançamentos · ${dinheiro(c.total_despesas)}`)}${detalheLista(bens,"Bens declarados","descricao")}
+      <dl class="duelo-metricas"><div><dt>Idade no ano</dt><dd>${idade == null ? "Sem dado" : `${idade} anos`}</dd></div><div><dt>Votos</dt><dd>${c.votos==null?"Sem dado":fmt.format(n(c.votos))}</dd></div><div><dt>Arrecadado</dt><dd>${dinheiro(c.total_receitas)}</dd></div><div><dt>Despesas</dt><dd>${c.qt_despesas === 0 ? "Sem registro na base" : c.total_despesas == null ? "Valor pago não informado na fonte" : dinheiro(c.total_despesas)}</dd></div><div><dt>Patrimônio declarado</dt><dd>${dinheiro(c.patrimonio_declarado)}</dd></div></dl>
+      ${detalheLista(receitas,"Fontes de receita","fonte",origemReceita)}${detalheLista(despesas,"Despesas pagas","despesa",`${fmt.format(n(c.qt_despesas))} lançamentos · ${c.total_despesas == null && c.qt_despesas > 0 ? "valor pago não informado na fonte" : dinheiro(c.total_despesas)}`)}${detalheLista(bens,"Bens declarados","descricao")}
     </article>`;
   }).join("");
 }

@@ -116,7 +116,7 @@ def main():
         load(table, stage / f'{source}.csv', normalizer.STAGES[source])
     model = (REPO / 'sql/motherduck/02_carga_modelo.sql').read_text()
     c.execute(model[:model.index('CREATE OR REPLACE TABLE public.municipio AS')])
-    c.execute(model[model.index('CREATE OR REPLACE TABLE public.candidatura AS'):model.index('CREATE OR REPLACE TABLE public.perfil_eleitorado AS')])
+    c.execute(model[model.index('CREATE OR REPLACE TABLE public.candidatura AS'):model.index('CREATE OR REPLACE TABLE public.fato_perfil_eleitorado AS')])
     c.execute(model[model.index('CREATE OR REPLACE TABLE public.votacao_candidato_municipio AS'):model.index('CREATE OR REPLACE TABLE public.votacao_partido AS')])
 
     def scalar(sql):

@@ -9,9 +9,9 @@ export const ORDEM_CARGO = ["GOVERNADOR","SENADOR","DEPUTADO FEDERAL","DEPUTADO 
 // ordem dos botões de cargo no mapa; o primeiro disponível é o padrão do ano
 export const ORDEM_COD = [11, 13, 3, 5, 1, 6, 7, 8];
 export const ELEITO = new Set(["ELEITO","ELEITO POR QP","ELEITO POR MÉDIA"]);
-// A votação presidencial foi carregada por município para as eleições gerais
-// de 2018 e 2022.
-export const ANOS_PRESIDENTE = new Set([2018, 2022]);
+// A votação presidencial foi carregada por município em todos os pleitos gerais
+// disponíveis no escopo atual.
+export const ANOS_PRESIDENTE = new Set([2006, 2010, 2014, 2018, 2022]);
 export const ANOS_GERAIS = new Set([2006, 2010, 2014, 2018, 2022]);
 export const ANOS_MUNICIPAIS = new Set([2004, 2008, 2012, 2016, 2020, 2024]);
 
