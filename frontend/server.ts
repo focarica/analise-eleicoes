@@ -3,6 +3,7 @@ import {
   ConsultaLenta, DATABASE, UFS, YEARS, buscaCacheVersionado, comCache, errorMessage, json, rows, seguido,
 } from "./api/banco";
 import { EXTENSOES_CANDIDATO, EXTENSOES_MUNICIPIO, ROTAS_QUESTOES } from "./api/questoes";
+import { fundoPublico } from "./api/questoes/p8-financiamento";
 
 // Núcleo da API: mapa, busca, fotos, ficha do candidato e gaveta do município.
 // As rotas de cada questão ficam em api/questoes/ (uma por arquivo).
@@ -29,7 +30,7 @@ receita_linhas AS (
         COALESCE(
             NULLIF(rc.tp_origem_recurso, ''),
             CASE
-                WHEN rc.ds_fonte_receita IN ('FUNDO ESPECIAL', 'FUNDO PARTIDARIO') THEN 'PÚBLICO'
+                WHEN ${fundoPublico("rc.ds_fonte_receita")} THEN 'PÚBLICO'
                 WHEN rc.ds_fonte_receita = 'OUTROS RECURSOS' THEN 'PRIVADO'
                 ELSE 'INDEFINIDO'
             END

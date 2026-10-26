@@ -6,6 +6,44 @@ import type { Rotas } from "./tipos";
 const FAIXAS = new Set(["[00,25)", "[25,50)", "[50,75)", "[75,100]"]);
 const SEM_RECEITA_FAIXA = new Set(["sem receita"]);
 
+// Fundo público = FEFC + fundo partidário. O TSE grava a fonte com grafias variadas
+// ("Fundo Partidario", "Fundo Partidáo", "RECURSOS DO FUNDO PARTIDÁRIO"), então a
+// comparação ignora caixa, acentos e espaços. Sem isso, 2010–2016 ficam sem fundo público.
+export const fundoPublico = (coluna: string) =>
+  `UPPER(strip_accents(TRIM(${coluna}))) IN ('FUNDO ESPECIAL', 'FUNDO PARTIDARIO', 'FUNDO PARTIDAO', 'RECURSOS DO FUNDO PARTIDARIO')`;
+
+// Mesma regra da view v_financiamento_candidatura (sql/motherduck/05_views_financiamento.sql),
+// com a normalização de fundoPublico. Se a view mudar, mude aqui também.
+const SQL_FINANCIAMENTO_CANDIDATURA = `
+WITH receptor AS (
+    SELECT
+        ano_eleicao, sq_candidato,
+        SUM(vr_receita) AS total,
+        SUM(CASE WHEN ${fundoPublico("ds_fonte_receita")} THEN vr_receita ELSE 0 END) AS publicas
+    FROM public.receitas_campanha
+    GROUP BY 1, 2
+)
+SELECT
+    c.ano_eleicao, c.sq_candidato, c.cd_cargo,
+    COALESCE(m.sg_uf, c.sg_ue) AS uf,
+    c.sg_partido, c.ds_sit_tot_turno,
+    CASE WHEN c.ds_sit_tot_turno IN ('ELEITO', 'ELEITO POR QP', 'ELEITO POR MÉDIA') THEN 1 ELSE 0 END AS eleito,
+    r.total, COALESCE(r.publicas, 0) AS publicas,
+    CASE WHEN r.total > 0 THEN 100.0 * r.publicas / r.total ELSE NULL END AS pct_publico,
+    CASE
+        WHEN COALESCE(r.total, 0) = 0 THEN 'sem receita'
+        WHEN 100.0 * r.publicas / r.total < 25 THEN '[00,25)'
+        WHEN 100.0 * r.publicas / r.total < 50 THEN '[25,50)'
+        WHEN 100.0 * r.publicas / r.total < 75 THEN '[50,75)'
+        ELSE '[75,100]'
+    END AS faixa
+FROM public.candidatura c
+LEFT JOIN public.municipio m ON m.cd_municipio_tse = c.cd_municipio_tse
+LEFT JOIN receptor r ON r.ano_eleicao = c.ano_eleicao AND r.sq_candidato = c.sq_candidato
+WHERE c.ds_sit_tot_turno IS NOT NULL
+  AND c.cd_cargo IN (1, 3, 5, 6, 7, 8, 11, 13)
+`;
+
 export const rotas: Rotas = {
   "/api/financiamento": async (url: URL) => {
     const uf = (url.searchParams.get("uf") || "").toUpperCase();
@@ -16,19 +54,19 @@ export const rotas: Rotas = {
       : uf ? ["WHERE uf = $1", [uf]]
       : cargo ? [`WHERE cd_cargo = $1`, [cargo]]
       : ["", []];
-    const [faixas, fontes, partidos] = await comCache(`fin:${uf || "*"}:${cargo}`, () => seguido([
+    const [faixas, fontes, partidos] = await comCache(`fin2:${uf || "*"}:${cargo}`, () => seguido([
       () => rows(`SELECT cd_cargo, ano_eleicao, faixa,
-                   SUM(candidaturas) AS candidaturas, SUM(eleitas) AS eleitas,
-                   ROUND(SUM(eleitas) * 100.0 / NULLIF(SUM(candidaturas), 0), 1) AS taxa_eleicao
-            FROM public.v_financiamento_faixas ${condicao}
+                   COUNT(*) AS candidaturas, SUM(eleito) AS eleitas,
+                   ROUND(SUM(eleito) * 100.0 / NULLIF(COUNT(*), 0), 1) AS taxa_eleicao
+            FROM (${SQL_FINANCIAMENTO_CANDIDATURA}) v ${condicao}
             GROUP BY 1, 2, 3`, params),
       () => rows(`SELECT cd_cargo, ano_eleicao, ds_fonte_receita, SUM(total) AS total
             FROM public.v_financiamento_fontes ${condicao}
             GROUP BY 1, 2, 3`, params),
       () => rows(`SELECT cd_cargo, ano_eleicao, sg_partido,
-                   SUM(candidaturas) AS candidaturas, SUM(eleitas) AS eleitas,
-                   SUM(arrecadado) AS arrecadado, SUM(publicas) AS publicas
-            FROM public.v_financiamento_partidos ${condicao}
+                   COUNT(*) AS candidaturas, SUM(eleito) AS eleitas,
+                   SUM(total) AS arrecadado, SUM(publicas) AS publicas
+            FROM (${SQL_FINANCIAMENTO_CANDIDATURA}) v ${condicao}
             GROUP BY 1, 2, 3`, params),
     ]));
     const partidosFechados = partidos.map((r: any) => ({
@@ -83,13 +121,13 @@ export const rotas: Rotas = {
       params.push(...anosSel);
     }
     if (uf) { condicoes.push(`v.uf = $${params.length + 1}`); params.push(uf); }
-    const pessoas = await comCache(`finp:${uf || "*"}:${cargo}:${ano}:${faixa}:${limite}:${desde}`, () => rows(
+    const pessoas = await comCache(`finp2:${uf || "*"}:${cargo}:${ano}:${faixa}:${limite}:${desde}`, () => rows(
       `SELECT ca.id_pessoa_projeto AS id, ca.nm_urna_candidato AS urna, pc.nm_candidato AS nome,
               v.sg_partido AS partido, v.ds_sit_tot_turno AS situacao, v.ano_eleicao AS ano,
               COALESCE(m.sg_uf, ca.sg_ue) AS uf, m.nm_municipio AS municipio,
               ROUND(v.pct_publico, 1) AS pct_publico, ROUND(v.publicas, 2) AS publicas,
               ROUND(v.total, 2) AS total
-       FROM public.v_financiamento_candidatura v
+       FROM (${SQL_FINANCIAMENTO_CANDIDATURA}) v
        JOIN public.candidatura ca ON ca.ano_eleicao = v.ano_eleicao AND ca.sq_candidato = v.sq_candidato
        JOIN public.candidato pc ON pc.id_pessoa_projeto = ca.id_pessoa_projeto
        LEFT JOIN public.municipio m ON m.cd_municipio_tse = ca.cd_municipio_tse
