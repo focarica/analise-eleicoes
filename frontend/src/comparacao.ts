@@ -146,6 +146,89 @@ function candidaturas(cs: Candidatura[], nascimento?: string) {
     </article>`;
   }).join("");
 }
+function fraseDaCandidatura(c: Candidatura, nome: string, nascimento?: string) {
+  const idade = idadeEm(nascimento, Number(c.ano_eleicao));
+  const cargo = cargoNome(c.cargo);
+  const onde = [c.nm_municipio, c.uf].filter(Boolean).map(titulo).join(" · ");
+  const detalhes = [
+    `${cargo}${c.partido ? ` pelo ${c.partido}` : ""}${onde ? ` em ${onde}` : ""}` ,
+    `${idade == null ? "" : `${idade} anos`}` ,
+    `${c.votos == null ? "votos sem dado" : `${fmt.format(n(c.votos))} votos`}` ,
+    `${c.situacao ? sitTxt(c.situacao) : "resultado sem informação"}` ,
+    `arrecadou ${dinheiro(c.total_receitas)}` ,
+    `declarou ${dinheiro(c.total_despesas)} em despesas` ,
+    `e ${dinheiro(c.patrimonio_declarado)} em bens` ,
+  ].filter(Boolean);
+  return `${titulo(nome)}: ${detalhes.join("; ")}.`;
+}
+function anosSemPar(a: Perfil, b: Perfil, sa: ReturnType<typeof resumir>, sb: ReturnType<typeof resumir>) {
+  const anosA = new Set(sa.years), anosB = new Set(sb.years);
+  return [...new Set([...sa.years, ...sb.years])].sort((x,y)=>x-y).flatMap(ano => {
+    const csA = sa.cs.filter(c=>Number(c.ano_eleicao)===ano);
+    const csB = sb.cs.filter(c=>Number(c.ano_eleicao)===ano);
+    if (!!csA.length === !!csB.length) return [];
+    const ausente = csA.length ? b : a, presente = csA.length ? a : b;
+    const registros = csA.length ? csA : csB;
+    const anosAusente = csA.length ? anosB : anosA;
+    const primeiro = Math.min(...anosAusente), ultimo = Math.max(...anosAusente);
+    let contexto: string;
+    if (ano < primeiro) contexto = `Antes de ${titulo(ausente.nm_candidato)} aparecer entre as candidaturas desta amostra, em ${ano} `;
+    else if (ano > ultimo) contexto = `Depois da última candidatura de ${titulo(ausente.nm_candidato)} registrada nesta amostra, em ${ano} `;
+    else contexto = `Em ${ano}, ${titulo(ausente.nm_candidato)} não tem candidatura registrada nesta amostra; enquanto isso, `;
+    const nome = presente.nm_candidato;
+    return [`${contexto}${registros.map(c=>fraseDaCandidatura(c,nome,presente.dt_nascimento)).join(" ")}`];
+  });
+}
+function opcoesDeCandidatura(cs: Candidatura[]) {
+  return cs.map((c,index)=>({c,index})).sort((x,y)=>Number(x.c.ano_eleicao)-Number(y.c.ano_eleicao)||String(x.c.cargo).localeCompare(String(y.c.cargo)));
+}
+function rotuloCandidatura(c: Candidatura) {
+  return [c.ano_eleicao,cargoNome(c.cargo),c.partido,[c.nm_municipio,c.uf].filter(Boolean).join(" · ")].filter(Boolean).join(" · ");
+}
+function fatosEntreAnos(ca: Candidatura, cb: Candidatura, a: Perfil, b: Perfil) {
+  const fatos = [`${titulo(a.nm_candidato)} teve ${ca.votos==null?"votos sem dado":`${fmt.format(n(ca.votos))} votos`} na candidatura de ${ca.ano_eleicao}; ${titulo(b.nm_candidato)} teve ${cb.votos==null?"votos sem dado":`${fmt.format(n(cb.votos))} votos`} na de ${cb.ano_eleicao}.`];
+  const ia=idadeEm(a.dt_nascimento,Number(ca.ano_eleicao)), ib=idadeEm(b.dt_nascimento,Number(cb.ano_eleicao));
+  if (ia!=null && ib!=null && (ca.ano_eleicao!==cb.ano_eleicao || ia!==ib)) fatos.push(`Em ${ca.ano_eleicao}, ${titulo(a.nm_candidato)} tinha ${ia} anos; em ${cb.ano_eleicao}, ${titulo(b.nm_candidato)} tinha ${ib}.`);
+  const comparacao = (rotulo: string, va: unknown, vb: unknown) => {
+    const x=n(va), y=n(vb); if (x===y) return null;
+    const nome=x>y?a.nm_candidato:b.nm_candidato, maior=Math.max(x,y), menor=Math.min(x,y);
+    return menor>0 ? `${titulo(nome)} registrou ${(maior/menor).toLocaleString("pt-BR",{maximumFractionDigits:1})}× ${rotulo} na candidatura de ${x>y?ca.ano_eleicao:cb.ano_eleicao} (${dinheiro(maior)} contra ${dinheiro(menor)}).` : `${titulo(nome)} registrou ${dinheiro(maior)} em ${rotulo}; o outro registro mostra ${dinheiro(menor)}.`;
+  };
+  for (const [label,x,y] of [["despesas de campanha",ca.total_despesas,cb.total_despesas],["arrecadação de campanha",ca.total_receitas,cb.total_receitas],["patrimônio declarado",ca.patrimonio_declarado,cb.patrimonio_declarado]] as [string,unknown,unknown][]) {
+    const f=comparacao(label,x,y); if (f) fatos.push(f);
+  }
+  return fatos;
+}
+function ligarComparacaoEntreAnos(out: HTMLElement, a: Perfil, b: Perfil, sa: ReturnType<typeof resumir>, sb: ReturnType<typeof resumir>) {
+  const abrir = out.querySelector<HTMLButtonElement>("[data-abrir-anos]");
+  const painel = out.querySelector<HTMLElement>("[data-painel-anos]");
+  const selecionarA = out.querySelector<HTMLSelectElement>("[data-ano-a]");
+  const selecionarB = out.querySelector<HTMLSelectElement>("[data-ano-b]");
+  const executar = out.querySelector<HTMLButtonElement>("[data-executar-anos]");
+  const resultado = out.querySelector<HTMLElement>("[data-resultado-anos]");
+  if (!abrir || !painel || !selecionarA || !selecionarB || !executar || !resultado) return;
+  const opA=opcoesDeCandidatura(sa.cs), opB=opcoesDeCandidatura(sb.cs);
+  const preencher=(select:HTMLSelectElement, opcoes:{c:Candidatura;index:number}[])=>{
+    select.innerHTML=opcoes.map(o=>`<option value="${o.index}">${esc(rotuloCandidatura(o.c))}</option>`).join("");
+  };
+  preencher(selecionarA,opA); preencher(selecionarB,opB);
+  selecionarA.value=String(opA[0].index); selecionarB.value=String(opB.at(-1)!.index);
+  selecionarA.addEventListener("change",()=>{resultado.hidden=true;});
+  selecionarB.addEventListener("change",()=>{resultado.hidden=true;});
+  abrir.addEventListener("click",()=>{
+    painel.hidden=!painel.hidden;
+    abrir.setAttribute("aria-expanded",String(!painel.hidden));
+    if (!painel.hidden) selecionarA.focus();
+  });
+  executar.addEventListener("click",()=>{
+    const ca=sa.cs[Number(selecionarA.value)], cb=sb.cs[Number(selecionarB.value)];
+    if (!ca || !cb) return;
+    resultado.innerHTML=`<p class="duelo-aviso-anos">Anos e possivelmente cargos diferentes: são duas trajetórias eleitorais, não a mesma disputa. Os valores financeiros são nominais, sem correção pela inflação.</p><ol class="duelo-trivia-fatos">${fatosEntreAnos(ca,cb,a,b).map((f,i)=>`<li><span>${String(i+1).padStart(2,"0")}</span><p>${esc(f)}</p></li>`).join("")}</ol><div class="duelo-anos-lados"><section><h4>${esc(titulo(a.nm_candidato))} · ${ca.ano_eleicao}</h4>${candidaturas([ca],a.dt_nascimento)}</section><section><h4>${esc(titulo(b.nm_candidato))} · ${cb.ano_eleicao}</h4>${candidaturas([cb],b.dt_nascimento)}</section></div>`;
+    resultado.hidden=false;
+    resultado.querySelectorAll<HTMLImageElement>("[data-duelo-foto]").forEach(img=>img.addEventListener("error",()=>img.remove(),{once:true}));
+    resultado.scrollIntoView({block:"nearest",behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"instant":"smooth"});
+  });
+}
 function desenharResultado() {
   const out = document.getElementById("duelo-resultado")!;
   const a=perfis.a,b=perfis.b;
@@ -154,13 +237,29 @@ function desenharResultado() {
     else out.innerHTML = `<div class="duelo-vazio"><span aria-hidden="true">＋</span><p>Escolha dois candidatos para revelar as curiosidades que a história eleitoral guardou.</p></div>`;
     return;
   }
-  const sa=resumir(a), sb=resumir(b), all=[...new Set([...sa.years,...sb.years])].sort((x,y)=>x-y);
+  const sa=resumir(a), sb=resumir(b);
+  const comuns=sa.years.filter(y=>sb.years.includes(y));
+  const foraDoPar=anosSemPar(a,b,sa,sb);
   const avatar = (p:Perfil, s:string) => {
     const foto = [...p.candidacies].sort((x,y)=>Number(y.ano_eleicao)-Number(x.ano_eleicao)).find(c=>Number(c.ano_eleicao)<=2016 && c.sq_candidato);
     const src = foto ? `/api/photo/${Number(foto.ano_eleicao)}/${Number(foto.sq_candidato)}` : "";
     return `<div class="duelo-identidade lado-${s}"><span class="foto-frame foto-topo duelo-foto">${esc((p.nm_candidato||"?").trim().split(/\s+/).slice(0,2).map(x=>x[0]).join("").toUpperCase())}${src?`<img data-duelo-foto src="${src}" alt="" aria-hidden="true">`:""}</span><div><h3>${esc(titulo(p.nm_candidato))}</h3><p>${esc([p.ds_genero,p.ds_cor_raca].filter(Boolean).map(titulo).join(" · ") || "Perfil eleitoral")}</p></div></div>`;
   };
+  const identidades = `<div class="duelo-identidades">${avatar(a,"a")}<span class="duelo-vs pequeno">×</span>${avatar(b,"b")}</div>`;
+  const narrativa = foraDoPar.length ? `<section class="duelo-sem-par"><h3>Enquanto isso, nas urnas</h3><p>Estes pleitos não coincidem. Abaixo, cada registro fica no seu próprio ano.</p><ol>${foraDoPar.map((f,i)=>`<li><span>${String(i+1).padStart(2,"0")}</span><p>${esc(f)}</p></li>`).join("")}</ol><small>“Sem candidatura registrada” descreve apenas esta base; não indica afastamento da política.</small></section>` : "";
+  const compararAnos = `<div class="duelo-comparar-anos"><button class="duelo-abrir-anos" type="button" data-abrir-anos aria-expanded="false" aria-controls="duelo-painel-anos">Escolher anos para comparar</button><div class="duelo-painel-anos" id="duelo-painel-anos" data-painel-anos hidden><p>Escolha uma candidatura de cada trajetória. Os anos, cargos e disputas podem ser diferentes.</p><div class="duelo-seletores-anos"><label>${esc(titulo(a.nm_candidato))}<select data-ano-a aria-label="Ano e candidatura de ${esc(titulo(a.nm_candidato))}"></select></label><label>${esc(titulo(b.nm_candidato))}<select data-ano-b aria-label="Ano e candidatura de ${esc(titulo(b.nm_candidato))}"></select></label></div><button class="duelo-executar-anos" type="button" data-executar-anos>Comparar estas candidaturas</button><div data-resultado-anos hidden></div></div></div>`;
+  if (!comuns.length) {
+    out.innerHTML=`<section class="duelo-sem-encontro"><p class="duelo-contexto">As candidaturas de ${esc(titulo(a.nm_candidato))} e ${esc(titulo(b.nm_candidato))} não aparecem no mesmo ano da amostra.</p>${identidades}${narrativa}<p class="duelo-nota-base">As frases resumem cada candidatura sem tratar eleições diferentes como a mesma disputa.</p>${compararAnos}</section>`;
+    ligarComparacaoEntreAnos(out,a,b,sa,sb);
+    out.querySelectorAll<HTMLImageElement>("[data-duelo-foto]").forEach(img=>img.addEventListener("error",()=>img.remove(),{once:true}));
+    return;
+  }
   const summary = (p:Perfil,s:ReturnType<typeof resumir>) => `<dl class="duelo-resumo"><div><dt>Nas urnas</dt><dd>${s.years.length} eleições</dd></div><div><dt>Votos somados</dt><dd>${fmt.format(s.votos)}</dd></div><div><dt>Receita de campanha</dt><dd>${dinheiro(s.receitas)}</dd></div><div><dt>Despesas</dt><dd>${dinheiro(s.gastos)}</dd></div><div><dt>Vitórias registradas</dt><dd>${s.eleito}</dd></div><div><dt>Escolaridade</dt><dd>${esc(titulo(p.ds_grau_instrucao||"Não informada"))}</dd></div></dl>`;
-  out.innerHTML = `<div class="duelo-placar"><div class="duelo-identidades">${avatar(a,"a")}<span class="duelo-vs pequeno">×</span>${avatar(b,"b")}</div><div class="duelo-saldos">${summary(a,sa)}<span class="duelo-saldo-vs" aria-hidden="true">×</span>${summary(b,sb)}</div></div><section class="duelo-trivia" aria-labelledby="duelo-fatos"><h3 id="duelo-fatos">A urna também conta histórias</h3><ol>${frase(a,b,sa,sb).map((f,i)=>`<li><span>${String(i+1).padStart(2,"0")}</span><p>${esc(f)}</p></li>`).join("")}</ol></section><section class="duelo-linha"><div class="duelo-linha-cab"><h3>Uma eleição de cada vez</h3><p>Idade no dia do 1º turno. Valores financeiros nominais, sem correção pela inflação.</p></div>${all.map(y=>`<article class="duelo-ano"><h4>${y}</h4><div class="duelo-ano-lados"><div>${candidaturas(sa.cs.filter(c=>Number(c.ano_eleicao)===y),a.dt_nascimento)}</div><div>${candidaturas(sb.cs.filter(c=>Number(c.ano_eleicao)===y),b.dt_nascimento)}</div></div></article>`).join("")}</section>`;
+  const carreira = `<div class="duelo-placar">${identidades}<div class="duelo-saldos">${summary(a,sa)}<span class="duelo-saldo-vs" aria-hidden="true">×</span>${summary(b,sb)}</div></div>`;
+  const curiosidades = `<section class="duelo-trivia" aria-labelledby="duelo-fatos"><h3 id="duelo-fatos">A urna também conta histórias</h3><ol>${frase(a,b,sa,sb).map((f,i)=>`<li><span>${String(i+1).padStart(2,"0")}</span><p>${esc(f)}</p></li>`).join("")}</ol></section>`;
+  const contextoComum = `<section class="duelo-contexto-comum">${identidades}<p>Os números lado a lado abaixo se limitam aos anos em que os dois têm candidatura registrada.</p></section>`;
+  const cronologiaComum = `<section class="duelo-linha"><div class="duelo-linha-cab"><h3>Quando os anos coincidem</h3><p>Idade no dia do 1º turno. Valores financeiros nominais, sem correção pela inflação.</p></div>${comuns.map(y=>`<article class="duelo-ano"><h4>${y}</h4><div class="duelo-ano-lados"><div>${candidaturas(sa.cs.filter(c=>Number(c.ano_eleicao)===y),a.dt_nascimento)}</div><div>${candidaturas(sb.cs.filter(c=>Number(c.ano_eleicao)===y),b.dt_nascimento)}</div></div></article>`).join("")}</section>`;
+  out.innerHTML = `${foraDoPar.length ? contextoComum : `${carreira}${curiosidades}`}${narrativa}${foraDoPar.length?compararAnos:""}${cronologiaComum}`;
+  if (foraDoPar.length) ligarComparacaoEntreAnos(out,a,b,sa,sb);
   out.querySelectorAll<HTMLImageElement>("[data-duelo-foto]").forEach(img=>img.addEventListener("error",()=>img.remove(),{once:true}));
 }
