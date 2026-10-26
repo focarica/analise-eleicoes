@@ -1,5 +1,10 @@
 // Modo trivia: duas pessoas escolhidas livremente e seus históricos completos.
-import { brlc, cargoNome, esc, fmt, request, sitTxt, titulo } from "./util";
+import { brlc, cargoNome, corP, esc, fmt, request, sitTxt, titulo } from "./util";
+import { GEO } from "./presentation";
+import { UFS } from "./util";
+
+declare const d3: any;
+declare const topojson: any;
 
 type Candidato = { id: number; nome: string; urna?: string; anos: string[]; cargos: string[]; estados?: string };
 type Candidatura = Record<string, any> & { ano_eleicao: number };
@@ -27,6 +32,134 @@ const n = (v: unknown) => Number(v) || 0;
 const anos = (p: Perfil) => [...new Set((p.candidacies || []).map(c => Number(c.ano_eleicao)))].sort((a,b) => a-b);
 const dinheiro = (v: unknown) => brlc(n(v));
 const arr = (v: unknown): any[] => { if (Array.isArray(v)) return v; try { return JSON.parse(String(v || "[]")); } catch { return []; } };
+
+type MapaComparacao = { ano: number; cargo: string; uf: string; tipo: "estados" | "municipios"; partidoA: string; partidoB: string };
+
+function mapasCorrespondentes(csA: Candidatura[], csB: Candidatura[]): MapaComparacao[] {
+  const mapas = new Map<string, MapaComparacao>();
+  for (const ca of csA) for (const cb of csB) {
+    const ano = Number(ca.ano_eleicao);
+    const cargo = String(ca.cargo || "").toUpperCase();
+    if (!ano || ano !== Number(cb.ano_eleicao) || cargo !== String(cb.cargo || "").toUpperCase()) continue;
+    const ufA = String(ca.uf || "").toUpperCase(), ufB = String(cb.uf || "").toUpperCase();
+    let mapa: MapaComparacao | null = null;
+    if (cargo === "PRESIDENTE") mapa = { ano, cargo, uf: "BR", tipo: "estados", partidoA: String(ca.partido || ""), partidoB: String(cb.partido || "") };
+    else if (ufA === ufB && UFS.includes(ufA)) mapa = { ano, cargo, uf: ufA, tipo: "municipios", partidoA: String(ca.partido || ""), partidoB: String(cb.partido || "") };
+    if (mapa) mapas.set(`${mapa.ano}:${mapa.cargo}:${mapa.uf}`, mapa);
+  }
+  return [...mapas.values()].sort((a,b) => b.ano-a.ano || a.cargo.localeCompare(b.cargo));
+}
+
+function htmlMapaComparacao(mapas: MapaComparacao[]): string {
+  if (!mapas.length) return "";
+  const opcoes = mapas.map((m,i) => `<option value="${i}">${esc(cargoNome(m.cargo))} · ${m.uf === "BR" ? "Estados da amostra" : m.uf} · ${m.ano}</option>`).join("");
+  return `<section class="duelo-mapa" data-duelo-mapa-section aria-labelledby="duelo-mapa-titulo">
+    <div class="duelo-mapa-cab"><div><h3 id="duelo-mapa-titulo">Onde cada um teve mais votos?</h3><p>As áreas mostram qual dos dois recebeu mais votos no primeiro turno.</p></div>
+      <label>Disputa<select data-duelo-mapa-seletor>${opcoes}</select></label></div>
+    <h4 data-duelo-mapa-subtitulo></h4>
+    <div class="duelo-mapa-visual"><svg class="duelo-mapa-svg" data-duelo-mapa-svg viewBox="0 0 900 510" role="img"></svg>
+      <div class="tip duelo-mapa-tooltip" data-duelo-mapa-tooltip aria-hidden="true"></div></div>
+    <p class="duelo-mapa-status" data-duelo-mapa-status role="status">Carregando votos e limites geográficos…</p>
+    <div class="duelo-mapa-legenda" data-duelo-mapa-legenda></div>
+  </section>`;
+}
+
+const malhasComparacao = new Map<string, Promise<any[]>>();
+function carregarMunicipiosMapa(uf: string): Promise<any[]> {
+  if (!malhasComparacao.has(uf)) {
+    const base = (import.meta as any).env?.BASE_URL || "/";
+    malhasComparacao.set(uf, fetch(`${base}geo/municipios-${uf}.json`)
+      .then(r => { if (!r.ok) throw new Error(`Limites de ${uf} indisponíveis.`); return r.json(); })
+      .then(t => topojson.feature(t, t.objects.municipios).features.filter((f: any) => f.properties.tse))
+      .catch(error => { malhasComparacao.delete(uf); throw error; }));
+  }
+  return malhasComparacao.get(uf)!;
+}
+
+function conectarMapaComparacao(out: HTMLElement, mapas: MapaComparacao[], a: Candidato, b: Candidato) {
+  const section = out.querySelector<HTMLElement>("[data-duelo-mapa-section]");
+  const seletor = section?.querySelector<HTMLSelectElement>("[data-duelo-mapa-seletor]");
+  if (!section || !seletor) return;
+  let chamada = 0;
+  const desenhar = async () => {
+    const atual = ++chamada;
+    const mapa = mapas[Number(seletor.value)];
+    const svg = section.querySelector<SVGSVGElement>("[data-duelo-mapa-svg]")!;
+    const status = section.querySelector<HTMLElement>("[data-duelo-mapa-status]")!;
+    const legenda = section.querySelector<HTMLElement>("[data-duelo-mapa-legenda]")!;
+    const subtitulo = section.querySelector<HTMLElement>("[data-duelo-mapa-subtitulo]")!;
+    const tooltip = section.querySelector<HTMLElement>("[data-duelo-mapa-tooltip]")!;
+    const params = new URLSearchParams({ a: String(a.id), b: String(b.id), year: String(mapa.ano), cargo: mapa.cargo, uf: mapa.uf });
+    subtitulo.textContent = mapa.tipo === "estados"
+      ? `Presidente · estados da amostra · ${mapa.ano} · 1º turno`
+      : `${cargoNome(mapa.cargo)} · ${mapa.uf} · ${mapa.ano} · 1º turno`;
+    status.textContent = "Carregando votos e limites geográficos…";
+    legenda.innerHTML = "";
+    d3.select(svg).selectAll("*").remove();
+    try {
+      const [resposta, features] = await Promise.all([
+        request(`/api/comparison-map?${params}`, { silencioso: true }),
+        mapa.tipo === "estados"
+          ? Promise.resolve(UFS.map((uf: string) => GEO[uf]).filter(Boolean))
+          : carregarMunicipiosMapa(mapa.uf),
+      ]);
+      if (atual !== chamada) return;
+      const areas = resposta.areas || [];
+      if (!areas.length) { status.textContent = "A amostra não tem votos comparáveis para esta disputa."; return; }
+      // As candidaturas do perfil são a fonte canônica das siglas. O endpoint
+      // do mapa pode não devolver partido quando a associação do voto difere.
+      const partidoA = mapa.partidoA.trim().toUpperCase();
+      const partidoB = mapa.partidoB.trim().toUpperCase();
+      const corA = corP(partidoA), corB = corP(partidoB);
+      // Partido sem sigla reconhecida não deve apagar a distinção entre os lados.
+      section.style.setProperty("--duelo-cor-a", corA === "#8A8F98" ? "#b7433e" : corA);
+      section.style.setProperty("--duelo-cor-b", corB === "#8A8F98" ? "#356d8a" : corB);
+      const porCodigo = new Map(areas.map((area: any) => [String(area.codigo), area]));
+      const propriedades = (feature: any) => mapa.tipo === "estados"
+        ? { codigo: String(feature.properties.sigla), nome: feature.properties.nome }
+        : { codigo: String(feature.properties.tse), nome: feature.properties.nome };
+      const colecao = { type: "FeatureCollection", features };
+      const projecao = d3.geoConicEqualArea().parallels([-2,-22]).rotate([54,0]).fitExtent([[14,14],[886,486]], colecao);
+      const caminho = d3.geoPath(projecao);
+      const svgD3 = d3.select(svg).attr("aria-label", subtitulo.textContent);
+      const resultados = features.map((feature: any) => {
+        const p = propriedades(feature), valores: any = porCodigo.get(p.codigo);
+        const votosA = n(valores?.votos_a), votosB = n(valores?.votos_b);
+        const lado = !valores ? "sem-dados" : votosA > votosB ? "lado-a" : votosB > votosA ? "lado-b" : "empate";
+        return { feature, p, votosA, votosB, lado };
+      });
+      svgD3.selectAll("path.duelo-mapa-area").data(resultados).join("path")
+        .attr("class", (d: any) => `duelo-mapa-area ${d.lado}`)
+        .attr("d", (d: any) => caminho(d.feature))
+        .on("mousemove", (ev: MouseEvent, d: any) => {
+          const quem = d.lado === "lado-a" ? a.nome : d.lado === "lado-b" ? b.nome : "Empate";
+          tooltip.innerHTML = `<b>${esc(d.p.nome)}</b>${d.lado === "sem-dados"
+            ? `<span class="tip-faixa">Sem votação comparável para os candidatos.</span>`
+            : `<span class="tip-faixa"><b>${d.lado === "empate" ? "Empate" : `Mais votos: ${esc(titulo(quem))}`}</b><br>${esc(titulo(a.nome))} (${esc(partidoA || "Partido não informado")}): ${fmt.format(d.votosA)} votos<br>${esc(titulo(b.nome))} (${esc(partidoB || "Partido não informado")}): ${fmt.format(d.votosB)} votos</span>`}`;
+          const box = section.querySelector<HTMLElement>(".duelo-mapa-visual")!.getBoundingClientRect();
+          let x = ev.clientX - box.left + 14, y = ev.clientY - box.top + 14;
+          if (x > box.width - 260) x -= 275;
+          if (y > box.height - 105) y -= 110;
+          tooltip.style.left = `${Math.max(0,x)}px`; tooltip.style.top = `${Math.max(0,y)}px`;
+          tooltip.classList.add("on");
+        })
+        .on("mouseleave", () => tooltip.classList.remove("on"));
+      const unidades = mapa.tipo === "estados" ? "estados" : "municípios";
+      const vitoriasA = resultados.filter((r: any) => r.lado === "lado-a").length;
+      const vitoriasB = resultados.filter((r: any) => r.lado === "lado-b").length;
+      const empates = resultados.filter((r: any) => r.lado === "empate").length;
+      legenda.innerHTML = `<span><i class="lado-a"></i>${esc(titulo(a.nome))} · ${esc(partidoA || "Partido não informado")} · ${vitoriasA} ${unidades}</span>
+        <span><i class="lado-b"></i>${esc(titulo(b.nome))} · ${esc(partidoB || "Partido não informado")} · ${vitoriasB} ${unidades}</span>
+        ${empates ? `<span><i class="empate"></i>Empate · ${empates} ${unidades}</span>` : ""}
+        <span><i class="sem-dados"></i>Sem dados</span>`;
+      status.textContent = `${areas.length} ${unidades} com votação dos candidatos.`;
+    } catch {
+      if (atual === chamada) status.textContent = "Não foi possível carregar o mapa desta disputa.";
+    }
+  };
+  seletor.addEventListener("change", () => void desenhar());
+  void desenhar();
+}
 
 for (const side of ["a", "b"]) {
   const input = document.getElementById(`duelo-busca-${side}`) as HTMLInputElement;
@@ -337,7 +470,10 @@ function opcoesDeCandidatura(cs: Candidatura[]) {
   return cs.map((c,index)=>({c,index})).sort((x,y)=>Number(x.c.ano_eleicao)-Number(y.c.ano_eleicao)||String(x.c.cargo).localeCompare(String(y.c.cargo)));
 }
 function rotuloCandidatura(c: Candidatura) {
-  return [c.ano_eleicao,cargoNome(c.cargo),c.partido,[c.nm_municipio,c.uf].filter(Boolean).join(" · ")].filter(Boolean).join(" · ");
+  const urna = c.nm_urna_candidato && c.nm_urna_candidato !== c.nm_candidato
+    ? `Na urna: ${titulo(c.nm_urna_candidato)}` : "";
+  const situacao = c.situacao ? sitTxt(c.situacao) : "";
+  return [c.ano_eleicao,cargoNome(c.cargo),c.partido,[c.nm_municipio,c.uf].filter(Boolean).join(" · "),urna,situacao].filter(Boolean).join(" · ");
 }
 function fatosEntreAnos(ca: Candidatura, cb: Candidatura, a: Perfil, b: Perfil) {
   const fatos: string[] = [];
@@ -387,8 +523,10 @@ function ligarComparacaoEntreAnos(out: HTMLElement, a: Perfil, b: Perfil, sa: Re
   executar.addEventListener("click",()=>{
     const ca=sa.cs[Number(selecionarA.value)], cb=sb.cs[Number(selecionarB.value)];
     if (!ca || !cb) return;
-    resultado.innerHTML=`<p class="duelo-aviso-anos">Anos e possivelmente cargos diferentes: são duas trajetórias eleitorais, não a mesma disputa. Os valores financeiros são nominais, sem correção pela inflação.</p><ol class="duelo-trivia-fatos">${fatosEntreAnos(ca,cb,a,b).map((f,i)=>`<li><span>${String(i+1).padStart(2,"0")}</span><p>${esc(f)}</p></li>`).join("")}</ol><div class="duelo-anos-lados"><section><h4>${esc(titulo(a.nm_candidato))} · ${ca.ano_eleicao}</h4>${candidaturas([ca],a.dt_nascimento)}</section><section><h4>${esc(titulo(b.nm_candidato))} · ${cb.ano_eleicao}</h4>${candidaturas([cb],b.dt_nascimento)}</section></div>`;
+    const mapas=mapasCorrespondentes([ca],[cb]);
+    resultado.innerHTML=`<p class="duelo-aviso-anos">Anos e possivelmente cargos diferentes: são duas trajetórias eleitorais, não a mesma disputa. Os valores financeiros são nominais, sem correção pela inflação.</p><ol class="duelo-trivia-fatos">${fatosEntreAnos(ca,cb,a,b).map((f,i)=>`<li><span>${String(i+1).padStart(2,"0")}</span><p>${esc(f)}</p></li>`).join("")}</ol>${htmlMapaComparacao(mapas)}<div class="duelo-anos-lados"><section><h4>${esc(titulo(a.nm_candidato))} · ${ca.ano_eleicao}</h4>${candidaturas([ca],a.dt_nascimento)}</section><section><h4>${esc(titulo(b.nm_candidato))} · ${cb.ano_eleicao}</h4>${candidaturas([cb],b.dt_nascimento)}</section></div>`;
     resultado.hidden=false;
+    if (mapas.length) conectarMapaComparacao(resultado,mapas,escolhidos.a!,escolhidos.b!);
     resultado.querySelectorAll<HTMLImageElement>("[data-duelo-foto]").forEach(img=>img.addEventListener("error",()=>img.remove(),{once:true}));
     resultado.scrollIntoView({block:"nearest",behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"instant":"smooth"});
   });
@@ -403,6 +541,8 @@ function desenharResultado() {
   }
   const sa=resumir(a), sb=resumir(b);
   const comuns=sa.years.filter(y=>sb.years.includes(y));
+  const mapas=mapasCorrespondentes(sa.cs,sb.cs);
+  const blocoMapas=htmlMapaComparacao(mapas);
   const foraDoPar=anosSemPar(a,b,sa,sb);
   const cenario=resumoCenario(a,b,sa,sb,comuns);
   const fatosDestaque=fatosTrajetoria(a,b,sa,sb);
@@ -427,7 +567,8 @@ function desenharResultado() {
   const curiosidades = fatosHeadToHead.length ? `<section class="duelo-trivia" aria-labelledby="duelo-fatos"><h3 id="duelo-fatos">A urna também conta histórias</h3><ol>${fatosHeadToHead.map((f,i)=>`<li><span>${String(i+1).padStart(2,"0")}</span><p>${esc(f)}</p></li>`).join("")}</ol></section>` : "";
   const contextoComum = `<section class="duelo-contexto-comum">${identidades}<p>Os números lado a lado abaixo se limitam aos anos em que os dois têm candidatura registrada.</p></section>`;
   const cronologiaComum = `<section class="duelo-linha"><div class="duelo-linha-cab"><h3>Quando os anos coincidem</h3><p>Idade no dia do 1º turno. Valores financeiros nominais, sem correção pela inflação.</p></div>${comuns.map(y=>`<article class="duelo-ano"><h4>${y}</h4><div class="duelo-ano-lados"><div>${candidaturas(sa.cs.filter(c=>Number(c.ano_eleicao)===y),a.dt_nascimento)}</div><div>${candidaturas(sb.cs.filter(c=>Number(c.ano_eleicao)===y),b.dt_nascimento)}</div></div></article>`).join("")}</section>`;
-  out.innerHTML = `${foraDoPar.length ? contextoComum : `${carreira}${curiosidades}`}${foraDoPar.length?fatosCarreira:""}${narrativa}${foraDoPar.length?compararAnos:""}${cronologiaComum}`;
+  out.innerHTML = `${foraDoPar.length ? contextoComum : `${carreira}${curiosidades}`}${foraDoPar.length?fatosCarreira:""}${narrativa}${blocoMapas}${foraDoPar.length?compararAnos:""}${cronologiaComum}`;
+  if (mapas.length) conectarMapaComparacao(out,mapas,escolhidos.a!,escolhidos.b!);
   if (foraDoPar.length) ligarComparacaoEntreAnos(out,a,b,sa,sb);
   out.querySelectorAll<HTMLImageElement>("[data-duelo-foto]").forEach(img=>img.addEventListener("error",()=>img.remove(),{once:true}));
 }

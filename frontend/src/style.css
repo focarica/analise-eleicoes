@@ -321,7 +321,7 @@ html.sem-rolagem{ overflow:hidden; }
 .q-painel-corpo > .q-sub:first-child{ margin-top:.4rem; }
 
 /* comparação de candidatos: diálogo editorial dentro da identidade do painel */
-.duelo-modal{ position:fixed; inset:1rem; width:min(1080px,calc(100vw - 2rem)); max-width:none; max-height:calc(100dvh - 2rem); margin:auto; padding:0 0 1.5rem; overflow-y:auto; overscroll-behavior:contain; border:1px solid var(--line); border-radius:14px; background:var(--bg); color:var(--ink); box-shadow:0 24px 64px rgba(0,0,0,.28); }
+.duelo-modal{ position:fixed; inset:1rem; width:min(1360px,calc(100vw - 2rem)); max-width:none; max-height:calc(100dvh - 2rem); margin:auto; padding:0 0 1.5rem; overflow-y:auto; overscroll-behavior:contain; border:1px solid var(--line); border-radius:14px; background:var(--bg); color:var(--ink); box-shadow:0 24px 64px rgba(0,0,0,.28); }
 .duelo-modal::backdrop{ background:var(--scrim); }
 .duelo-modal-cab{ position:sticky; top:0; z-index:4; display:flex; align-items:flex-start; gap:1rem; padding:.95rem clamp(1rem,3vw,2rem) .75rem; border-bottom:1px solid var(--line); background:var(--bg); }
 .duelo-modal .duelo-intro{ flex:1; padding:0; border:0; }
@@ -361,6 +361,25 @@ html.sem-rolagem{ overflow:hidden; }
 .duelo-opcoes button small{ display:flex; justify-content:space-between; gap:.5rem; color:var(--ink-3); }
 .duelo-opcao-status{ margin:0; padding:.7rem; color:var(--ink-2); font-size:.82rem; }
 .duelo-resultado{ border-top:1px solid var(--line); }
+.duelo-mapa{ margin:1rem 0 1.3rem; padding:1rem 1.1rem; border:1px solid var(--line); border-radius:11px; background:var(--raised); }
+.duelo-mapa-cab{ display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; }
+.duelo-mapa-cab h3{ margin:0; font-size:1.08rem; }
+.duelo-mapa-cab p{ margin:.25rem 0 0; color:var(--ink-3); font-size:.78rem; }
+.duelo-mapa-cab label{ display:flex; flex-direction:column; gap:.25rem; min-width:min(15rem,40%); color:var(--ink-3); font-size:.72rem; font-weight:700; }
+.duelo-mapa-cab select{ width:100%; min-height:2.35rem; padding:.35rem .55rem; border:1px solid var(--line); border-radius:7px; background:var(--bg); color:var(--ink); font:inherit; }
+.duelo-mapa > h4{ margin:.8rem 0 .25rem; font-size:.86rem; }
+.duelo-mapa-visual{ position:relative; }
+.duelo-mapa-svg{ display:block; width:100%; max-height:34rem; }
+.duelo-mapa-tooltip{ max-width:250px; }
+.duelo-mapa-area{ stroke:var(--bg); stroke-width:.55; vector-effect:non-scaling-stroke; }
+.duelo-mapa-area.lado-a,.duelo-mapa-legenda i.lado-a{ fill:var(--duelo-cor-a,#b7433e); background:var(--duelo-cor-a,#b7433e); }
+.duelo-mapa-area.lado-b,.duelo-mapa-legenda i.lado-b{ fill:var(--duelo-cor-b,#356d8a); background:var(--duelo-cor-b,#356d8a); }
+.duelo-mapa-area.empate,.duelo-mapa-legenda i.empate{ fill:#8a8f98; background:#8a8f98; }
+.duelo-mapa-area.sem-dados,.duelo-mapa-legenda i.sem-dados{ fill:var(--surface); background:var(--surface); }
+.duelo-mapa-legenda{ display:flex; flex-wrap:wrap; gap:.45rem 1rem; margin-top:.45rem; }
+.duelo-mapa-legenda span{ display:flex; align-items:center; gap:.35rem; color:var(--ink-2); font-size:.74rem; }
+.duelo-mapa-legenda i{ width:.7rem; height:.7rem; border:1px solid var(--line); border-radius:2px; }
+.duelo-mapa-status{ margin:.2rem 0 0; color:var(--ink-3); font-size:.72rem; }
 .duelo-vazio{ display:grid; justify-items:center; text-align:center; padding:2.25rem 1rem 1rem; color:var(--ink-2); }
 .duelo-vazio > span{ position:relative; width:2rem; height:2rem; margin-bottom:.55rem; border:1.5px solid var(--line); border-radius:50%; font-size:0; }
 .duelo-vazio > span::before,.duelo-vazio > span::after{ content:""; position:absolute; top:50%; left:50%; width:.8rem; height:1.5px; background:var(--ink-3); transform:translate(-50%,-50%); }
@@ -444,6 +463,8 @@ html.sem-rolagem{ overflow:hidden; }
 .duelo-detalhes li b{ flex:none; font-variant-numeric:tabular-nums; }
 @media (max-width:680px){
   .duelo-cobertura{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .duelo-mapa-cab{ align-items:stretch; flex-direction:column; }
+  .duelo-mapa-cab label{ min-width:0; }
   .duelo-seletores{ grid-template-columns:minmax(0,1fr); gap:.55rem; }
   .duelo-vs{ padding:.1rem; }
   .duelo-identidades,.duelo-saldos{ grid-template-columns:minmax(0,1fr); gap:.65rem; }
