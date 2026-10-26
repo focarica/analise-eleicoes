@@ -22,7 +22,7 @@ Escopo da nossa carga (`BDR-TSE`): UFs **AC, AL, BA, DF, RO, SP** nos pleitos de
 |---|---|---|
 | P1 | **Parcial** | custo por voto por candidatura na ficha (`presentation.ts:641`); view `custo_cadeira` pronta (`sql/05_identidade_e_cadeira.sql`) mas sem endpoint/UI; agregados de campanha não renderizados |
 | P2 | **Parcial** | patrimônio individual (evolução por eleição, na ficha); sem distribuição/taxa de eleição por faixa de bens |
-| P3 | **Parcial** | PIB/IDHM/população já chegam pelo `/api/municipality` (`server.ts:192`) e **não são renderizados**; faltam eleitores/população e isentos |
+| P3 | **Parcial** | a gaveta municipal mostra IBGE/SIDRA por ano, IDHM 2000/2010 e indicadores do Censo 2022; ainda faltam eleitores/população e isentos no recorte da P3 |
 | P4 | **Feita** | view `vw_questao_4_escolaridade` (`sql/motherduck/07_views_escolaridade.sql`): candidatos e eleitos a prefeito/vereador × população 18+ do Censo 2022 (`escolaridade_populacao_municipio`, via `vw_municipio_ibge`), nos quatro níveis do IBGE; endpoint `/api/escolaridade`; seção na página e na gaveta do município |
 | P5 | **Feita** | view `vw_questao_5_legenda` (`sql/motherduck/11_views_legenda.sql`): por eleito em cargo proporcional, votos próprios × quociente eleitoral e × legenda do partido; endpoints `/api/legenda` e `/api/legenda/pessoas`; seção "Eleitos com a ajuda do partido" (cargo, ano, evolução 2004–2024, partidos e lista) |
 | P6 | **Falta** | idade derivável de `dt_nascimento`; sem alternância (não baixamos 1996–2016) |
@@ -38,14 +38,14 @@ Feasível **sem baixar nada** (apenas views SQL + endpoints + UI):
 - **P3** — UI do boletim do município: PIB per capita, IDHM, população (dados prontos no endpoint); eleitores/população de `perfil_eleitorado_municipio`; isentos de `detalhe_votacao_munzona` (brancos+nulos+abstencões ÷ aptos).
 - **P1 (restante)** — ativar `custo_cadeira` por cargo/ano na gaveta do estado; mediana de eleito vs não eleito (já sai de `v_gasto_sucesso`); top 5 custo/voto agregado de `votacao_candidato` + despesas.
 - **P2** — taxa de eleição por faixa de patrimônio: quartis de `bem_candidato` (por cargo/ano) × `ds_sit_tot_turno` de `candidatura`.
-- **P4** — comparar `ds_grau_instrucao` de `candidatura` (candidatos/eleitos) com o de `perfil_eleitorado_municipio` (votantes) por ano/UF/município.
+- **P4** — comparar escolaridade de candidatos com escolaridade da população residente do Censo 2022. São populações/fontes diferentes; não representam diretamente a escolaridade dos eleitores. O grupo limitou esse carregamento a 2022 por enquanto.
 - **P5** — para cada partido/UF/ano: eleitos cujos votos nominais são menos que os de legenda, a partir de `votacao_partido_munzona` + `ds_sit_tot_turno` de `candidatura`.
 - **P8** — agregado por UF/ano: taxa de eleição de candidatos cujo financiamento público ≥ X% vs demais, de `receita_candidato` (origem/fonte) × resultado.
 - **P10a (escopo)** — reeleição dentro da janela: prefeito/vereador 2020→2024 e governador/deputado estadual 2018→2022, ligando pessoas por `nr_titulo_eleitoral_candidato`/CPF (mesma chave do `ID_PESSOA_PROJETO`): eleitos → tentaram → reeleitos por cargo e UF.
 
 ## O que exige dados novos
 
-- **P7 (viés)** — notas de especialistas dos partidos (Harvard Dataverse, `df_experts.csv`, arquivo pequeno; `0..10` → escala −100..+100). Precisa do download + tabela de viés por partido + junta com `votacao_partido_munzona`. É o tema central de mapas/linha do tempo deles.
+- **P7 (viés)** — notas de especialistas dos partidos (Harvard Dataverse, `df_experts.csv`, arquivo pequeno; `0..10` → escala −100..+100). Precisa do download + classificação temporal por partido + junta com votos. Não é uma lacuna que possa ser preenchida por outra carga do TSE.
 - **P6 (alternância)** — candidaturas 1996–2016 (crawlers de consulta_cand históricos) para a sequência de prefeitos por município.
 - **P10b (carreira completa)** — extensão do escopo de anos (o título/CPF que já usamos dão a identidade; faltam as candidaturas históricas).
 - **IPCA (deflator)** — série IPEA; requisito para comparar R$ de 2018 vs 2024 (afetaria P1 e P2).
@@ -80,7 +80,7 @@ Feasível **sem baixar nada** (apenas views SQL + endpoints + UI):
 ### P8 — Repasses públicos × outras fontes
 - SQL ✅: views de `sql/motherduck/05_views_financiamento.sql` — `v_financiamento_candidatura` (candidatura com total recebido e parcela de fundo especial, fundo partidário e outras fontes), `v_financiamento_faixas` (0–25%, 25–50%, 50–75%, 75–100% e sem receita), `v_financiamento_fontes` (total por fonte) e `v_financiamento_partidos` (agregado por partido). Aplicadas no `BDR-TSE`.
 - Endpoint ✅: `/api/financiamento?uf` (`{faixas, fontes, partidos}`; `cargo` opcional — o frontend usa `cargo=1` para o Presidente, nacional) e `/api/financiamento/pessoas?cargo&ano&faixa&(uf)`. uf vazio agrega todo o escopo.
-- UI ✅: seção "Depender de fundo público se elege mais?" na página: faixas de dependência (barra segmentada + lista "quem são" com fichas), fontes (barras R$) e partidos (tabela dos 10 maiores com % público). O indicador de cargo traz o Presidente nos anos gerais (busca também inclui Presidentes de qualquer estado). Nota: `tp_origem_recurso` é todo null no escopo; só existem FUNDO ESPECIAL / FUNDO PARTIDARIO / OUTROS RECURSOS (+ null). O `server.ts` cacheia consultas pesadas em memória+disco (`.cache-api`) por causa do limite diário de computação do plano.
+- UI ✅: seção "Depender de fundo público se elege mais?" na página: faixas de dependência (barra segmentada + lista "quem são" com fichas), fontes (barras R$) e partidos (tabela dos 10 maiores com % público). O indicador de cargo traz o Presidente nos anos gerais. `tp_origem_recurso` classifica rubricas inequívocas conforme `sql/motherduck/11_classificar_origem_receita.sql`; origens ambíguas permanecem `NULL`. O `server.ts` cacheia consultas pesadas em memória+disco (`.cache-api`) por causa do limite diário de computação do plano.
 
 ### P10a — Reeleição no escopo
 - SQL ✅: views de `sql/motherduck/04_views_reeleicao.sql` — `v_reeleicao_linhas` (cada eleito em A ligado à disputa seguinte do cargo, com `havia_proxima`, `tentou`, `reeleita` e, para municipais, agregados do município) e `v_reeleicao_pessoas` (grupos voltou/perderam/nao com nome, CPF, partido, município e ciclos). Com 2014/2016 incluídos, o histórico municipal ganha o ciclo 2016→2020 e o geral 2014→2018; senador 2018 continua sem eleição seguinte dentro do escopo. Aplicadas no `BDR-TSE`.

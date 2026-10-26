@@ -54,3 +54,5 @@ GROUP BY 1 ORDER BY 3 DESC;
 ```sh
 bun run frontend/scripts/aplicar-views.ts sql/motherduck/11_views_legenda.sql
 ```
+
+`12_schema_dados_temporais.sql` define os fatos temporais municipais e de perfil. O fato `fato_idhm_atlas` recebe os campos do Atlas; sua carga reproduzível fica em `scripts/motherduck/carregar_idhm_atlas.py`. A escolaridade residente atualmente carregada é a do Censo 2022, universo 18+ (`10_censo_2022_escolaridade.sql`).
