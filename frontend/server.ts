@@ -74,7 +74,8 @@ despesas AS (
         ano_eleicao,
         sq_candidato,
         SUM(vr_pago) AS total_despesas,
-        COUNT(*) AS qt_despesas,
+        COUNT(*)::INTEGER AS qt_despesas,
+        COUNT(vr_pago)::INTEGER AS qt_despesas_com_valor,
         TO_JSON(LIST(
             STRUCT_PACK(despesa := ds_despesa, valor := vr_pago)
             ORDER BY vr_pago DESC NULLS LAST
@@ -115,8 +116,9 @@ SELECT
     COALESCE(r.receitas_publicas, 0) AS receitas_publicas,
     COALESCE(r.receitas_privadas, 0) AS receitas_privadas,
     COALESCE(r.receitas, '[]'::JSON) AS receitas,
-    COALESCE(d.total_despesas, 0) AS total_despesas,
+    d.total_despesas AS total_despesas,
     COALESCE(d.qt_despesas, 0) AS qt_despesas,
+    COALESCE(d.qt_despesas_com_valor, 0) AS qt_despesas_com_valor,
     COALESCE(d.despesas, '[]'::JSON) AS despesas,
     COALESCE(b.total_bens, 0) AS patrimonio_declarado,
     COALESCE(b.bens, '[]'::JSON) AS bens
@@ -324,7 +326,7 @@ async function route(request: Request) {
     // candidaturas da pessoa e filtra por (ano, sq) — o que o README das views da
     // Q9 já recomenda —, e o histórico usa a mesma regra da view com o filtro no
     // início (SQL_HISTORICO_CANDIDATO). Mantém o mesmo cálculo da view.
-    const [personRows, candidacies, extras] = await comCache(`cand2:${id}`, async () => {
+    const [personRows, candidacies, extras] = await comCache(`cand-pagamentos-v3:${id}`, async () => {
       const chaves = await rows(`SELECT ano_eleicao, sq_candidato FROM public.candidatura
                                  WHERE id_pessoa_projeto = $1 ORDER BY 1, 2`, [id]);
       return Promise.all([
@@ -349,7 +351,7 @@ async function route(request: Request) {
                                               pib_per_capita, idhm, populacao_total
                                        FROM public.municipio WHERE cd_municipio_tse = $1`, [code]);
     if (!municipality) return json({ error: "Município não encontrado." }, 404);
-    const [attendance, electorate, parties, topCandidates, localCandidacies] = await comCache(`mun2:${code}`, () => seguido([
+    const [attendance, electorate, parties, topCandidates, localCandidacies] = await comCache(`mun-timeline-v2:${code}`, () => seguido([
       () => rows(`SELECT ano_eleicao, nr_turno, qt_aptos, qt_comparecimento, qt_abstencao
             FROM public.comparecimento_municipio WHERE cd_municipio_tse = $1
             ORDER BY ano_eleicao, nr_turno`, [code]),
@@ -359,20 +361,22 @@ async function route(request: Request) {
       () => rows(`SELECT ano_eleicao, cd_cargo, sg_partido, qt_votos_nominais, qt_votos_legenda
             FROM public.votacao_partido WHERE cd_municipio_tse = $1 AND nr_turno = 1
             ORDER BY ano_eleicao, cd_cargo, qt_votos_nominais DESC LIMIT 120`, [code]),
-      () => rows(`SELECT ano_eleicao, cd_cargo, nm_urna_candidato, sg_partido,
-                   qt_votos_nominais, id_pessoa_projeto
+      () => rows(`SELECT ano_eleicao, cd_cargo, nr_turno, nm_urna_candidato, sg_partido,
+                   qt_votos_nominais, id_pessoa_projeto, sq_candidato, total_votos
             FROM (
-              SELECT v.ano_eleicao, v.cd_cargo, c.nm_urna_candidato, c.sg_partido,
+              SELECT v.ano_eleicao, v.cd_cargo, v.nr_turno, c.nm_urna_candidato, c.sg_partido,
                      v.qt_votos_nominais, c.id_pessoa_projeto,
-                     ROW_NUMBER() OVER (PARTITION BY v.ano_eleicao, v.cd_cargo
+                     c.sq_candidato,
+                     SUM(v.qt_votos_nominais) OVER (PARTITION BY v.ano_eleicao, v.cd_cargo, v.nr_turno) AS total_votos,
+                     ROW_NUMBER() OVER (PARTITION BY v.ano_eleicao, v.cd_cargo, v.nr_turno
                                         ORDER BY v.qt_votos_nominais DESC) AS pos
               FROM public.votacao_candidato_municipio v
               JOIN public.candidatura c USING (ano_eleicao, sq_candidato)
-              WHERE v.cd_municipio_tse = $1 AND v.nr_turno = 1
+              WHERE v.cd_municipio_tse = $1
             ) ranked WHERE pos <= 5
-            ORDER BY ano_eleicao, cd_cargo, pos`, [code]),
+            ORDER BY ano_eleicao, cd_cargo, nr_turno, pos`, [code]),
       () => rows(`SELECT c.ano_eleicao, c.ds_cargo AS cargo, c.id_pessoa_projeto,
-                   c.nm_urna_candidato, ca.nm_candidato, c.sg_partido,
+                   c.sq_candidato, c.nm_urna_candidato, ca.nm_candidato, c.sg_partido,
                    c.ds_sit_tot_turno, c.qt_votos_totais AS qt_votos_nominais
             FROM public.candidatura c
             LEFT JOIN public.candidato ca USING (id_pessoa_projeto)
