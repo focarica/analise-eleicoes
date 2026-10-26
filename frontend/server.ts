@@ -146,6 +146,79 @@ async function route(request: Request) {
     return json({ uf, years: years.map((r) => Number(r.ano_eleicao)) });
   }
 
+  if (path === "/api/candidate-search") {
+    const term = (url.searchParams.get("q") || "").trim();
+    if (term.length < 2) return json({ candidates: [] });
+    const pattern = `%${term}%`;
+    const candidates = await buscaEmCache(`cand-search-global:${term.toLowerCase()}`, () => rows(`
+      SELECT ca.id_pessoa_projeto AS id, ca.nm_candidato AS nome,
+             string_agg(DISTINCT c.nm_urna_candidato, ' / ' ORDER BY c.nm_urna_candidato) AS urna,
+             string_agg(DISTINCT CAST(c.ano_eleicao AS VARCHAR), ', ' ORDER BY CAST(c.ano_eleicao AS VARCHAR)) AS anos,
+             string_agg(DISTINCT c.ds_cargo, '|#|' ORDER BY c.ds_cargo) AS cargos,
+             string_agg(DISTINCT COALESCE(m.sg_uf, c.sg_ue), ', ' ORDER BY COALESCE(m.sg_uf, c.sg_ue)) AS estados
+      FROM public.candidato ca
+      JOIN public.candidatura c USING (id_pessoa_projeto)
+      LEFT JOIN public.municipio m ON m.cd_municipio_tse = c.cd_municipio_tse
+      WHERE ca.nm_candidato ILIKE $1 OR c.nm_urna_candidato ILIKE $1
+      GROUP BY ca.id_pessoa_projeto, ca.nm_candidato
+      ORDER BY MAX(CASE WHEN UPPER(TRIM(c.nm_urna_candidato)) = UPPER(TRIM($2)) THEN 1 ELSE 0 END) DESC,
+               (UPPER(TRIM(ca.nm_candidato)) = UPPER(TRIM($2))) DESC,
+               MAX(c.ano_eleicao) DESC, ca.nm_candidato
+      LIMIT 30`, [pattern, term]).then(rows => rows.map(r => ({
+        id: Number(r.id), nome: r.nome, urna: r.urna,
+        anos: String(r.anos || "").split(", ").filter(Boolean),
+        cargos: String(r.cargos || "").split("|#|").filter(Boolean), estados: r.estados,
+      }))));
+    return json({ candidates });
+  }
+
+  if (path === "/api/comparison-map") {
+    const personA = Number(url.searchParams.get("a"));
+    const personB = Number(url.searchParams.get("b"));
+    const year = Number(url.searchParams.get("year"));
+    const cargo = (url.searchParams.get("cargo") || "").toUpperCase();
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    const presidencial = cargo === "PRESIDENTE";
+    if (!Number.isSafeInteger(personA) || personA < 1 || !Number.isSafeInteger(personB) || personB < 1 || personA === personB || !YEARS.has(year)) {
+      return json({ error: "Candidatos ou ano inválido." }, 400);
+    }
+    if ((presidencial && uf !== "BR") || (!presidencial && !UFS.has(uf))) {
+      return json({ error: "Recorte geográfico inválido." }, 400);
+    }
+    const chave = `comparison-map:${personA}:${personB}:${year}:${cargo}:${uf}`;
+    const areas = await comCache(chave, () => presidencial
+      ? rows(`SELECT m.sg_uf AS codigo,
+                     ANY_VALUE(c.sg_partido) FILTER (WHERE c.id_pessoa_projeto = $1) AS partido_a,
+                     ANY_VALUE(c.sg_partido) FILTER (WHERE c.id_pessoa_projeto = $2) AS partido_b,
+                     SUM(CASE WHEN c.id_pessoa_projeto = $1 THEN COALESCE(v.qt_votos_nominais, 0) ELSE 0 END) AS votos_a,
+                     SUM(CASE WHEN c.id_pessoa_projeto = $2 THEN COALESCE(v.qt_votos_nominais, 0) ELSE 0 END) AS votos_b
+              FROM public.votacao_candidato_municipio v
+              JOIN public.candidatura c
+                ON c.ano_eleicao = v.ano_eleicao AND c.sq_candidato = v.sq_candidato AND c.cd_cargo = v.cd_cargo
+              JOIN public.municipio m ON m.cd_municipio_tse = v.cd_municipio_tse
+              WHERE v.ano_eleicao = $3 AND v.nr_turno = 1 AND c.ds_cargo = $4
+                AND c.id_pessoa_projeto IN ($1, $2)
+                AND m.sg_uf IN ('AC', 'AL', 'BA', 'DF', 'RO', 'SP')
+              GROUP BY m.sg_uf
+              HAVING SUM(COALESCE(v.qt_votos_nominais, 0)) > 0
+              ORDER BY m.sg_uf`, [personA, personB, year, cargo])
+      : rows(`SELECT m.cd_municipio_tse AS codigo, m.nm_municipio AS nome,
+                     ANY_VALUE(c.sg_partido) FILTER (WHERE c.id_pessoa_projeto = $1) AS partido_a,
+                     ANY_VALUE(c.sg_partido) FILTER (WHERE c.id_pessoa_projeto = $2) AS partido_b,
+                     SUM(CASE WHEN c.id_pessoa_projeto = $1 THEN COALESCE(v.qt_votos_nominais, 0) ELSE 0 END) AS votos_a,
+                     SUM(CASE WHEN c.id_pessoa_projeto = $2 THEN COALESCE(v.qt_votos_nominais, 0) ELSE 0 END) AS votos_b
+              FROM public.votacao_candidato_municipio v
+              JOIN public.candidatura c
+                ON c.ano_eleicao = v.ano_eleicao AND c.sq_candidato = v.sq_candidato AND c.cd_cargo = v.cd_cargo
+              JOIN public.municipio m ON m.cd_municipio_tse = v.cd_municipio_tse
+              WHERE v.ano_eleicao = $3 AND v.nr_turno = 1 AND c.ds_cargo = $4
+                AND c.id_pessoa_projeto IN ($1, $2) AND m.sg_uf = $5
+              GROUP BY m.cd_municipio_tse, m.nm_municipio
+              HAVING SUM(COALESCE(v.qt_votos_nominais, 0)) > 0
+              ORDER BY m.nm_municipio`, [personA, personB, year, cargo, uf]));
+    return json({ year, cargo, uf, tipo: presidencial ? "estados" : "municipios", areas });
+  }
+
   if (path === "/api/dashboard") {
     const uf = (url.searchParams.get("uf") || "").toUpperCase();
     const year = Number(url.searchParams.get("year"));

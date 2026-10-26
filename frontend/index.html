@@ -19,6 +19,10 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
   <div class="topo">
     <span class="marca">Eleições nos estados da amostra</span>
     <div class="topo-dir">
+      <button class="duelo-abrir" id="duelo-abrir" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="duelo-modal">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h6.5v13H4zM13.5 5.5H20v13h-6.5zM10.5 9h3M10.5 15h3"/></svg>
+        <span>Comparar candidatos</span>
+      </button>
       <nav class="estados" id="estados" aria-label="Estados"></nav>
       <button class="tema" id="tema" type="button" aria-pressed="false">
         <svg class="ico-sol" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>
@@ -39,6 +43,45 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
     <input id="busca" type="search" autocomplete="off" placeholder="Buscar município ou candidato" aria-label="Buscar município ou candidato neste estado" aria-controls="resultados">
     <div class="resultados" id="resultados" hidden role="listbox"></div>
   </div>
+
+<dialog class="duelo-modal" id="duelo-modal" aria-labelledby="duelo-titulo">
+  <div class="duelo-modal-cab">
+    <div class="duelo-intro">
+      <div>
+        <p class="duelo-selo">Arquivo eleitoral · modo comparação</p>
+        <h2 id="duelo-titulo">Dois nomes. Uma disputa de histórias.</h2>
+        <p>Escolha quaisquer dois candidatos e descubra o que muda de uma eleição para outra.</p>
+      </div>
+      <span class="duelo-marca" aria-hidden="true">A × B</span>
+    </div>
+    <button class="fechar duelo-fechar" id="duelo-fechar" type="button" aria-label="Fechar comparação">✕</button>
+  </div>
+  <div class="duelo-apresentacao">
+    <p>Busque dois nomes na amostra e descubra como as histórias se cruzam. Compare <b>idade, votos, partido, resultado, arrecadação, despesas e patrimônio</b> em cada candidatura.</p>
+    <ul class="duelo-cobertura" aria-label="Cobertura dos dados">
+      <li><b>2004–2024</b><span>11 eleições</span></li>
+      <li><b>6 estados</b><span>na amostra</span></li>
+      <li><b>2 trajetórias</b><span>lado a lado</span></li>
+      <li><b>Valores nominais</b><span>sem correção pela inflação</span></li>
+    </ul>
+  </div>
+    <div class="duelo-seletores">
+      <div class="duelo-seletor" data-side="a">
+        <label for="duelo-busca-a"><span class="duelo-letra">A</span> Primeiro candidato</label>
+        <div class="duelo-campo"><input id="duelo-busca-a" type="search" autocomplete="off" placeholder="Digite um nome" aria-label="Buscar primeiro candidato em todos os anos e estados" aria-autocomplete="list" aria-expanded="false" aria-controls="duelo-opcoes-a"><button type="button" class="duelo-limpar" aria-label="Remover primeiro candidato" hidden>×</button><div class="duelo-opcoes" id="duelo-opcoes-a" role="listbox" hidden></div></div>
+        <p class="duelo-escolhido" id="duelo-escolhido-a">À espera de um nome</p>
+      </div>
+      <span class="duelo-vs" aria-hidden="true">VS</span>
+      <div class="duelo-seletor" data-side="b">
+        <label for="duelo-busca-b"><span class="duelo-letra">B</span> Segundo candidato</label>
+        <div class="duelo-campo"><input id="duelo-busca-b" type="search" autocomplete="off" placeholder="Digite outro nome" aria-label="Buscar segundo candidato em todos os anos e estados" aria-autocomplete="list" aria-expanded="false" aria-controls="duelo-opcoes-b"><button type="button" class="duelo-limpar" aria-label="Remover segundo candidato" hidden>×</button><div class="duelo-opcoes" id="duelo-opcoes-b" role="listbox" hidden></div></div>
+        <p class="duelo-escolhido" id="duelo-escolhido-b">À espera de um nome</p>
+      </div>
+    </div>
+    <div class="duelo-resultado" id="duelo-resultado" aria-live="polite">
+      <div class="duelo-vazio"><span aria-hidden="true">＋</span><p>Escolha dois candidatos para revelar as curiosidades que a história eleitoral guardou.</p></div>
+    </div>
+  </dialog>
 
   <div class="comp">
     <div class="forma-box">
