@@ -146,6 +146,30 @@ async function route(request: Request) {
     return json({ uf, years: years.map((r) => Number(r.ano_eleicao)) });
   }
 
+  if (path === "/api/candidate-search") {
+    const term = (url.searchParams.get("q") || "").trim();
+    if (term.length < 2) return json({ candidates: [] });
+    const pattern = `%${term}%`;
+    const candidates = await buscaEmCache(`cand-search-global:${term.toLowerCase()}`, () => rows(`
+      SELECT ca.id_pessoa_projeto AS id, ca.nm_candidato AS nome,
+             string_agg(DISTINCT c.nm_urna_candidato, ' / ' ORDER BY c.nm_urna_candidato) AS urna,
+             string_agg(DISTINCT CAST(c.ano_eleicao AS VARCHAR), ', ' ORDER BY CAST(c.ano_eleicao AS VARCHAR)) AS anos,
+             string_agg(DISTINCT c.ds_cargo, '|#|' ORDER BY c.ds_cargo) AS cargos,
+             string_agg(DISTINCT COALESCE(m.sg_uf, c.sg_ue), ', ' ORDER BY COALESCE(m.sg_uf, c.sg_ue)) AS estados
+      FROM public.candidato ca
+      JOIN public.candidatura c USING (id_pessoa_projeto)
+      LEFT JOIN public.municipio m ON m.cd_municipio_tse = c.cd_municipio_tse
+      WHERE ca.nm_candidato ILIKE $1 OR c.nm_urna_candidato ILIKE $1
+      GROUP BY ca.id_pessoa_projeto, ca.nm_candidato
+      ORDER BY (UPPER(ca.nm_candidato) = UPPER($2)) DESC, MAX(c.ano_eleicao) DESC, ca.nm_candidato
+      LIMIT 30`, [pattern, term]).then(rows => rows.map(r => ({
+        id: Number(r.id), nome: r.nome, urna: r.urna,
+        anos: String(r.anos || "").split(", ").filter(Boolean),
+        cargos: String(r.cargos || "").split("|#|").filter(Boolean), estados: r.estados,
+      }))));
+    return json({ candidates });
+  }
+
   if (path === "/api/dashboard") {
     const uf = (url.searchParams.get("uf") || "").toUpperCase();
     const year = Number(url.searchParams.get("year"));
