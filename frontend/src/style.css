@@ -316,6 +316,103 @@ html.sem-rolagem{ overflow:hidden; }
 .q-painel-corpo{ padding-top:.4rem; }
 .q-sub{ margin:1.6rem 0 .3rem; font-size:1.05rem; font-weight:700; }
 .q-painel-corpo > .q-sub:first-child{ margin-top:.4rem; }
+
+/* comparação de candidatos: jogo editorial dentro da identidade do painel */
+.duelo{ margin:2rem 0 2.6rem; padding:clamp(1.2rem,3vw,2rem); border:1px solid var(--line); border-radius:16px; background:var(--raised); }
+.duelo-intro{ display:flex; justify-content:space-between; align-items:center; gap:1rem; padding-bottom:1.35rem; border-bottom:1px solid var(--line); }
+.duelo-selo{ margin:0 0 .45rem; color:var(--ink-3); font-size:.76rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+.duelo-intro h2{ margin:0; max-width:22ch; font-size:clamp(1.55rem,3vw,2.35rem); line-height:1.06; letter-spacing:-.03em; }
+.duelo-intro > div > p:last-child{ margin:.55rem 0 0; color:var(--ink-2); }
+.duelo-marca{ flex:none; color:var(--ink-3); font-size:clamp(1.5rem,4vw,3rem); font-weight:800; letter-spacing:-.05em; }
+.duelo-seletores{ display:grid; grid-template-columns:minmax(0,1fr) 3rem minmax(0,1fr); gap:1rem; align-items:center; padding:1.35rem 0 1rem; }
+.duelo-seletor{ min-width:0; }
+.duelo-seletor label{ display:flex; gap:.55rem; align-items:center; margin-bottom:.45rem; font-size:.88rem; font-weight:700; }
+.duelo-letra{ display:grid; place-items:center; width:1.55rem; height:1.55rem; border-radius:50%; background:var(--ink); color:var(--bg); font-size:.75rem; }
+.duelo-campo{ position:relative; }
+.duelo-campo input{ width:100%; min-height:2.9rem; padding:.7rem 2.7rem .7rem .85rem; border:1.5px solid var(--line); border-radius:9px; background:var(--bg); }
+.duelo-campo input:focus{ border-color:var(--ink); outline:2px solid color-mix(in srgb,var(--ink) 14%,transparent); outline-offset:1px; }
+.duelo-campo input:disabled{ color:var(--ink); font-weight:700; opacity:1; }
+.duelo-limpar{ position:absolute; z-index:1; top:50%; right:.45rem; transform:translateY(-50%); display:grid; place-items:center; width:2rem; height:2rem; border:0; border-radius:50%; background:var(--surface); font-size:1.25rem; cursor:pointer; }
+.duelo-limpar:hover{ background:var(--line); }
+.duelo-escolhido{ min-height:1.35rem; margin:.32rem 0 0; color:var(--ink-3); font-size:.78rem; }
+.duelo-vs{ color:var(--ink-3); text-align:center; font-size:.82rem; font-weight:800; letter-spacing:.08em; }
+.duelo-opcoes{ position:absolute; top:calc(100% + .35rem); left:0; right:0; z-index:12; max-height:20rem; overflow:auto; padding:.35rem; border:1px solid var(--line); border-radius:10px; background:var(--raised); box-shadow:0 12px 30px rgba(0,0,0,.16); }
+.duelo-opcoes[hidden]{ display:none; }
+.duelo-opcoes button{ display:flex; flex-direction:column; width:100%; gap:.12rem; padding:.6rem .65rem; border:0; border-radius:6px; background:transparent; text-align:left; cursor:pointer; }
+.duelo-opcoes button:hover,.duelo-opcoes button:focus-visible{ background:var(--surface); }
+.duelo-opcoes button b{ font-size:.9rem; }
+.duelo-opcoes button span,.duelo-opcoes button small{ color:var(--ink-2); font-size:.76rem; }
+.duelo-opcoes button small{ display:flex; justify-content:space-between; gap:.5rem; color:var(--ink-3); }
+.duelo-opcao-status{ margin:0; padding:.7rem; color:var(--ink-2); font-size:.82rem; }
+.duelo-resultado{ border-top:1px solid var(--line); }
+.duelo-vazio{ display:grid; justify-items:center; text-align:center; padding:2.25rem 1rem 1rem; color:var(--ink-2); }
+.duelo-vazio > span{ position:relative; width:2rem; height:2rem; margin-bottom:.55rem; border:1.5px solid var(--line); border-radius:50%; font-size:0; }
+.duelo-vazio > span::before,.duelo-vazio > span::after{ content:""; position:absolute; top:50%; left:50%; width:.8rem; height:1.5px; background:var(--ink-3); transform:translate(-50%,-50%); }
+.duelo-vazio > span::after{ transform:translate(-50%,-50%) rotate(90deg); }
+.duelo-vazio p{ max-width:47ch; margin:0; font-size:.88rem; }
+.duelo-carregando{ display:flex; justify-content:center; align-items:center; gap:.65rem; padding:1.5rem; color:var(--ink-2); font-size:.85rem; }
+.duelo-carregando span{ width:.9rem; height:.9rem; border:2px solid var(--line); border-top-color:var(--ink); border-radius:50%; animation:duelo-roda .7s linear infinite; }
+@keyframes duelo-roda{ to{ transform:rotate(360deg); } }
+.duelo-erro{ margin:1rem 0 0; padding:.8rem 1rem; border:1px solid var(--line); border-radius:8px; color:var(--ink-2); font-size:.85rem; }
+.duelo-placar{ padding:1.25rem 0 1rem; }
+.duelo-identidades,.duelo-saldos{ display:grid; grid-template-columns:minmax(0,1fr) 2.5rem minmax(0,1fr); gap:1rem; align-items:center; }
+.duelo-identidade{ display:flex; align-items:center; gap:.8rem; min-width:0; }
+.duelo-avatar{ position:relative; flex:none; display:grid; place-items:center; overflow:hidden; width:3.2rem; height:3.2rem; border:1px solid var(--line); border-radius:50%; background:var(--surface); font-size:.9rem; font-weight:800; }
+.duelo-avatar img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:top; }
+.lado-b .duelo-avatar{ background:color-mix(in srgb,var(--faixa-0) 17%,var(--surface)); }
+.duelo-identidade h3{ margin:0; font-size:clamp(1rem,2.1vw,1.35rem); line-height:1.15; }
+.duelo-identidade p{ margin:.25rem 0 0; color:var(--ink-3); font-size:.76rem; }
+.duelo-vs.pequeno{ font-size:1.2rem; }
+.duelo-saldos{ align-items:stretch; margin-top:1rem; }
+.duelo-resumo{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 .9rem; margin:0; padding:.35rem .8rem; border:1px solid var(--line); border-radius:10px; background:var(--bg); }
+.duelo-resumo > div{ min-width:0; padding:.55rem 0; border-bottom:1px solid var(--line); }
+.duelo-resumo > div:nth-last-child(-n+2){ border-bottom:0; }
+.duelo-resumo dt{ color:var(--ink-3); font-size:.7rem; }
+.duelo-resumo dd{ overflow-wrap:anywhere; margin:.1rem 0 0; font-size:.83rem; font-weight:700; font-variant-numeric:tabular-nums; }
+.duelo-saldo-vs{ align-self:center; color:var(--ink-3); text-align:center; font-weight:800; }
+.duelo-trivia{ margin:1rem 0 1.3rem; padding:1rem 1.1rem; border-radius:10px; background:var(--surface); }
+.duelo-trivia h3,.duelo-linha-cab h3{ margin:0; font-size:1.08rem; letter-spacing:-.015em; }
+.duelo-trivia ol{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(270px,100%),1fr)); gap:.25rem 1.4rem; margin:.7rem 0 0; padding:0; list-style:none; }
+.duelo-trivia li{ display:grid; grid-template-columns:1.7rem 1fr; gap:.45rem; align-items:start; padding:.52rem 0; border-top:1px solid var(--line); }
+.duelo-trivia li > span{ padding-top:.08rem; color:var(--ink-3); font-size:.73rem; font-weight:800; font-variant-numeric:tabular-nums; }
+.duelo-trivia li p{ margin:0; font-size:.86rem; line-height:1.45; }
+.duelo-linha-cab{ display:flex; justify-content:space-between; align-items:baseline; gap:1rem; margin-bottom:.75rem; }
+.duelo-linha-cab p{ max-width:58ch; margin:0; color:var(--ink-3); font-size:.74rem; text-align:right; }
+.duelo-ano{ padding:.9rem 0 1rem; border-top:1px solid var(--line); }
+.duelo-ano h4{ margin:0 0 .6rem; font-size:1.35rem; font-weight:800; letter-spacing:-.035em; }
+.duelo-ano-lados{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:1rem; }
+.duelo-ano-lados > div{ min-width:0; }
+.duelo-candidatura{ min-width:0; padding:.65rem .75rem; border-radius:8px; background:var(--bg); }
+.duelo-cargo{ display:flex; justify-content:space-between; align-items:baseline; gap:.45rem; }
+.duelo-cargo b{ font-size:.87rem; }
+.duelo-cargo > span{ color:var(--ink-2); font-size:.74rem; text-align:right; }
+.duelo-local{ margin:.15rem 0 .45rem; color:var(--ink-3); font-size:.72rem; }
+.duelo-metricas{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.35rem .7rem; margin:0; }
+.duelo-metricas > div{ min-width:0; padding-top:.35rem; border-top:1px solid var(--line); }
+.duelo-metricas dt{ color:var(--ink-3); font-size:.67rem; }
+.duelo-metricas dd{ overflow-wrap:anywhere; margin:0; font-size:.79rem; font-weight:700; font-variant-numeric:tabular-nums; }
+.duelo-sem-candidatura{ margin:0; padding:.9rem .7rem; border:1px dashed var(--line); border-radius:8px; color:var(--ink-3); font-size:.8rem; }
+.duelo-detalhes{ margin-top:.35rem!important; font-size:.75rem!important; }
+.duelo-detalhes summary{ padding:.2rem 0; font-size:.74rem; }
+.duelo-detalhes ul{ margin:.25rem 0 0; padding:0; list-style:none; }
+.duelo-detalhes li{ display:flex; justify-content:space-between; gap:.7rem; padding:.2rem 0; border-top:1px solid var(--line); }
+.duelo-detalhes li span{ overflow-wrap:anywhere; }
+.duelo-detalhes li b{ flex:none; font-variant-numeric:tabular-nums; }
+@media (max-width:680px){
+  .duelo{ padding:1rem; }
+  .duelo-seletores{ grid-template-columns:minmax(0,1fr); gap:.55rem; }
+  .duelo-vs{ padding:.1rem; }
+  .duelo-identidades,.duelo-saldos{ grid-template-columns:minmax(0,1fr); gap:.65rem; }
+  .duelo-vs.pequeno,.duelo-saldo-vs{ display:none; }
+  .duelo-ano-lados{ grid-template-columns:minmax(0,1fr); gap:.55rem; }
+  .duelo-ano-lados > div + div{ padding-top:.55rem; border-top:1px dashed var(--line); }
+  .duelo-linha-cab{ display:block; }
+  .duelo-linha-cab p{ margin-top:.25rem; text-align:left; }
+  .duelo-cargo{ align-items:flex-start; }
+  .duelo-intro{ align-items:flex-start; }
+  .duelo-marca{ padding-top:.1rem; }
+}
+@media (prefers-reduced-motion:reduce){ .duelo-carregando span{ animation:none; } }
 @media (max-width:640px){
   .q-painel{ top:var(--topo-h,0px); bottom:0; width:100%; border:0; border-radius:0; }
 }

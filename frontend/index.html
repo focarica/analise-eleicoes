@@ -40,6 +40,33 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
     <div class="resultados" id="resultados" hidden role="listbox"></div>
   </div>
 
+  <section class="duelo" aria-labelledby="duelo-titulo" id="duelo">
+    <div class="duelo-intro">
+      <div>
+        <p class="duelo-selo">Arquivo eleitoral · modo comparação</p>
+        <h2 id="duelo-titulo">Dois nomes. Uma disputa de histórias.</h2>
+        <p>Escolha quaisquer dois candidatos e descubra o que muda de uma eleição para outra.</p>
+      </div>
+      <span class="duelo-marca" aria-hidden="true">A × B</span>
+    </div>
+    <div class="duelo-seletores">
+      <div class="duelo-seletor" data-side="a">
+        <label for="duelo-busca-a"><span class="duelo-letra">A</span> Primeiro candidato</label>
+        <div class="duelo-campo"><input id="duelo-busca-a" type="search" autocomplete="off" placeholder="Digite um nome" aria-label="Buscar primeiro candidato em todos os anos e estados" aria-autocomplete="list" aria-expanded="false" aria-controls="duelo-opcoes-a"><button type="button" class="duelo-limpar" aria-label="Remover primeiro candidato" hidden>×</button><div class="duelo-opcoes" id="duelo-opcoes-a" role="listbox" hidden></div></div>
+        <p class="duelo-escolhido" id="duelo-escolhido-a">À espera de um nome</p>
+      </div>
+      <span class="duelo-vs" aria-hidden="true">VS</span>
+      <div class="duelo-seletor" data-side="b">
+        <label for="duelo-busca-b"><span class="duelo-letra">B</span> Segundo candidato</label>
+        <div class="duelo-campo"><input id="duelo-busca-b" type="search" autocomplete="off" placeholder="Digite outro nome" aria-label="Buscar segundo candidato em todos os anos e estados" aria-autocomplete="list" aria-expanded="false" aria-controls="duelo-opcoes-b"><button type="button" class="duelo-limpar" aria-label="Remover segundo candidato" hidden>×</button><div class="duelo-opcoes" id="duelo-opcoes-b" role="listbox" hidden></div></div>
+        <p class="duelo-escolhido" id="duelo-escolhido-b">À espera de um nome</p>
+      </div>
+    </div>
+    <div class="duelo-resultado" id="duelo-resultado" aria-live="polite">
+      <div class="duelo-vazio"><span aria-hidden="true">＋</span><p>Escolha dois candidatos para revelar as curiosidades que a história eleitoral guardou.</p></div>
+    </div>
+  </section>
+
   <div class="comp">
     <div class="forma-box">
       <svg id="forma" viewBox="0 0 600 520" role="img" aria-labelledby="uf-nome resumo"></svg>
