@@ -102,6 +102,10 @@ export let UF = null, ANO = null, CARGO = null, LINHAS = [], VENCEDORES = new Ma
 // cargos diferentes, então cada tipo guarda o seu: 2018 → 2022 mantém Senador;
 // 2022 → 2024 vai para o último cargo municipal visto; 2024 → 2022 volta a Senador.
 const CARGO_PREF = { geral: null, municipal: null };
+// Ano escolhido por quem usa (no mapa ou no painel de uma questão). Num estado que
+// não tem esse ano (o DF não tem eleições municipais) o mapa pede um ano, como antes;
+// ao voltar a um estado que tem, o ano escolhido volta, para comparar estado a estado.
+let ANO_ESCOLHIDO = null;
 const tipoAno = a => ANOS_GERAIS.has(a) ? "geral" : "municipal";
 const svg = d3.select("#forma"), tip = document.getElementById("tip");
 // câmera: que parte do mapa está enquadrada — todo o Brasil (sigla null), um estado ou um município
@@ -210,7 +214,7 @@ async function abrirEstado(uf, voar){
   UF = uf; MALHA = null; MALHA_ERRO = false; MUN_SEL = null;
   VISTA.mun = null;
   if (voar) VISTA.sigla = uf; // a carga inicial da página abre no mapa do Brasil inteiro
-  if (ANO && !anosDisponiveis(uf).includes(ANO)) ANO = null;
+  ANO = ANO_ESCOLHIDO && anosDisponiveis(uf).includes(ANO_ESCOLHIDO) ? ANO_ESCOLHIDO : null;
   document.querySelectorAll("#estados a").forEach(a => a.setAttribute("aria-current", a.dataset.uf===uf ? "page" : "false"));
   document.getElementById("uf-nome").textContent = GEO[uf].properties.nome;
   document.title = GEO[uf].properties.nome + ": partido vencedor por município";
@@ -274,7 +278,7 @@ function escolherNoMapa(sigla){
 function montarAnos(){
   const el = document.getElementById("anos"), disp = anosDisponiveis(UF);
   el.innerHTML = ANOS.map(a => `<button class="ano-btn" data-ano="${a}" aria-pressed="${a===ANO}" ${disp.includes(a)?"":"disabled title=\"O DF não tem eleições municipais\""}>${a}</button>`).join("");
-  el.querySelectorAll("button").forEach(b => b.onclick = () => { ANO = +b.dataset.ano; montarAnos(); carregarAno(); });
+  el.querySelectorAll("button").forEach(b => b.onclick = () => { ANO = ANO_ESCOLHIDO = +b.dataset.ano; montarAnos(); carregarAno(); });
 }
 
 async function carregarAno(){
@@ -288,7 +292,7 @@ async function carregarAno(){
 
 // troca de ano pelo painel de uma questão: o mapa acompanha
 export function mudarAno(ano){
-  ANO = ano; montarAnos();
+  ANO = ANO_ESCOLHIDO = ano; montarAnos();
   if (UF) carregarAno();
   atualizarPainel();
 }

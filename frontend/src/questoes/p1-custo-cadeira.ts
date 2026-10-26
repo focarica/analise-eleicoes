@@ -4,6 +4,9 @@ import { fmt, brlc, titulo, cargoNome, esc, request } from "../util";
 import { UF, ANO } from "../presentation";
 import "./p1-custo-cadeira.css";
 
+// filtro escolhido pelo usuário: "eleitos" ou "todos"
+let modoCalculo = "eleitos";
+
 function montarCustoCadeira(linhas) {
   const el = document.getElementById("custo-cadeira");
   if (!linhas || !linhas.length) { 
@@ -11,8 +14,8 @@ function montarCustoCadeira(linhas) {
     return; 
   }
 
-  // Estado local para controlar o filtro selecionado pelo usuário
-  let modoCalculo = "eleitos"; // pode ser "eleitos" ou "todos"
+  // o modo escolhido fica guardado no módulo (modoCalculo, abaixo): continua o mesmo
+  // ao trocar de estado ou de ano, para comparar
 
   const renderizarGrafico = () => {
     // Processa os dados calculando o custo médio da cadeira com base no modo
