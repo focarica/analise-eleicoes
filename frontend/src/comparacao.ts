@@ -122,7 +122,7 @@ function frase(a: Perfil, b: Perfil, sa: ReturnType<typeof resumir>, sb: ReturnT
   if(topA&&topB) {
     const high=n(topA.votos)>=n(topB.votos)?topA:topB, low=high===topA?topB:topA, who=high===topA?nomeA:nomeB, other=high===topA?nomeB:nomeA;
     const ratio=n(low.votos)>0?n(high.votos)/n(low.votos):null;
-    if(n(high.votos)-n(low.votos)>=10000 && ratio!=null && ratio>=2) fatos.push(`A maior votação de ${who} chegou a ${fmt.format(n(high.votos))} votos em ${high.ano}. Isso é mais que o dobro do recorde de ${other}.`);
+    if(n(high.votos)-n(low.votos)>=10000 && ratio!=null && ratio>=2) fatos.push(`A maior votação de ${who} chegou a ${fmt.format(n(high.votos))} votos em ${high.ano_eleicao}. Isso é mais que o dobro do recorde de ${other}.`);
   }
   const topGastoA=maiorRegistro(sa.cs,"total_despesas"), topGastoB=maiorRegistro(sb.cs,"total_despesas");
   if(topGastoA&&topGastoB) {
@@ -287,25 +287,25 @@ function fatosTrajetoria(a: Perfil, b: Perfil, sa: ReturnType<typeof resumir>, s
   if(xV&&yV&&n(xV.votos)!==n(yV.votos)) {
     const maior=n(xV.votos)>n(yV.votos)?xV:yV, nomeMaior=maior===xV?nomeA:nomeB, menor=maior===xV?yV:xV;
     const razao=n(menor.votos)>0?n(maior.votos)/n(menor.votos):null;
-    if(razao!=null && razao>=2 && n(maior.votos)-n(menor.votos)>=10000) fatos.push(`${nomeMaior} teve sua maior votação em ${maior.ano}, com ${fmt.format(n(maior.votos))} votos, mais que o dobro do recorde de ${maior===xV?nomeB:nomeA}.`);
+    if(razao!=null && razao>=2 && n(maior.votos)-n(menor.votos)>=10000) fatos.push(`${nomeMaior} teve sua maior votação em ${maior.ano_eleicao}, com ${fmt.format(n(maior.votos))} votos, mais que o dobro do recorde de ${maior===xV?nomeB:nomeA}.`);
   }
   const xG=maiorRegistro(sa.cs,"total_despesas"), yG=maiorRegistro(sb.cs,"total_despesas");
   if(xG&&yG&&n(xG.total_despesas)!==n(yG.total_despesas)) {
     const maior=n(xG.total_despesas)>n(yG.total_despesas)?xG:yG, menor=maior===xG?yG:xG, nomeMaior=maior===xG?nomeA:nomeB, nomeMenor=maior===xG?nomeB:nomeA;
     const razao=n(menor.total_despesas)>0?n(maior.total_despesas)/n(menor.total_despesas):null;
-    if(razao!=null && razao>=2 && n(maior.total_despesas)-n(menor.total_despesas)>=100000) fatos.push(`A campanha mais cara de ${nomeMaior} foi em ${maior.ano}: ${dinheiro(maior.total_despesas)}, pelo menos o dobro do maior gasto de ${nomeMenor}. Valores nominais, sem ajuste pela inflação.`);
+    if(razao!=null && razao>=2 && n(maior.total_despesas)-n(menor.total_despesas)>=100000) fatos.push(`A campanha mais cara de ${nomeMaior} foi em ${maior.ano_eleicao}: ${dinheiro(maior.total_despesas)}, pelo menos o dobro do maior gasto de ${nomeMenor}. Valores nominais, sem ajuste pela inflação.`);
   }
   const xR=maiorRegistro(sa.cs,"total_receitas"), yR=maiorRegistro(sb.cs,"total_receitas");
   if(xR&&yR&&n(xR.total_receitas)!==n(yR.total_receitas)) {
     const maior=n(xR.total_receitas)>n(yR.total_receitas)?xR:yR, menor=maior===xR?yR:xR, quem=maior===xR?nomeA:nomeB;
     const razao=n(menor.total_receitas)>0?n(maior.total_receitas)/n(menor.total_receitas):null;
-    if(razao!=null && razao>=2 && n(maior.total_receitas)-n(menor.total_receitas)>=100000) fatos.push(`A maior arrecadação de campanha foi de ${quem}, em ${maior.ano}: ${dinheiro(maior.total_receitas)}, pelo menos o dobro da maior arrecadação do outro. Valores nominais, sem ajuste pela inflação.`);
+    if(razao!=null && razao>=2 && n(maior.total_receitas)-n(menor.total_receitas)>=100000) fatos.push(`A maior arrecadação de campanha foi de ${quem}, em ${maior.ano_eleicao}: ${dinheiro(maior.total_receitas)}, pelo menos o dobro da maior arrecadação do outro. Valores nominais, sem ajuste pela inflação.`);
   }
   const xP=maiorRegistro(sa.cs,"patrimonio_declarado"), yP=maiorRegistro(sb.cs,"patrimonio_declarado");
   if(xP&&yP&&n(xP.patrimonio_declarado)!==n(yP.patrimonio_declarado)) {
     const maior=n(xP.patrimonio_declarado)>n(yP.patrimonio_declarado)?xP:yP, quem=maior===xP?nomeA:nomeB;
     const menor=maior===xP?yP:xP;
-    if(n(maior.patrimonio_declarado)>=2*n(menor.patrimonio_declarado) && n(maior.patrimonio_declarado)-n(menor.patrimonio_declarado)>=1000000) fatos.push(`O maior patrimônio declarado em uma candidatura foi o de ${quem}: ${dinheiro(maior.patrimonio_declarado)}, mais que o dobro do outro maior registro. Foi declarado em ${maior.ano}.`);
+    if(n(maior.patrimonio_declarado)>=2*n(menor.patrimonio_declarado) && n(maior.patrimonio_declarado)-n(menor.patrimonio_declarado)>=1000000) fatos.push(`O maior patrimônio declarado em uma candidatura foi o de ${quem}: ${dinheiro(maior.patrimonio_declarado)}, mais que o dobro do outro maior registro. Foi declarado em ${maior.ano_eleicao}.`);
   }
   const maiorParcelaPublica=(cs:Candidatura[])=>cs.filter(c=>n(c.total_receitas)>0).reduce<Candidatura|null>((best,c)=>!best || n(c.receitas_publicas)/n(c.total_receitas)>n(best.receitas_publicas)/n(best.total_receitas)?c:best,null);
   const pubA=maiorParcelaPublica(sa.cs), pubB=maiorParcelaPublica(sb.cs);
