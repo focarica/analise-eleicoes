@@ -2,3 +2,28 @@
 .leg5-destaque{ font-size:1rem; margin:.1rem 0 .3rem; }
 .leg5-destaque b{ font-size:1.35rem; }
 tr.leg5-partido{ cursor:pointer; }
+/* números grandes: sozinhos × dependeram */
+.leg5-cards{ display:grid; grid-template-columns:repeat(auto-fit,minmax(11rem,1fr)); gap:.7rem; margin:.4rem 0 .9rem; }
+.leg5-card{ display:flex; flex-direction:column; gap:.15rem; padding:.75rem .9rem; border-radius:10px; border:1px solid var(--line); border-left-width:5px; }
+.leg5-card b{ font-size:1.8rem; line-height:1.05; }
+.leg5-card span{ font-size:.92rem; }
+.leg5-card small{ font-size:.78rem; color:var(--ink-2); line-height:1.35; }
+.leg5-sozinho{ border-left-color:var(--leg5-sozinho); }
+.leg5-dependente{ border-left-color:var(--leg5-dep); }
+/* faixas de quanto do quociente o eleito alcançou: do mais dependente ao sozinho */
+#leg5-conteudo{ --leg5-f0:#f2b8a0; --leg5-f1:#e8916f; --leg5-f2:#d26a4a; --leg5-f3:#a84a33; --leg5-sozinho:#2f7d5b; --leg5-dep:#c0563a; }
+.leg5-f0{ background:var(--leg5-f0); } .leg5-f1{ background:var(--leg5-f1); } .leg5-f2{ background:var(--leg5-f2); }
+.leg5-f3{ background:var(--leg5-f3); } .leg5-f4{ background:var(--leg5-sozinho); }
+.leg5-pilha{ display:flex; height:1.1rem; border-radius:5px; overflow:hidden; background:var(--line); margin:.35rem 0 .45rem; }
+.leg5-pilha i{ display:block; height:100%; min-width:2px; }
+.leg5-faixas{ list-style:none; margin:0 0 .6rem; padding:0; display:grid; gap:.2rem; font-size:.84rem; }
+.leg5-faixas li{ display:grid; grid-template-columns:.8rem 1fr auto 6.5rem; gap:.5rem; align-items:center; }
+.leg5-faixas li i{ width:.8rem; height:.8rem; border-radius:2px; }
+.leg5-faixas .num{ text-align:right; font-variant-numeric:tabular-nums; }
+.leg5-faixas .dim{ color:var(--ink-3); }
+/* exemplo do quociente com um nome real */
+.leg5-exemplo{ margin:.5rem 0 .6rem; padding:.6rem .8rem; border-radius:8px; background:color-mix(in srgb, var(--ink) 5%, transparent); font-size:.86rem; line-height:1.45; }
+.leg5-exemplo span{ font-weight:700; margin-right:.2rem; }
+/* barrinha "alcançou" na lista */
+.leg5-alcance{ display:inline-block; width:3.2rem; height:.4rem; margin-right:.4rem; border-radius:2px; background:var(--line); vertical-align:middle; overflow:hidden; }
+.leg5-alcance i{ display:block; height:100%; background:var(--ink-2); }
