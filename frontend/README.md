@@ -98,6 +98,8 @@ A seção lê `/api/escolaridade?uf&ano&cargo`, sobre `vw_questao_4_escolaridade
 
 ### Indicadores municipais e partido vencedor (P3)
 
+O painel visual tem composição partidária dos quatro grupos, dispersão, distribuição e ranking interativos. As escolhas, interações e invariantes estão em [Visualização da P3](../docs/p3-visualizacao.md).
+
 O card lê `/api/q3-indicadores` sobre `vw_questao_3_indicadores_municipio` (`sql/motherduck/12_view_questao_3_indicadores.sql`). Por eleição municipal, relaciona PIB per capita, população, IDHM, aptos/população, abstenção e partido do prefeito eleito. O indicador selecionado divide os municípios em quatro grupos; cada grupo mostra o partido que venceu mais prefeituras. PIB per capita e população podem vir de anos IBGE diferentes; suas referências ficam na nota. IDHM usa 2010. Aptos/população usa aptos do primeiro turno e habitantes, podendo passar de 100%. Abstenção é abstenções/aptos do primeiro turno. A visão exclui eleições suplementares ao selecionar o código TSE com maior cobertura municipal no ano.
 
 ### Idade e alternância municipal (P6)

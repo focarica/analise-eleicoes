@@ -1,8 +1,9 @@
 // @ts-nocheck
 // P3 — índices municipais e partido do prefeito eleito por município.
 import { fmt, brlc, pctFmt, titulo, esc, request } from "../util";
-import { UF, GEO } from "../presentation";
+import { UF, GEO, abrirMunicipio } from "../presentation";
 import "./p3-indicadores.css";
+import { montarGraficos } from "./p3-graficos";
 
 const ANOS = [2004, 2008, 2012, 2016, 2020, 2024];
 const METRICAS = {
@@ -37,7 +38,7 @@ export default {
   async montar(el) {
     const atual = ++pedido;
     const anoInicial = ANOS.includes(2024) ? 2024 : ANOS.at(-1);
-    el.innerHTML = `<p class="nota">Para cada eleição municipal, compara-se o indicador dos municípios e o partido do prefeito eleito. Os quartis agrupam municípios do menor ao maior valor do indicador; o partido exibido em cada faixa é o que venceu mais prefeituras nela.</p>
+    el.innerHTML = `<p class="nota">Quais partidos ganham mais prefeituras em municípios com diferentes indicadores? Escolha um ano e um indicador para comparar.</p>
       <div class="q3-controles">
         <label>Eleição municipal<select id="q3-ano">${ANOS.map(a => `<option value="${a}" ${a === anoInicial ? "selected" : ""}>${a}</option>`).join("")}</select></label>
         <label>Indicador<select id="q3-metrica">${Object.entries(METRICAS).map(([id, m]) => `<option value="${id}">${m.nome}</option>`).join("")}</select></label>
@@ -70,12 +71,14 @@ export default {
         <div class="q3-card"><small>Partido com mais prefeituras no recorte</small><b>${topPartido ? `${esc(topPartido[0])} · ${fmt.format(topPartido[1])}` : "Sem partido identificado"}</b></div>
         <div class="q3-card"><small>Abstenção média simples</small><b>${mediaAbst == null ? "Sem dado" : `${mediaAbst.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}</b></div>
       </div>
-      <h3>Partido mais vitorioso por faixa de ${m.nome.toLowerCase()}</h3>
+      <div class="q3-dashboard" data-q3-graficos></div>
+      <details class="q3-detalhes"><summary>Ver os números dos quatro grupos</summary>
       <p class="aviso-mini">Cada faixa contém aproximadamente um quarto dos municípios com indicador publicado. Os percentuais de eleitorado/população e de abstenção são médias simples por município.</p>
       <div class="q3-quartis">${grupos.map(g => `<article class="q3-quartil"><small>${g.faixa === 1 ? "Q1 · menor" : g.faixa === 4 ? "Q4 · maior" : `Q${g.faixa}`} · faixa ${g.faixa}</small><b>${g.partido ? esc(g.partido) : "Sem partido"}</b><span>${g.partido ? `${fmt.format(g.vitorias)} de ${fmt.format(g.n)} prefeituras` : `${fmt.format(g.n)} municípios`}</span><small>média ${formatMetric(g.media)}</small></article>`).join("")}</div>
-      <h3>Municípios com maior ${m.nome.toLowerCase()}</h3>
-      <div class="q3-tabela"><table><thead><tr><th>Município${nomeUf ? ` · ${esc(nomeUf)}` : " · UF"}</th><th class="num">${m.nome}</th><th class="num">Abstenção</th><th class="num">Aptos/pop.</th><th>Prefeito eleito</th><th>Partido</th></tr></thead><tbody>${tabela.map(r => `<tr><td>${esc(titulo(r.nm_municipio))}${UF ? "" : ` · ${esc(r.sg_uf)}`}</td><td class="num">${formatMetric(r[m.campo])}</td><td class="num">${r.pct_abstencao == null ? "–" : `${Number(r.pct_abstencao).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}</td><td class="num">${r.pct_eleitores_populacao == null ? "–" : `${Number(r.pct_eleitores_populacao).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}</td><td>${esc(titulo(r.nm_urna_candidato || "Sem registro"))}</td><td>${esc(r.sg_partido || "–")}</td></tr>`).join("")}</tbody></table></div>
+      </details><details class="q3-detalhes"><summary>Ver a tabela dos 20 municípios</summary>
+      <div class="q3-tabela"><table><thead><tr><th>Município${nomeUf ? ` · ${esc(nomeUf)}` : " · UF"}</th><th class="num">${m.nome}</th><th class="num">Abstenção</th><th class="num">Aptos/pop.</th><th>Prefeito eleito</th><th>Partido</th></tr></thead><tbody>${tabela.map(r => `<tr><td>${esc(titulo(r.nm_municipio))}${UF ? "" : ` · ${esc(r.sg_uf)}`}</td><td class="num">${formatMetric(r[m.campo])}</td><td class="num">${r.pct_abstencao == null ? "–" : `${Number(r.pct_abstencao).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}</td><td class="num">${r.pct_eleitores_populacao == null ? "–" : `${Number(r.pct_eleitores_populacao).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}</td><td>${esc(titulo(r.nm_urna_candidato || "Sem registro"))}</td><td>${esc(r.sg_partido || "–")}</td></tr>`).join("")}</tbody></table></div></details>
       <p class="aviso-mini">${fmt.format(rows.length)} municípios na base para ${ano}${UF ? ` · ${esc(UF)}` : " · amostra de seis UFs"}. População e PIB per capita usam cada um o último ano IBGE publicado até a eleição; os anos aparecem nas fontes e a série pode terminar antes do pleito. IDHM usa ${rows.find(r => r.ano_idhm != null)?.ano_idhm || "a referência mais recente disponível"}. Aptos/população usa aptos do 1º turno e população IBGE; abstenção usa abstenções/aptos do 1º turno. ${mediaEleitorado == null ? "Proporção de aptos/população indisponível neste recorte." : `Proporção média de aptos/população: ${mediaEleitorado.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%.`}</p>`;
+      montarGraficos(alvo.querySelector("[data-q3-graficos]"), rows, m, grupos, tabela, abrirMunicipio);
     };
     anoSel.onchange = carregar; metricaSel.onchange = carregar;
     await carregar();

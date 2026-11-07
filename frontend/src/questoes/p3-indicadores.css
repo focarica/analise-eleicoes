@@ -1,17 +1,53 @@
-.q3-controles{display:flex;gap:.6rem;flex-wrap:wrap;margin:.7rem 0 1rem}
-.q3-controles label{display:grid;gap:.25rem;font-size:.76rem;color:var(--ink-3)}
-.q3-controles select{min-width:11rem;padding:.55rem .7rem;border:1px solid var(--line);border-radius:var(--radius-sm,4px);background:var(--raised);color:var(--ink);font:inherit}
-.q3-resumo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.6rem;margin:.5rem 0 1rem}
-.q3-card{border:1px solid var(--line);padding:.7rem .8rem;min-width:0}
-.q3-card small{display:block;color:var(--ink-3);font-size:.72rem;margin-bottom:.25rem}
-.q3-card b{display:block;font-size:1.1rem;overflow-wrap:anywhere}
-.q3-quartis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.45rem;margin:.7rem 0 1rem}
-.q3-quartil{border-top:3px solid var(--line);padding:.55rem .55rem .65rem;background:var(--raised)}
-.q3-quartil:nth-child(2){border-color:var(--ink-3)}.q3-quartil:nth-child(3){border-color:var(--ink-2)}.q3-quartil:nth-child(4){border-color:var(--ink)}.q3-quartil:nth-child(5){border-color:var(--accent,var(--ink))}
+/* P3 reutiliza cores, tipografia e superfícies dos temas do painel. */
+.q3-controles{display:flex;gap:.8rem;flex-wrap:wrap;margin:.8rem 0 1.2rem}
+.q3-controles label{display:grid;gap:.35rem;font-size:.78rem;color:var(--ink-2);font-weight:600}
+.q3-controles select{min-width:12rem;padding:.6rem .8rem;border:1px solid var(--line);border-radius:6px;background:var(--raised);color:var(--ink);font:inherit}
+.q3-resumo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin:0 0 1rem}
+.q3-card{background:var(--raised);border:1px solid var(--line);border-radius:8px;padding:1rem;min-width:0;border-top:3px solid var(--faixa-0)}
+.q3-card small{display:block;color:var(--ink-2);font-size:.74rem;margin-bottom:.4rem}
+.q3-card b{display:block;font-size:clamp(1.15rem,2vw,1.6rem);line-height:1.2;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.q3-dashboard{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin:1rem 0 1.5rem;align-items:start}
+.q3-grafico{min-width:0;padding:1.15rem;background:var(--raised);border:1px solid var(--line);border-radius:10px}
+.q3-grafico header{margin-bottom:1rem}.q3-grafico h3{margin:0;font-size:1rem;line-height:1.4;letter-spacing:-.015em}
+.q3-grafico header p{margin:.35rem 0 0;color:var(--ink-2);font-size:.76rem;line-height:1.5}
+.q3-composicao,.q3-ranking{grid-column:1/-1}
+.q3-regua{display:flex;justify-content:space-between;padding-bottom:.4rem;color:var(--ink-3);font-size:.67rem;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--line)}
+.q3-grupo{margin-top:1rem}.q3-grupo-cab{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;margin-bottom:.4rem;font-size:.74rem;color:var(--ink-2)}
+.q3-grupo-cab>div{display:flex;gap:.65rem;align-items:baseline}.q3-grupo-cab b{color:var(--ink)}
+.q3-barra{display:flex;min-height:38px;background:var(--surface);border-radius:4px;overflow:hidden}
+.q3-segmento{display:flex;align-items:center;justify-content:center;min-width:0;white-space:nowrap;overflow:hidden;font-size:.73rem;font-weight:700;border-right:1px solid var(--raised);cursor:pointer;transition:opacity .15s}
+.q3-segmento:focus-visible{outline:3px solid var(--focus);outline-offset:-3px}
+.q3-legenda{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:1.2rem;border-top:1px solid var(--line);padding-top:.85rem}
+.q3-legenda button{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .45rem;border:1px solid transparent;background:transparent;border-radius:4px;cursor:pointer;font-size:.72rem;color:var(--ink-2)}
+.q3-legenda button[aria-pressed=true]{border-color:var(--ink-2);color:var(--ink);background:var(--surface);font-weight:700}
+.q3-legenda i{display:inline-block;width:.65rem;height:.65rem;border-radius:2px;border:1px solid #0002}
+.q3-canvas{min-width:0}.q3-canvas svg{display:block;width:100%;height:auto;overflow:visible;touch-action:pan-y}
+.q3-eixo text,.q3-unidade{fill:var(--ink-2);font-family:var(--font);font-size:10px}
+.q3-eixo path,.q3-eixo line{stroke:var(--line)}.q3-eixo .domain{display:none}
+.q3-grade path{display:none}.q3-grade line{stroke:var(--line);stroke-dasharray:3 4}
+.q3-histograma-barra{fill:var(--faixa-0)}.q3-ponto{fill-opacity:.7;stroke:var(--raised);stroke-width:.6;transition:opacity .15s}
+.q3-tooltip{position:fixed;z-index:100;max-width:min(340px,calc(100vw - 24px));padding:.75rem .9rem;border:1px solid var(--line);border-radius:7px;background:var(--ink);color:var(--raised);font-size:.78rem;line-height:1.5;pointer-events:none;box-shadow:0 6px 24px #0003}
+.q3-ativo{stroke:var(--ink);stroke-width:2;fill-opacity:1!important;outline:none}.q3-party-mark.q3-atenuado{opacity:.16}.q3-party-mark.q3-destaque{opacity:1;fill-opacity:1}
+.q3-zoom{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;margin-top:.6rem}
+.q3-zoom span{flex:1 1 100%;font-size:.67rem;color:var(--ink-3)}
+.q3-zoom button{min-width:30px;min-height:30px;border:1px solid var(--line);border-radius:4px;background:var(--surface);cursor:pointer;font-size:.75rem}
+.q3-ranking-lista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:2rem;grid-auto-flow:column;grid-template-rows:repeat(10,auto)}
+.q3-ranking-linha{display:grid;grid-template-columns:1.4rem minmax(100px,1fr) minmax(40px,.7fr) 5.8rem;gap:.5rem;align-items:center;width:100%;padding:.55rem 0;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;cursor:pointer;font-size:.75rem}
+.q3-ranking-linha:hover{background:var(--surface)}.q3-posicao{color:var(--ink-3);font-size:.65rem}.q3-ranking-local{min-width:0;overflow-wrap:anywhere}.q3-ranking-local small{display:block;color:var(--ink-3);font-size:.65rem;margin-top:.1rem}
+.q3-ranking-trilho{height:9px;background:var(--surface);border-radius:2px;overflow:hidden}.q3-ranking-barra{display:block;height:100%;min-width:1px;border-radius:2px;transition:opacity .15s}
+.q3-ranking-valor{text-align:right;font-size:.73rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+.q3-detalhes{border-top:1px solid var(--line);padding:.85rem 0}.q3-detalhes summary{cursor:pointer;font-weight:600;font-size:.8rem}
+.q3-quartis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.6rem;margin:.8rem 0}
+.q3-quartil{padding:.65rem;background:var(--raised);border:1px solid var(--line);border-radius:5px}
 .q3-quartil small{color:var(--ink-3)}.q3-quartil b{display:block;margin:.25rem 0}
-.q3-tabela{max-height:28rem;overflow:auto}
-.q3-tabela table{width:100%;border-collapse:collapse;font-size:.8rem}
-.q3-tabela th,.q3-tabela td{padding:.48rem .4rem;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
-.q3-tabela th{position:sticky;top:0;background:var(--raised);z-index:1;color:var(--ink-3);font-weight:600}
-.q3-tabela td.num,.q3-tabela th.num{text-align:right;font-variant-numeric:tabular-nums}
-@media(max-width:700px){.q3-resumo{grid-template-columns:1fr}.q3-quartis{grid-template-columns:repeat(2,minmax(0,1fr))}.q3-tabela{max-width:calc(100vw - 3rem)}}
+.q3-tabela{max-height:28rem;overflow:auto;margin-top:.75rem}
+.q3-tabela table{width:100%;border-collapse:collapse;font-size:.78rem}
+.q3-tabela th,.q3-tabela td{padding:.5rem;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+.q3-tabela th{position:sticky;top:0;background:var(--raised);z-index:1;color:var(--ink-2);font-weight:600}
+.q3-tabela .num{text-align:right;font-variant-numeric:tabular-nums}
+@media(max-width:900px){.q3-ranking-lista{grid-template-columns:1fr;grid-template-rows:none;grid-auto-flow:row}.q3-dashboard{grid-template-columns:1fr}}
+@media(max-width:550px){.q3-resumo{grid-template-columns:1fr}.q3-card{display:flex;align-items:center;justify-content:space-between;gap:1rem}.q3-card small{margin:0;max-width:60%}.q3-card b{text-align:right}.q3-grafico{padding:.85rem}.q3-grupo-cab{align-items:start;flex-direction:column;gap:.15rem}.q3-grupo-cab>div{gap:.45rem}.q3-segmento{font-size:.62rem}.q3-barra{min-height:35px}.q3-quartis{grid-template-columns:repeat(2,minmax(0,1fr))}.q3-ranking-linha{grid-template-columns:1.2rem minmax(90px,1fr) minmax(25px,.45fr) 5.6rem;gap:.35rem}.q3-controles label,.q3-controles select{width:100%}.q3-controles{display:grid;grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.q3-party-mark{transition:none}}
+.q3-legenda-ausente{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .45rem;font-size:.72rem;color:var(--ink-2)}
+.q3-regua,.q3-posicao,.q3-ranking-local small,.q3-zoom span{color:var(--ink-2)}
+@media(max-width:550px){.q3-card b{white-space:nowrap;flex-shrink:0}.q3-card small{flex:1;max-width:50%}}
