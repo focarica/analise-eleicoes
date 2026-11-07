@@ -4,10 +4,10 @@
 import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
 import { createDataCache } from '../cache';
 
-// Banco de referência compartilhado: contém eleições de 2004 a 2024.
+// Banco de referência compartilhado: contém eleições de 2004 a 2026.
 export const DATABASE = "BDR-TSE";
 export const UFS = new Set(["AC", "AL", "BA", "DF", "RO", "SP"]);
-export const YEARS = new Set([2004, 2006, 2008, 2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024]);
+export const YEARS = new Set([2004, 2006, 2008, 2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024, 2026]);
 export const CARGOS: Record<number, string> = { 1: "Presidente", 3: "Governador", 5: "Senador", 6: "Deputado federal", 7: "Deputado estadual", 8: "Deputado distrital", 11: "Prefeito", 13: "Vereador" };
 export const UFS_LIST = ["AC", "AL", "BA", "DF", "RO", "SP"];
 // Várias conexões da mesma instância: as consultas rodam em paralelo no
