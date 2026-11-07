@@ -11,7 +11,8 @@
 -- Lado da população: pessoas de 18 anos ou mais por nível de instrução no
 -- Censo (o ano mais recente de escolaridade_populacao_municipio).
 --
--- O Censo usa quatro níveis; os sete do TSE são agrupados neles:
+-- Censo e perfil do eleitorado do TSE usam quatro níveis comuns; os sete níveis
+-- oficiais do TSE são agrupados neles:
 --   1 Sem instrução e fundamental incompleto  (analfabeto, lê e escreve, fundamental incompleto)
 --   2 Fundamental completo e médio incompleto
 --   3 Médio completo e superior incompleto
@@ -33,7 +34,7 @@ WITH niveis(nr_nivel, ds_nivel) AS (
            (3, 'Médio completo e superior incompleto'),
            (4, 'Superior completo')
 ), candidaturas AS (
-    SELECT c.cd_municipio_tse, c.ano_eleicao, c.ds_cargo, ca.ds_grau_instrucao AS grau,
+    SELECT c.cd_municipio_tse, c.ano_eleicao, UPPER(c.ds_cargo) AS ds_cargo, ca.ds_grau_instrucao AS grau,
            CASE WHEN c.ds_sit_tot_turno IN ('ELEITO', 'ELEITO POR QP', 'ELEITO POR MÉDIA', 'MÉDIA')
                 THEN 1 ELSE 0 END AS eleito
     FROM public.candidatura c
@@ -61,6 +62,13 @@ WITH niveis(nr_nivel, ds_nivel) AS (
     WHERE e.ano_referencia = (SELECT ano FROM censo)
       AND UPPER(strip_accents(TRIM(e.ds_nivel_instrucao))) NOT LIKE '%TOTAL%'
     GROUP BY 1, 2
+), perfil_bruto AS (
+    SELECT pt.cd_municipio_tse, f.ano_eleicao, f.ds_categoria AS grau,
+           SUM(f.qt_eleitores) AS qt_eleitores
+    FROM public.fato_perfil_eleitorado f
+    JOIN ponte pt ON pt.cd_municipio_ibge = f.cd_municipio_ibge
+    WHERE f.tp_dimensao = 'GRAU_INSTRUCAO'
+    GROUP BY 1, 2, 3
 ), graus AS (
     SELECT grau,
            CASE
@@ -72,7 +80,11 @@ WITH niveis(nr_nivel, ds_nivel) AS (
            END AS nr_nivel
     FROM (
         SELECT DISTINCT grau, UPPER(strip_accents(TRIM(grau))) AS g
-        FROM (SELECT grau FROM cand_por_grau UNION SELECT grau FROM pop_por_grau)
+        FROM (
+            SELECT grau FROM cand_por_grau
+            UNION SELECT grau FROM pop_por_grau
+            UNION SELECT grau FROM perfil_bruto
+        )
     )
 ), cand AS (
     SELECT p.cd_municipio_tse, p.ano_eleicao, p.ds_cargo, g.nr_nivel,
@@ -82,6 +94,16 @@ WITH niveis(nr_nivel, ds_nivel) AS (
 ), pop AS (
     SELECT p.cd_municipio_tse, g.nr_nivel, SUM(p.qt_pessoas) AS qt_populacao
     FROM pop_por_grau p LEFT JOIN graus g ON g.grau IS NOT DISTINCT FROM p.grau
+    GROUP BY 1, 2
+), eleitorado AS (
+    SELECT p.cd_municipio_tse, p.ano_eleicao, g.nr_nivel,
+           SUM(p.qt_eleitores) AS qt_eleitorado
+    FROM perfil_bruto p
+    LEFT JOIN graus g ON g.grau IS NOT DISTINCT FROM p.grau
+    GROUP BY 1, 2, 3
+), eleitorado_total AS (
+    SELECT cd_municipio_tse, ano_eleicao
+    FROM eleitorado
     GROUP BY 1, 2
 ), pop_total AS (
     SELECT cd_municipio_tse FROM pop GROUP BY 1
@@ -98,16 +120,22 @@ WITH niveis(nr_nivel, ds_nivel) AS (
                     AND c.cd_municipio_tse = r.cd_municipio_tse AND c.ano_eleicao = r.ano_eleicao
                     AND c.ds_cargo = r.ds_cargo)
        OR EXISTS (SELECT 1 FROM pop p WHERE p.nr_nivel IS NULL AND p.cd_municipio_tse = r.cd_municipio_tse)
+       OR EXISTS (SELECT 1 FROM eleitorado e WHERE e.nr_nivel IS NULL
+                    AND e.cd_municipio_tse = r.cd_municipio_tse AND e.ano_eleicao = r.ano_eleicao)
 ), base AS (
     SELECT g.*,
            CAST(COALESCE(c.qt_candidatos, 0) AS BIGINT) AS qt_candidatos,
            CAST(COALESCE(c.qt_eleitos, 0) AS BIGINT) AS qt_eleitos,
+           CAST(CASE WHEN et.cd_municipio_tse IS NOT NULL THEN COALESCE(e.qt_eleitorado, 0) END AS BIGINT) AS qt_eleitorado,
            -- 0 quando o município está no Censo mas sem ninguém no nível; NULL sem Censo
            CAST(CASE WHEN t.cd_municipio_tse IS NOT NULL THEN COALESCE(p.qt_populacao, 0) END AS BIGINT) AS qt_populacao
     FROM grade g
     LEFT JOIN cand c ON c.cd_municipio_tse = g.cd_municipio_tse AND c.ano_eleicao = g.ano_eleicao
                     AND c.ds_cargo = g.ds_cargo AND c.nr_nivel IS NOT DISTINCT FROM g.nr_nivel
     LEFT JOIN pop p ON p.cd_municipio_tse = g.cd_municipio_tse AND p.nr_nivel IS NOT DISTINCT FROM g.nr_nivel
+    LEFT JOIN eleitorado e ON e.cd_municipio_tse = g.cd_municipio_tse
+                          AND e.ano_eleicao = g.ano_eleicao AND e.nr_nivel IS NOT DISTINCT FROM g.nr_nivel
+    LEFT JOIN eleitorado_total et ON et.cd_municipio_tse = g.cd_municipio_tse AND et.ano_eleicao = g.ano_eleicao
     LEFT JOIN pop_total t ON t.cd_municipio_tse = g.cd_municipio_tse
 ), parcelas AS (
     SELECT b.*,
@@ -115,16 +143,19 @@ WITH niveis(nr_nivel, ds_nivel) AS (
                FILTER (WHERE b.nr_nivel IS NOT NULL) OVER w, 0), 2) END AS pct_candidatos,
            CASE WHEN b.nr_nivel IS NOT NULL THEN ROUND(100.0 * b.qt_eleitos / NULLIF(SUM(b.qt_eleitos)
                FILTER (WHERE b.nr_nivel IS NOT NULL) OVER w, 0), 2) END AS pct_eleitos,
+           CASE WHEN b.nr_nivel IS NOT NULL THEN ROUND(100.0 * b.qt_eleitorado / NULLIF(SUM(b.qt_eleitorado)
+               FILTER (WHERE b.nr_nivel IS NOT NULL) OVER w, 0), 2) END AS pct_eleitorado,
            CASE WHEN b.nr_nivel IS NOT NULL THEN ROUND(100.0 * b.qt_populacao / NULLIF(SUM(b.qt_populacao)
                FILTER (WHERE b.nr_nivel IS NOT NULL) OVER w, 0), 2) END AS pct_populacao
     FROM base b
     WINDOW w AS (PARTITION BY b.cd_municipio_tse, b.ano_eleicao, b.ds_cargo)
 )
 SELECT p.ano_eleicao, (SELECT ano FROM censo) AS ano_censo,
+       p.ano_eleicao AS ano_eleitorado,
        m.sg_uf, p.cd_municipio_tse, m.nm_municipio, p.ds_cargo,
        p.nr_nivel, p.ds_nivel,
-       p.qt_candidatos, p.qt_eleitos, p.qt_populacao,
-       p.pct_candidatos, p.pct_eleitos, p.pct_populacao,
+       p.qt_candidatos, p.qt_eleitos, p.qt_populacao, p.qt_eleitorado,
+       p.pct_candidatos, p.pct_eleitos, p.pct_populacao, p.pct_eleitorado,
        -- quantas vezes a parcela do nível entre candidatos/eleitos é a parcela na população
        ROUND(p.pct_candidatos / NULLIF(p.pct_populacao, 0), 2) AS razao_candidatos_populacao,
        ROUND(p.pct_eleitos / NULLIF(p.pct_populacao, 0), 2) AS razao_eleitos_populacao
