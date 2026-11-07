@@ -92,14 +92,17 @@ async function montarEscolaridade(){
     .map(m => ({ ...m,
       difPop: m.pop == null ? null : (m.eleitos - m.pop) * 100,
       difEleitorado: m.eleitorado == null ? null : (m.eleitos - m.eleitorado) * 100 }));
-  const diferencaOrdenacao = m => Q4.comparacao === "ELEITORADO" ? m.difEleitorado : m.difPop;
-  muns.sort((a, b) => Q4.ordem === "maior"
-    ? (diferencaOrdenacao(b) ?? -Infinity) - (diferencaOrdenacao(a) ?? -Infinity)
-    : (diferencaOrdenacao(a) ?? Infinity) - (diferencaOrdenacao(b) ?? Infinity));
-  const acima = muns.filter(m => (Q4.comparacao === "ELEITORADO" ? m.difEleitorado : m.difPop) > 0).length;
   let mostrar = 10;
-  const pp = v => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} p.p.`;
+  const pp = v => v == null ? "–" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} p.p.`;
   const desenhar = () => {
+    const diferencaOrdenacao = m => Q4.comparacao === "ELEITORADO" ? m.difEleitorado : m.difPop;
+    const ordenados = muns.slice().sort((a, b) => {
+      const da = diferencaOrdenacao(a), db = diferencaOrdenacao(b);
+      if (da == null) return db == null ? 0 : 1;
+      if (db == null) return -1;
+      return Q4.ordem === "maior" ? db - da : da - db;
+    });
+    const acima = muns.filter(m => diferencaOrdenacao(m) > 0).length;
     el.innerHTML = `<div class="fin-grid">
       <div class="fin-bloco"><h3>${Q4.ano}: escolaridade de candidatos e eleitos × referências</h3>
         ${Math.abs(Q4.ano - censo) > 2 ? `<p class="aviso-mini">O Censo é de ${censo}; a escolaridade da população em ${Q4.ano} era outra. Compare com cautela.</p>` : ""}
@@ -114,15 +117,15 @@ async function montarEscolaridade(){
           <button data-o="maior" aria-pressed="${Q4.ordem === "maior"}">Eleitos muito mais escolarizados</button>
           <button data-o="menor" aria-pressed="${Q4.ordem === "menor"}">Mais próximos ou abaixo da população</button></div>
         <div class="tabw"><table class="tab"><thead><tr><th>Município</th><th class="v">Eleitos</th><th class="v">População</th><th class="v">Eleitorado TSE</th><th class="v">Δ Censo</th><th class="v">Δ TSE</th></tr></thead><tbody>
-          ${muns.slice(0, mostrar).map(m => `<tr><td><button class="link" data-mun="${esc(m.tse)}" data-uf="${esc(m.uf)}">${esc(titulo(m.nome))}</button>${UF ? "" : ` <small class="dim">${esc(m.uf)}</small>`}</td>
+          ${ordenados.slice(0, mostrar).map(m => `<tr><td><button class="link" data-mun="${esc(m.tse)}" data-uf="${esc(m.uf)}">${esc(titulo(m.nome))}</button>${UF ? "" : ` <small class="dim">${esc(m.uf)}</small>`}</td>
             <td class="v num" title="${fmt.format(m.eleitosSup)} de ${fmt.format(m.eleitosInf)} eleitos">${pctQ4(m.eleitos)}</td>
             <td class="v num">${m.pop == null ? "–" : pctQ4(m.pop)}</td><td class="v num">${m.eleitorado == null ? "–" : pctQ4(m.eleitorado)}</td>
             <td class="v num"><b>${pp(m.difPop)}</b></td><td class="v num"><b>${pp(m.difEleitorado)}</b></td></tr>`).join("")}
         </tbody></table></div>
-        ${mostrar < muns.length ? `<p><button class="link" data-mais="1">Mostrar mais</button></p>` : ""}
+        ${mostrar < ordenados.length ? `<p><button class="link" data-mais="1">Mostrar mais</button></p>` : ""}
       </div></div>`;
     el.querySelectorAll("[data-universo]").forEach(b => b.onclick = () => { Q4.comparacao = b.dataset.universo; desenhar(); });
-    el.querySelectorAll("[data-o]").forEach(b => b.onclick = () => { Q4.ordem = b.dataset.o; montarEscolaridade(); });
+    el.querySelectorAll("[data-o]").forEach(b => b.onclick = () => { Q4.ordem = b.dataset.o; desenhar(); });
     // a gaveta do município não depende do estado aberto no mapa
     el.querySelectorAll("[data-mun]").forEach(b => b.onclick = () => abrirMunicipio(b.dataset.mun));
     const mais = el.querySelector("[data-mais]"); if (mais) mais.onclick = () => { mostrar += 10; desenhar(); };

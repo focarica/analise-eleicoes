@@ -57,7 +57,7 @@ export default {
     };
     const render = (rows, ano, metrica, alvo) => {
       const m = METRICAS[metrica], validos = rows.filter(r => r[m.campo] != null);
-      const topPartido = [...d3.rollup(rows.filter(r => r.sg_partido), v => v.length, r => r.sg_partido)].sort((a, b) => b[1] - a[1])[0];
+      const topPartido = [...d3.rollup(validos.filter(r => r.sg_partido), v => v.length, r => r.sg_partido)].sort((a, b) => b[1] - a[1])[0];
       const mediaAbst = d3.mean(rows, r => r.pct_abstencao == null ? null : Number(r.pct_abstencao));
       const mediaEleitorado = d3.mean(rows, r => r.pct_eleitores_populacao == null ? null : Number(r.pct_eleitores_populacao));
       const grupos = dadosQuartis(rows, metrica);
@@ -72,7 +72,7 @@ export default {
       </div>
       <h3>Partido mais vitorioso por faixa de ${m.nome.toLowerCase()}</h3>
       <p class="aviso-mini">Cada faixa contém aproximadamente um quarto dos municípios com indicador publicado. Os percentuais de eleitorado/população e de abstenção são médias simples por município.</p>
-      <div class="q3-quartis">${grupos.map(g => `<article class="q3-quartil"><small>${g.faixa === 1 ? "Menor" : g.faixa === 4 ? "Maior" : "Intermediário"} · faixa ${g.faixa}</small><b>${g.partido ? esc(g.partido) : "Sem partido"}</b><span>${g.partido ? `${fmt.format(g.vitorias)} de ${fmt.format(g.n)} prefeituras` : `${fmt.format(g.n)} municípios`}</span><small>média ${formatMetric(g.media)}</small></article>`).join("")}</div>
+      <div class="q3-quartis">${grupos.map(g => `<article class="q3-quartil"><small>${g.faixa === 1 ? "Q1 · menor" : g.faixa === 4 ? "Q4 · maior" : `Q${g.faixa}`} · faixa ${g.faixa}</small><b>${g.partido ? esc(g.partido) : "Sem partido"}</b><span>${g.partido ? `${fmt.format(g.vitorias)} de ${fmt.format(g.n)} prefeituras` : `${fmt.format(g.n)} municípios`}</span><small>média ${formatMetric(g.media)}</small></article>`).join("")}</div>
       <h3>Municípios com maior ${m.nome.toLowerCase()}</h3>
       <div class="q3-tabela"><table><thead><tr><th>Município${nomeUf ? ` · ${esc(nomeUf)}` : " · UF"}</th><th class="num">${m.nome}</th><th class="num">Abstenção</th><th class="num">Aptos/pop.</th><th>Prefeito eleito</th><th>Partido</th></tr></thead><tbody>${tabela.map(r => `<tr><td>${esc(titulo(r.nm_municipio))}${UF ? "" : ` · ${esc(r.sg_uf)}`}</td><td class="num">${formatMetric(r[m.campo])}</td><td class="num">${r.pct_abstencao == null ? "–" : `${Number(r.pct_abstencao).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}</td><td class="num">${r.pct_eleitores_populacao == null ? "–" : `${Number(r.pct_eleitores_populacao).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}</td><td>${esc(titulo(r.nm_urna_candidato || "Sem registro"))}</td><td>${esc(r.sg_partido || "–")}</td></tr>`).join("")}</tbody></table></div>
       <p class="aviso-mini">${fmt.format(rows.length)} municípios na base para ${ano}${UF ? ` · ${esc(UF)}` : " · amostra de seis UFs"}. População e PIB per capita usam cada um o último ano IBGE publicado até a eleição; os anos aparecem nas fontes e a série pode terminar antes do pleito. IDHM usa ${rows.find(r => r.ano_idhm != null)?.ano_idhm || "a referência mais recente disponível"}. Aptos/população usa aptos do 1º turno e população IBGE; abstenção usa abstenções/aptos do 1º turno. ${mediaEleitorado == null ? "Proporção de aptos/população indisponível neste recorte." : `Proporção média de aptos/população: ${mediaEleitorado.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%.`}</p>`;
