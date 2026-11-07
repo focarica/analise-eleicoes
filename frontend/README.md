@@ -4,7 +4,7 @@ O painel usa TypeScript, Vite e Bun. Seu markup, CSS, mapa e interações reprod
 
 ### Banco `BDR-TSE`
 
-O painel consulta `BDR-TSE`, a base de referência compartilhada. O usuário do painel precisa ter permissão de leitura nessa base. A votação presidencial (`CD_CARGO = 1`) está carregada para 2018 e 2022, nos municípios dos seis estados do recorte, a partir dos resultados do TSE por seção. Nos demais anos gerais, o painel não oferece o filtro presidencial. A tela e os filtros de candidatos usam todos os onze anos presentes na base: 2004–2024.
+O painel consulta `BDR-TSE`, a base de referência compartilhada. O usuário do painel precisa ter permissão de leitura nessa base. A votação presidencial (`CD_CARGO = 1`) está carregada por município nos anos gerais de 2006 a 2026, a partir dos resultados do TSE por seção. A tela e os filtros de candidatos usam os doze anos presentes na base: eleições municipais de 2004–2024 e gerais de 2006–2026.
 
 ## Requisitos
 
@@ -44,7 +44,7 @@ As chaves S3 compatíveis com R2 ainda são necessárias para administrar e carr
 
 ## Dados e estrutura
 
-O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2004–2024. A interface mostra o partido vencedor em cada município no mapa, filtro de cargo, busca de candidatos/municípios, detalhes em gaveta e um card por questão, que abre a questão num painel próprio.
+O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2004–2026. A eleição de 2026 já está integrada ao mapa, busca de candidatos, trajetórias, comparecimento, votação, despesas, receitas, patrimônio e seções que consultam esses anos. O card P3 e a análise P6 ficam limitados aos anos municipais, até 2024. A interface mostra o partido vencedor em cada município no mapa, filtro de cargo, busca de candidatos/municípios, detalhes em gaveta e um card por questão, que abre a questão num painel próprio.
 
 ### Linhas do tempo de município e candidato
 
@@ -70,8 +70,10 @@ Cada questão tem os próprios arquivos, para que cada pessoa mexa só na sua e 
 |---|---|---|
 | P1 custo por cadeira | `src/questoes/p1-custo-cadeira.ts` (+ `.css`) | `api/questoes/p1-custo-cadeira.ts` |
 | P2 patrimônio e gasto × sucesso | `src/questoes/p2-patrimonio-gasto.ts` | `api/questoes/p2-patrimonio-gasto.ts` |
+| P3 indicadores municipais e partido vencedor | `src/questoes/p3-indicadores.ts` | `api/questoes/p3-indicadores.ts` |
 | P4 escolaridade | `src/questoes/p4-escolaridade.ts` | `api/questoes/p4-escolaridade.ts` |
 | P5 votos de legenda | `src/questoes/p5-legenda.ts` | `api/questoes/p5-legenda.ts` |
+| P6 idade do eleitorado e alternância | `src/questoes/p6-idade-alternancia.ts` | `api/questoes/p6-idade-alternancia.ts` |
 | P8 financiamento público | `src/questoes/p8-financiamento.ts` | `api/questoes/p8-financiamento.ts` |
 | P9 propaganda (nuvens) | `src/questoes/p9-propaganda.ts` | `api/questoes/p9-propaganda.ts` |
 | P10 reeleição | `src/questoes/p10-reeleicao.ts` | `api/questoes/p10-reeleicao.ts` |
@@ -92,7 +94,15 @@ O cargo escolhido continua selecionado ao trocar de ano ou de estado, para compa
 
 ### Escolaridade: os eleitos se parecem com a população? (P4)
 
-A seção lê `/api/escolaridade?uf&ano&cargo`, sobre `vw_questao_4_escolaridade` (`sql/motherduck/07_views_escolaridade.sql`): por cargo (prefeito e vereador, juntos ou separados) e eleição, a distribuição de candidatos, eleitos e população de 18+ do Censo 2022 nos quatro níveis do IBGE, e a lista de municípios pela diferença na parcela com superior completo (eleitos − população), nos dois sentidos. O ano padrão é o mais próximo do Censo. A gaveta de cada município traz a mesma comparação para o município.
+A seção lê `/api/escolaridade?uf&ano&cargo`, sobre `vw_questao_4_escolaridade` (`sql/motherduck/07_views_escolaridade.sql`): por cargo e eleição, distribui candidatos e eleitos contra a população 18+ do Censo 2022, o eleitorado apto do TSE ou ambos, nos quatro níveis comuns. Na lista municipal aparecem as duas diferenças de superior completo. O Censo e o perfil do eleitorado são marginais agregadas independentes, sem pareamento individual. O ano padrão é o mais próximo do Censo. A gaveta do município oferece os mesmos três modos.
+
+### Indicadores municipais e partido vencedor (P3)
+
+O card lê `/api/q3-indicadores` sobre `vw_questao_3_indicadores_municipio` (`sql/motherduck/12_view_questao_3_indicadores.sql`). Por eleição municipal, relaciona PIB per capita, população, IDHM, aptos/população, abstenção e partido do prefeito eleito. O indicador selecionado divide os municípios em quatro grupos; cada grupo mostra o partido que venceu mais prefeituras. PIB per capita e população podem vir de anos IBGE diferentes; suas referências ficam na nota. IDHM usa 2010. Aptos/população usa aptos do primeiro turno e habitantes, podendo passar de 100%. Abstenção é abstenções/aptos do primeiro turno. A visão exclui eleições suplementares ao selecionar o código TSE com maior cobertura municipal no ano.
+
+### Idade e alternância municipal (P6)
+
+O card lê `/api/q6-idade-alternancia` sobre `vw_questao_6_idade_alternancia` (`sql/motherduck/13_view_questao_6_idade_alternancia.sql`). A idade média do eleitorado é aproximada pelos pontos médios das faixas etárias do TSE; a idade do prefeito usa a data do primeiro turno. Alternância significa troca da sigla do partido do prefeito eleito em relação ao pleito quatro anos antes. O escopo usa apenas eleições municipais de 2004–2024; 2004 não tem ciclo anterior na janela e ciclos incompletos ficam fora da taxa.
 
 ### Eleitos com a ajuda do partido (P5)
 
