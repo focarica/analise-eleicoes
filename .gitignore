@@ -8,6 +8,7 @@ __pycache__/
 *.sql.gz
 *.zip
 *.csv
+!data/referencias/**/*.csv
 *.jsonl
 /data/raw/
 /data/staging/
@@ -16,5 +17,6 @@ __pycache__/
 /frontend/node_modules/
 /frontend/dist/
 /frontend/.vite/
+/frontend/.p7-vies.duckdb*
 .cache-api/
 /frontend/.cache-api/

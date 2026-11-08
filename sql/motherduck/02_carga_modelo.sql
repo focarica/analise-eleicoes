@@ -141,7 +141,7 @@ WITH fonte AS (
 SELECT nr_partido,
        FIRST(sg_partido ORDER BY ano_eleicao DESC NULLS LAST) AS sg_partido,
        FIRST(nm_partido ORDER BY (nm_partido IS NOT NULL) DESC, ano_eleicao DESC NULLS LAST) AS nm_partido,
-       CAST(NULL AS VARCHAR(50)) AS vies_politico
+       CAST(NULL AS DOUBLE) AS vies_politico
 FROM fonte GROUP BY nr_partido;
 
 CREATE OR REPLACE TABLE public.candidatura AS
@@ -192,7 +192,7 @@ SELECT
     r.nm_urna_candidato,
     r.turno_resultado AS nr_turno_resultado,
     r.situacao AS ds_sit_tot_turno,
-    CAST(NULL AS VARCHAR(50)) AS vies_politico_eleicao,
+    CAST(NULL AS DOUBLE) AS vies_politico_eleicao,
     CAST(NULL AS INTEGER) AS qt_votos_totais
 FROM resultado r
 JOIN pessoa p USING (ano_eleicao, sq_candidato)
