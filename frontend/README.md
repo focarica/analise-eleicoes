@@ -115,7 +115,7 @@ A P7 usa o survey de especialistas de Bolognesi et al. (Harvard Dataverse): a m�
 
 Na gaveta do município, a linha "Viés político ao longo do tempo" mostra o viés agregado de cada eleição de 2018 a 2024 numa escala fixa de −100 a +100: dentro de cada cargo, a média dos partidos é ponderada pelos votos válidos (nominais e de legenda, 1º turno); depois, os cargos entram com peso igual. No card da P7, um seletor de município mostra a mesma linha.
 
-Os dados não vêm do MotherDuck: a P7 lê o snapshot local `frontend/.p7-vies.duckdb`, gerado a partir do mesmo SQL que o administrador do banco executa (`sql/motherduck/14_vies_partidos.sql`) e do CSV `data/referencias/vies_municipios.csv` (exportado da view `vw_questao_7_vies`). Depois de mudar o SQL, rode:
+Os dados não vêm do MotherDuck: a P7 lê o snapshot local `frontend/.p7-vies.duckdb`, gerado a partir do mesmo SQL que o administrador do banco executa (`sql/motherduck/14_vies_partidos.sql`) e do CSV `data/referencias/vies_municipios.csv` (exportado da view `vw_questao_7_vies`). `bun run dev` e `bun start` regeneram o snapshot automaticamente (scripts `predev`/`prestart`); para gerar na mão depois de mudar o SQL, rode:
 
 ```sh
 bun run p7-local

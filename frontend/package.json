@@ -3,8 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "bun scripts/p7-local.ts",
     "dev": "bun dev.ts",
     "build": "vite build",
+    "prestart": "bun scripts/p7-local.ts",
     "start": "bun server.ts",
     "typecheck": "tsc --noEmit",
     "malhas": "bun scripts/malhas.ts",
