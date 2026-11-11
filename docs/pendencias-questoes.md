@@ -26,7 +26,7 @@ Escopo da nossa carga (`BDR-TSE`): UFs **AC, AL, BA, DF, RO, SP** nos pleitos de
 | P4 | **Feita** | view `vw_questao_4_escolaridade` (`sql/motherduck/07_views_escolaridade.sql`) e API `/api/escolaridade`: candidatos/eleitos comparados com população 18+ do Censo 2022, eleitorado apto do TSE ou ambos, nos quatro níveis harmonizados; card e gaveta municipal |
 | P5 | **Feita** | view `vw_questao_5_legenda` (`sql/motherduck/11_views_legenda.sql`): por eleito em cargo proporcional, votos próprios × quociente eleitoral e × legenda do partido; endpoints `/api/legenda` e `/api/legenda/pessoas`; seção "Eleitos com a ajuda do partido" (cargo, ano, evolução 2004–2024, partidos e lista) |
 | P6 | **Feita na janela atual** | view `vw_questao_6_idade_alternancia` (`sql/motherduck/13_view_questao_6_idade_alternancia.sql`), API `/api/q6-idade-alternancia` e card: idade média estimada do eleitorado, idade dos prefeitos e troca de partido entre ciclos municipais consecutivos de 2004–2024 |
-| P7 | **Falta** | não temos o dataset de notas de especialistas (Harvard Dataverse) |
+| P7 | **Feita (candidato e município)** | `data/referencias/harvard/df_experts.csv` (Harvard Dataverse), `scripts/motherduck/carregar_vies_partidos.py`, SQL `14_vies_partidos.sql`/`15_views_vies.sql` (tabelas, viés em `partido`/`candidatura` e view `vw_questao_7_vies`); snapshot local `frontend/.p7-vies.duckdb` + régua na ficha de cada candidatura, linha do viés na gaveta do município e no card; falta aplicar no `BDR-TSE` (somente leitura para nós) para a view existir no banco compartilhado |
 | P8 | **Feita** | views de financiamento (`sql/motherduck/05_views_financiamento.sql`) + endpoints `/api/financiamento(.pessoas)` + UI na página: seção "Depender de fundo público se elege mais?" com barra segmentada por faixa (% da receita arrecadada vinda de fundos públicos), "quem são" por faixa, fontes e partidos; **gráfico de linhas com abas** (taxa de eleição por faixa × ano | verba por fonte × ano, com escala log opcional e legenda que liga/desliga séries) e **seletor multi-ano** (chips; "Todos os anos" por padrão; agregado no cliente com soma e taxa recalculada — nunca média de taxas; "quem são" usa `ano=all`, com coluna de ano) e seletor de cargo |
 | P9 | **Feita** | nuvens por valor/frequência na ficha (`vw_questao_9_nuvem_*`) |
 | P10 | **Feita (P10a)** | reeleição com SQL + endpoints + UI na página (seção "Reeleição: quem volta?"); P10b (carreira completa) pendente de anos históricos |
@@ -46,7 +46,7 @@ Feasível **sem baixar nada** (apenas views SQL + endpoints + UI):
 
 ## O que exige dados novos
 
-- **P7 (viés)** — notas de especialistas dos partidos (Harvard Dataverse, `df_experts.csv`, arquivo pequeno; `0..10` → escala −100..+100). Precisa do download + classificação temporal por partido + junta com votos. Não é uma lacuna que possa ser preenchida por outra carga do TSE.
+- **P7 (viés)** — resolvido no lado dos dados, na ficha do candidato, na gaveta do município e no card: o survey de especialistas (Harvard Dataverse, `df_experts.csv`, `0..10` → escala −100..+100) já é baixado, resolvido por partido/eleição com as regras de renomeação e fusão, gravado no banco e agregado por município. A régua por candidatura e a linha do município leem o snapshot local; falta aplicar no `BDR-TSE` para a view existir no banco compartilhado.
 - **P10b (carreira completa)** — extensão do escopo para anos anteriores a 2004 (os identificadores corroborados são usados quando disponíveis; faltam as candidaturas históricas).
 - **IPCA (deflator)** — série IPEA; requisito para comparar R$ de 2018 vs 2024 (afetaria P1 e P2).
 
@@ -81,6 +81,16 @@ Feasível **sem baixar nada** (apenas views SQL + endpoints + UI):
 - SQL: view `v_legenda` (partido × UF × ano: nominais, legenda, % legenda, nº de eleitos com legenda > nominais).
 - Endpoint: `/api/legenda?uf&ano`.
 - UI: bloco por partido na gaveta do estado (nominais vs legenda).
+
+### P7 — Viés político do município
+- Dados ✅: `scripts/motherduck/carregar_vies_partidos.py` calcula a média das notas de 0 a 10 de cada partido em cada onda (2018 e 2022) e a escala `(média - 5) × 20`. Renomeações herdam o valor; fusões usam a média dos componentes com valor; sem valor é `NULL`, nunca 0. Grava `vies_onda_eleicao` (ano, onda, `onda_estendida`, cargos, eleições regulares) e `vies_partido_onda` (ano, número, sigla, média, viés, origem).
+- Ondas: 2018 e 2020 usam a onda de 2018; 2022 e 2024 usam a de 2022. **2024 é a onda de 2022 estendida por dois anos** — `onda_estendida` marca isso e a UI deve avisar. Antes de 2018 não há valor.
+- Preenchimento ✅: `partido.vies_politico` recebe o viés da eleição mais recente com valor; `candidatura.vies_politico_eleicao` recebe o do partido naquela eleição.
+- Agregação ✅: `vw_questao_7_vies` calcula, por município/ano e cargo, a média ponderada pelos votos válidos (nominais + legenda, 1º turno) e depois a média simples entre os cargos; `cobertura` mostra o percentual de votos com valor e `n_cargos`, os cargos que entraram na média.
+- Aplicação: `14_vies_partidos.sql` e `15_views_vies.sql` são autossuficientes. A migração requer permissão de escrita no `BDR-TSE`; o painel usa um snapshot local e o exportador precisa apenas de leitura. As eleições suplementares são excluídas pelos códigos regulares registrados em `vies_onda_eleicao.eleicoes`. Consulte `docs/p7-vies-admin.md` para aplicar os SQLs, renovar o CSV e reiniciar com o cache atualizado.
+- Visual ✅: a ficha de cada candidato ganha uma régua por candidatura de 2018–2024, do partido mais à esquerda ao mais à direita da eleição, com o partido do candidato marcado (vermelho à esquerda, azul à direita). Lê o snapshot local `frontend/.p7-vies.duckdb` (gerado por `bun run p7-local`), sem MotherDuck; 2024 avisa que a onda de 2022 foi estendida. Partido sem nota não recebe marcador.
+- Linha do município ✅: a gaveta do município ganha a linha "Viés político ao longo do tempo", com o viés agregado de 2018–2024 na escala fixa −100..+100. O card da P7 tem um seletor de município que mostra a mesma linha. Usa `vies_municipio`, carregada no mesmo snapshot local a partir de `data/referencias/vies_municipios.csv` (exportado de `vw_questao_7_vies` por `bun run p7-municipios`).
+- Falta: aplicar no `BDR-TSE` para que a view `vw_questao_7_vies` exista no banco compartilhado; o painel já funciona com o snapshot local.
 
 ### P8 — Repasses públicos × outras fontes
 - SQL ✅: views de `sql/motherduck/05_views_financiamento.sql` — `v_financiamento_candidatura` (candidatura com total recebido e parcela de fundo especial, fundo partidário e outras fontes), `v_financiamento_faixas` (0–25%, 25–50%, 50–75%, 75–100% e sem receita), `v_financiamento_fontes` (total por fonte) e `v_financiamento_partidos` (agregado por partido). Aplicadas no `BDR-TSE`.

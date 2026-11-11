@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS partido (
     nr_partido integer PRIMARY KEY,
     sg_partido varchar(15),
     nm_partido varchar(100),
-    vies_politico varchar(50)
+    vies_politico double precision
 );
 
 CREATE TABLE IF NOT EXISTS candidatura (
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS candidatura (
     nm_urna_candidato varchar(150),
     nr_turno_resultado integer,
     ds_sit_tot_turno varchar(50),
-    vies_politico_eleicao varchar(50),
+    vies_politico_eleicao double precision,
     qt_votos_totais integer,
     PRIMARY KEY (ano_eleicao, sq_candidato)
 );
