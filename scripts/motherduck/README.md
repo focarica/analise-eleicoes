@@ -110,3 +110,38 @@ TSE_SPILL_DIR=/dados-privados/temporarios \
 ```
 
 A publicação verifica os snapshots, as chaves, os vínculos e os totais antes do commit. Preserva os outros anos, invalida o cache do backend pela revisão e não cria tabelas auxiliares permanentes. Os arquivos baixados, snapshots e planos contêm dados de origem e ficam fora do repositório.
+
+## Conferência e correção dos vínculos de 2026
+
+`frontend/scripts/reconciliar-2026.ts` compara as candidaturas já publicadas de
+2026 com `CONSULTA_CAND` oficial, em Latin-1. Exige Bun, as dependências do
+frontend e Python 3 (biblioteca padrão). Execute em `frontend/`:
+
+```sh
+bun scripts/reconciliar-2026.ts --check /dados-privados/identidades-2026
+bun scripts/reconciliar-2026.ts --apply /dados-privados/identidades-2026
+bun scripts/identidades-2026-check.ts
+```
+
+O modo `--check` usa `MOTHERDUCK_TOKEN`; `--apply` prefere
+`MOTHERDUCK_TOKEN_READ_WRITE` e exige escrita no `BDR-TSE`. O diretório privado
+recebe ZIP, cadastro extraído, plano, backup das candidaturas e resumo com SHA-256.
+Esses arquivos contêm identificadores pessoais e ficam fora do Git.
+
+O plano `sql/motherduck/16_planejar_vinculos_2026.sql` reutiliza perfis existentes
+por CPF válido ou título corroborado por nome e nascimento, recusando CPFs
+conflitantes e destinos ambíguos. Diferenças apenas de espaço no nome exigem CPF
+válido coincidente e só entram se não houver correspondência exata normalizada.
+Entre duplicatas compatíveis, um único perfil com candidaturas anteriores tem
+preferência; dois perfis históricos elegíveis bloqueiam a aplicação.
+
+A atualização muda somente `candidatura.id_pessoa_projeto` em 2026. Verifica por
+assinaturas que os perfis, os vínculos dos demais anos e os outros atributos das
+candidaturas continuam iguais, e renova a revisão do cache da API após o commit.
+Uma nova execução deve informar `alterados=0`.
+
+IDs produzidos por `ROW_NUMBER` em uma reconstrução/staging são locais àquela
+execução. Ao publicar um ano adicional, não copie esses números como IDs do
+banco existente: faça o mapeamento corroborado e valide os vínculos contra a
+fonte antes de considerar a carga concluída. O reconciliador bloqueia quando o
+perfil necessário ainda não existe, em vez de vincular a uma pessoa por acaso.

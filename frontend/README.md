@@ -154,3 +154,7 @@ O script usa o `MOTHERDUCK_TOKEN` do `.env` e executa os statements individualme
 `server.ts` contém as rotas e consultas; `src/presentation.ts` preserva o comportamento do HTML original; `src/style.css` contém os estilos originais; `dev.ts` inicia os dois servidores em desenvolvimento; `scripts/malhas.ts` gera as malhas municipais. O arquivo `.env` é local e ignorado pelo Git: nunca coloque o token em código frontend, `VITE_*`, issues ou commits.
 
 O GitHub Pages hospeda apenas o frontend estático. Para publicar o painel com dados ao vivo, é necessário também hospedar a API Bun e configurar a URL dela no frontend, mantendo o token no ambiente do backend.
+
+A conferência/correção dos vínculos de pessoa de 2026 usa
+`scripts/reconciliar-2026.ts`; os procedimentos e as verificações estão em
+[Conferência dos vínculos de 2026](../scripts/motherduck/README.md#conferência-e-correção-dos-vínculos-de-2026).
