@@ -121,7 +121,7 @@ Os dados não vêm do MotherDuck: a P7 lê o snapshot local `frontend/.p7-vies.d
 bun run p7-local
 ```
 
-Para reexportar o CSV municipal do banco com escrita (`BDR-TSE-2026`), rode `bun run p7-municipios` e depois `bun run p7-local`.
+Para reexportar o CSV municipal do banco `BDR-TSE`, rode `bun run p7-municipios` e depois `bun run p7-local`.
 
 `P7_DB` no `.env` aponta para outro arquivo, se necessário. Sem o snapshot, a ficha e a gaveta abrem normalmente e só a régua/linha não aparecem.
 

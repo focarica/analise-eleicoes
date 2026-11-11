@@ -49,6 +49,7 @@ GRAFIA = {
 # antes: a interface precisa avisar que a onda foi estendida.
 ONDA_POR_ELEICAO = {2018: 2018, 2020: 2018, 2022: 2022, 2024: 2022}
 ONDA_ESTENDIDA = {2024: True}
+ELEICOES_POR_ANO = {2018: [295, 297], 2020: [426], 2022: [544, 546], 2024: [619]}
 CARGOS_POR_ELEICAO = {
     2018: [1, 3, 5, 6, 7, 8],
     2020: [11, 13],
@@ -200,7 +201,7 @@ def fonte_artigo(medias: dict[int, dict[str, float]], onda: int) -> Fonte:
 
 def linhas_onda() -> list[tuple]:
     return [
-        (ano, onda, ONDA_ESTENDIDA.get(ano, False), CARGOS_POR_ELEICAO[ano], OBSERVACAO[ano])
+        (ano, onda, ONDA_ESTENDIDA.get(ano, False), CARGOS_POR_ELEICAO[ano], ELEICOES_POR_ANO[ano], OBSERVACAO[ano])
         for ano, onda in sorted(ONDA_POR_ELEICAO.items())
     ]
 
@@ -245,6 +246,7 @@ def cobertura(con) -> list[tuple]:
         FROM public.votacao_partido v
         JOIN public.vies_onda_eleicao r
           ON r.ano_eleicao = v.ano_eleicao AND list_contains(r.cargos, v.cd_cargo)
+         AND list_contains(r.eleicoes, v.cd_eleicao)
         LEFT JOIN public.vies_partido_onda o
           ON o.ano_eleicao = v.ano_eleicao
          AND o.nr_partido = v.nr_partido
@@ -260,6 +262,7 @@ CREATE OR REPLACE TABLE public.vies_onda_eleicao (
     onda SMALLINT NOT NULL,
     onda_estendida BOOLEAN NOT NULL,
     cargos INTEGER[] NOT NULL,
+    eleicoes INTEGER[] NOT NULL,
     observacao VARCHAR
 );
 CREATE OR REPLACE TABLE public.vies_partido_onda (
@@ -281,7 +284,7 @@ def gravar(con, ondas: list[tuple], linhas: list[tuple]) -> list[tuple]:
     con.execute("BEGIN")
     try:
         con.execute(DDL)
-        con.executemany("INSERT INTO public.vies_onda_eleicao VALUES (?, ?, ?, ?, ?)", ondas)
+        con.executemany("INSERT INTO public.vies_onda_eleicao VALUES (?, ?, ?, ?, ?, ?)", ondas)
         con.executemany("INSERT INTO public.vies_partido_onda VALUES (?, ?, ?, ?, ?, ?, ?)", linhas)
 
         # partido.vies_politico = eleição mais recente com valor para o número.
@@ -308,6 +311,11 @@ def gravar(con, ondas: list[tuple], linhas: list[tuple]) -> list[tuple]:
         """)
 
         resultado = cobertura(con)
+        if {ano for ano, _ in resultado} != set(ONDA_POR_ELEICAO):
+            raise ValueError("Cobertura incompleta: faltam eleições do escopo")
+        for ano, valor in resultado:
+            if valor is None or valor < 99.9:
+                raise ValueError(f"cobertura de {ano} abaixo de 99,9%: {valor}")
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")
@@ -402,7 +410,6 @@ def main(argv=None) -> int:
     print("Cobertura dos votos válidos por eleição:")
     for ano, valor in resultado:
         print(f"  {ano}: {float(valor):.2f}%")
-        assert valor >= 99.9, f"cobertura de {ano} abaixo de 99,9%"
     print(f"Auditoria: {a.auditoria}")
     return 0
 

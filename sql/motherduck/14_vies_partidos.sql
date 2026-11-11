@@ -29,6 +29,7 @@ CREATE OR REPLACE TABLE public.vies_onda_eleicao (
     onda SMALLINT NOT NULL,
     onda_estendida BOOLEAN NOT NULL,
     cargos INTEGER[] NOT NULL,
+    eleicoes INTEGER[] NOT NULL,
     observacao VARCHAR
 );
 
@@ -43,11 +44,11 @@ CREATE OR REPLACE TABLE public.vies_partido_onda (
     PRIMARY KEY (ano_eleicao, nr_partido, sg_partido)
 );
 
-INSERT INTO public.vies_onda_eleicao (ano_eleicao, onda, onda_estendida, cargos, observacao) VALUES
-    (2018, 2018, FALSE, [1, 3, 5, 6, 7, 8], 'presidente, governador, senador, deputados federal, estadual e distrital'),
-    (2020, 2018, FALSE, [11, 13], 'prefeito e vereador'),
-    (2022, 2022, FALSE, [1, 3, 5, 6, 7, 8], 'presidente, governador, senador, deputados federal, estadual e distrital'),
-    (2024, 2022, TRUE, [11, 13], 'prefeito e vereador; onda 2022 estendida por dois anos');
+INSERT INTO public.vies_onda_eleicao (ano_eleicao, onda, onda_estendida, cargos, eleicoes, observacao) VALUES
+    (2018, 2018, FALSE, [1, 3, 5, 6, 7, 8], [295, 297], 'presidente, governador, senador, deputados federal, estadual e distrital'),
+    (2020, 2018, FALSE, [11, 13], [426], 'prefeito e vereador'),
+    (2022, 2022, FALSE, [1, 3, 5, 6, 7, 8], [544, 546], 'presidente, governador, senador, deputados federal, estadual e distrital'),
+    (2024, 2022, TRUE, [11, 13], [619], 'prefeito e vereador; onda 2022 estendida por dois anos');
 
 INSERT INTO public.vies_partido_onda (ano_eleicao, nr_partido, sg_partido, onda, media, vies, origem) VALUES
     (2018, 10, 'PRB', 2018, 7.78, 55.6, 'direto'),
@@ -204,6 +205,28 @@ WHERE o.ano_eleicao = c.ano_eleicao
   AND o.nr_partido = c.nr_partido
   AND o.sg_partido = c.sg_partido;
 
+-- A cobertura precisa passar antes do COMMIT para permitir rollback.
+WITH cobertura AS (
+SELECT v.ano_eleicao,
+       100.0 * SUM(COALESCE(v.qt_votos_nominais, 0) + COALESCE(v.qt_votos_legenda, 0))
+                      FILTER (WHERE o.media IS NOT NULL)
+             / SUM(COALESCE(v.qt_votos_nominais, 0) + COALESCE(v.qt_votos_legenda, 0)) AS cobertura
+FROM public.votacao_partido v
+JOIN public.vies_onda_eleicao r
+  ON r.ano_eleicao = v.ano_eleicao
+ AND list_contains(r.cargos, v.cd_cargo)
+ AND list_contains(r.eleicoes, v.cd_eleicao)
+LEFT JOIN public.vies_partido_onda o
+  ON o.ano_eleicao = v.ano_eleicao
+ AND o.nr_partido = v.nr_partido
+ AND o.sg_partido = v.sg_partido
+WHERE v.nr_turno = 1
+GROUP BY 1 ORDER BY 1
+)
+SELECT CASE WHEN COUNT(*) = 4 AND BOOL_AND(COALESCE(cobertura, 0) >= 99.9)
+            THEN TRUE ELSE error('P7: cobertura incompleta ou abaixo de 99,9%') END AS cobertura_validada
+FROM cobertura;
+
 COMMIT;
 
 -- Conferência: deve imprimir 2018 100,00 / 2020 ≥99,9 / 2022 100,00 / 2024 100,00.
@@ -215,6 +238,7 @@ FROM public.votacao_partido v
 JOIN public.vies_onda_eleicao r
   ON r.ano_eleicao = v.ano_eleicao
  AND list_contains(r.cargos, v.cd_cargo)
+ AND list_contains(r.eleicoes, v.cd_eleicao)
 LEFT JOIN public.vies_partido_onda o
   ON o.ano_eleicao = v.ano_eleicao
  AND o.nr_partido = v.nr_partido

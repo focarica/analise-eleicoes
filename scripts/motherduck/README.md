@@ -66,7 +66,7 @@ O painel lê o viés municipal de `data/referencias/vies_municipios.csv`, uma ex
 
 ```sh
 cd frontend
-bun run p7-municipios   # exporta a view do BDR-TSE-2026
+bun run p7-municipios   # exporta a view do BDR-TSE
 bun run p7-local        # recarrega o snapshot .p7-vies.duckdb
 ```
 

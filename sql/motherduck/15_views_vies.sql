@@ -11,7 +11,8 @@
 -- Viés do município numa eleição: dentro de cada cargo, média dos partidos
 -- ponderada pelos votos válidos (nominais + legenda, 1º turno); depois, média
 -- simples entre os cargos. Partido sem valor não entra na média, mas entra na
--- cobertura. Sem cargo com valor, vies é NULL (nunca 0).
+-- cobertura. Só entram os códigos das eleições regulares de vies_onda_eleicao;
+-- eleições suplementares não são somadas ao pleito regular. Sem cargo com valor, vies é NULL (nunca 0).
 
 CREATE OR REPLACE VIEW public.vw_questao_7_vies AS
 WITH base AS (
@@ -30,6 +31,7 @@ WITH base AS (
     JOIN public.vies_onda_eleicao r
       ON r.ano_eleicao = v.ano_eleicao
      AND list_contains(r.cargos, v.cd_cargo)
+     AND list_contains(r.eleicoes, v.cd_eleicao)
     LEFT JOIN public.vies_partido_onda o
       ON o.ano_eleicao = v.ano_eleicao
      AND o.nr_partido = v.nr_partido
