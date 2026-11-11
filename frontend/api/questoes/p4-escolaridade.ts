@@ -2,12 +2,12 @@
 import { UFS, YEARS, comCache, json, rows, seguido, viewDisponivel } from "../banco";
 import type { ExtensaoMunicipio, Rotas } from "./tipos";
 
-// Gaveta do município: escolaridade dos candidatos e eleitos × população (Censo),
+// Gaveta do município: candidatos/eleitos × eleitorado TSE e população do Censo,
 // por nível. null quando a view não está no banco (a gaveta então omite a seção).
 export const municipio: ExtensaoMunicipio = async (codigo) => {
   if (!(await viewDisponivel("vw_questao_4_escolaridade"))) return { education: null };
-  const education = await comCache(`q4mun:${codigo}`, () => rows(`SELECT ano_eleicao, ano_censo, ds_cargo, nr_nivel, ds_nivel,
-               qt_candidatos, qt_eleitos, qt_populacao
+  const education = await comCache(`q4mun-v2:${codigo}`, () => rows(`SELECT ano_eleicao, ano_censo, ano_eleitorado, ds_cargo, nr_nivel, ds_nivel,
+               qt_candidatos, qt_eleitos, qt_populacao, qt_eleitorado
         FROM public.vw_questao_4_escolaridade WHERE cd_municipio_tse = $1
         ORDER BY ano_eleicao, ds_cargo, nr_nivel NULLS LAST`, [codigo]));
   return { education };
@@ -29,7 +29,7 @@ export const rotas: Rotas = {
       return json({ error: "Filtro inválido." }, 400);
     if (!(await viewDisponivel("vw_questao_4_escolaridade")))
       return json({ error: "A view vw_questao_4_escolaridade ainda não foi aplicada no banco (sql/motherduck/10_censo_2022_escolaridade.sql, 06_municipio_ibge.sql e 07_views_escolaridade.sql)." }, 503);
-    const [anos, niveis, municipios] = await comCache(`q4:${uf || "*"}:${ano}:${cargo}`, () => seguido([
+    const [anos, niveis, municipios] = await comCache(`q4-v2:${uf || "*"}:${ano}:${cargo}`, () => seguido([
       () => rows(`SELECT DISTINCT ano_eleicao, ano_censo FROM public.vw_questao_4_escolaridade
             ${uf ? "WHERE sg_uf = $1" : ""} ORDER BY 1`, uf ? [uf] : []),
       () => {
@@ -37,7 +37,8 @@ export const rotas: Rotas = {
         if (ano){ params.push(ano); cond.push(`ano_eleicao = $${params.length}`); }
         if (uf){ params.push(uf); cond.push(`sg_uf = $${params.length}`); }
         return rows(`SELECT ano_eleicao, nr_nivel, ANY_VALUE(ds_nivel) AS ds_nivel,
-                     SUM(qt_candidatos) AS candidatos, SUM(qt_eleitos) AS eleitos, SUM(qt_populacao) AS populacao
+            SUM(qt_candidatos) AS candidatos, SUM(qt_eleitos) AS eleitos,
+            SUM(qt_populacao) AS populacao, SUM(qt_eleitorado) AS eleitorado
               FROM public.vw_questao_4_escolaridade WHERE ${cond.join(" AND ")}
               GROUP BY 1, 2 ORDER BY 1, 2 NULLS LAST`, params);
       },
@@ -50,7 +51,9 @@ export const rotas: Rotas = {
                      SUM(qt_eleitos) FILTER (WHERE nr_nivel = 4) AS eleitos_sup,
                      SUM(qt_eleitos) FILTER (WHERE nr_nivel IS NOT NULL) AS eleitos_inf,
                      SUM(qt_populacao) FILTER (WHERE nr_nivel = 4) AS pop_sup,
-                     SUM(qt_populacao) FILTER (WHERE nr_nivel IS NOT NULL) AS pop_inf
+                     SUM(qt_populacao) FILTER (WHERE nr_nivel IS NOT NULL) AS pop_inf,
+                     SUM(qt_eleitorado) FILTER (WHERE nr_nivel = 4) AS ele_sup,
+                     SUM(qt_eleitorado) FILTER (WHERE nr_nivel IS NOT NULL) AS ele_inf
               FROM public.vw_questao_4_escolaridade WHERE ${cond.join(" AND ")}
               GROUP BY 1`, params);
       },
@@ -60,10 +63,11 @@ export const rotas: Rotas = {
       anos: anos.map((r: Record<string, unknown>) => Number(r.ano_eleicao)),
       anoCenso: n(anos[0]?.ano_censo),
       niveis: niveis.map((r: Record<string, unknown>) => ({ ano: Number(r.ano_eleicao), nivel: n(r.nr_nivel), nome: r.ds_nivel,
-        candidatos: Number(r.candidatos), eleitos: Number(r.eleitos), populacao: n(r.populacao) })),
+        candidatos: Number(r.candidatos), eleitos: Number(r.eleitos), populacao: n(r.populacao), eleitorado: n(r.eleitorado) })),
       municipios: municipios.map((r: Record<string, unknown>) => ({ tse: r.cd_municipio_tse, nome: r.nm_municipio, uf: r.uf,
         eleitosSup: Number(r.eleitos_sup || 0), eleitosInf: Number(r.eleitos_inf || 0),
-        popSup: n(r.pop_sup), popInf: n(r.pop_inf) })),
+        popSup: n(r.pop_sup), popInf: n(r.pop_inf),
+        eleSup: n(r.ele_sup), eleInf: n(r.ele_inf) })),
     });
   },
 };

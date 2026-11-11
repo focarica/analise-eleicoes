@@ -1,0 +1,40 @@
+// Testa o plano sem acessar bancos externos nem usar dados pessoais reais.
+import { strict as assert } from 'node:assert';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { DuckDBInstance } from '@duckdb/node-api';
+const db = await DuckDBInstance.create(':memory:'); const c = await db.connect();
+const sql = (name: string) => readFileSync(resolve(import.meta.dir, '../../sql/motherduck', name), 'utf8');
+const planejar = async () => { await c.run(sql('08_resolver_identidades.sql')); await c.run(sql('16_planejar_vinculos_2026.sql')); };
+try {
+  await c.run(`CREATE SCHEMA public;
+    CREATE TABLE public.candidato(id_pessoa_projeto INTEGER,nr_cpf_candidato VARCHAR,nr_titulo_eleitoral_candidato VARCHAR,nm_candidato VARCHAR,dt_nascimento DATE);
+    CREATE TABLE public.candidatura(ano_eleicao INTEGER,sq_candidato BIGINT,id_pessoa_projeto INTEGER);
+    CREATE TABLE stg_candidatura(ano_eleicao VARCHAR,sq_candidato VARCHAR,sg_uf VARCHAR,sg_ue VARCHAR,cd_cargo VARCHAR,nr_titulo_eleitoral_candidato VARCHAR,nr_cpf_candidato VARCHAR,nm_candidato VARCHAR,dt_nascimento VARCHAR,ds_grau_instrucao VARCHAR,ds_genero VARCHAR,ds_cor_raca VARCHAR,source_file VARCHAR);
+    INSERT INTO public.candidato VALUES (1,'52998224725','123456789012','ALICE','1990-01-01'),(2,NULL,NULL,'CLARA','1995-01-01'),(3,'52998224725','123456789012','ALICE','1990-01-01'),(4,'11144477735','123456789013','B ETO','1980-01-01');
+    INSERT INTO public.candidatura VALUES (2022,50,1),(2026,100,2),(2026,101,1);
+    INSERT INTO stg_candidatura VALUES ('2026','100','SP','SP','6','123456789012','52998224725','ALICE','01/01/1990',NULL,NULL,NULL,'teste'),('2026','101','SP','SP','6','123456789013','11144477735','BETO','01/01/1980',NULL,NULL,NULL,'teste');`);
+  await planejar();
+  const plano = (await c.runAndReadAll('SELECT sq_candidato::INTEGER AS sq,id_novo FROM _plano_vinculos_2026 ORDER BY 1')).getRowObjectsJson();
+  assert.deepEqual(plano,[{sq:100,id_novo:1},{sq:101,id_novo:4}]);
+  await c.run('UPDATE public.candidatura c SET id_pessoa_projeto=p.id_novo FROM _plano_vinculos_2026 p WHERE c.ano_eleicao=p.ano_eleicao AND c.sq_candidato=p.sq_candidato');
+  await planejar();
+  assert.equal(Number((await c.runAndReadAll('SELECT COUNT(*) AS n FROM _plano_vinculos_2026 WHERE id_anterior<>id_novo')).getRowObjectsJson()[0].n),0);
+  assert.equal((await c.runAndReadAll('SELECT id_pessoa_projeto FROM public.candidatura WHERE ano_eleicao=2022')).getRowObjectsJson()[0].id_pessoa_projeto,1);
+  await c.run("INSERT INTO public.candidato VALUES(6,'11144477735','123456789013','BETO','1980-01-01'); INSERT INTO public.candidatura VALUES(2022,52,6)");
+  await planejar();
+  assert.equal((await c.runAndReadAll('SELECT id_novo FROM _plano_vinculos_2026 WHERE sq_candidato=101')).getRowObjectsJson()[0].id_novo,6);
+  await c.run('DELETE FROM public.candidatura WHERE sq_candidato=52; DELETE FROM public.candidato WHERE id_pessoa_projeto=6');
+  await c.run("INSERT INTO public.candidato VALUES(5,'11144477735','123456789012','ALICE','1990-01-01'); UPDATE stg_candidatura SET nr_cpf_candidato='-4' WHERE sq_candidato='100'");
+  await assert.rejects(planejar(),/CPFs conflitantes/);
+  await c.run('DELETE FROM public.candidato WHERE id_pessoa_projeto=5');
+  await c.run("UPDATE stg_candidatura SET nr_titulo_eleitoral_candidato='-4' WHERE sq_candidato='100'");
+  await assert.rejects(planejar(),/perfil único corroborado/);
+  await c.run("UPDATE stg_candidatura SET nr_cpf_candidato='52998224725',nr_titulo_eleitoral_candidato='123456789012',dt_nascimento='02/01/1990' WHERE sq_candidato='100'");
+  await assert.rejects(planejar(),/perfil único corroborado/);
+  await c.run("UPDATE stg_candidatura SET dt_nascimento='01/01/1990',nm_candidato='ALICIA' WHERE sq_candidato='100'");
+  await assert.rejects(planejar(),/perfil único corroborado/);
+  await c.run("UPDATE stg_candidatura SET nm_candidato='ALICE' WHERE sq_candidato='100'; INSERT INTO public.candidatura VALUES(2020,51,3)");
+  await assert.rejects(planejar(),/perfil único corroborado/);
+  console.log('Identidades 2026: IDs históricos, repetição, espaçamento com CPF, conflitos e ausência de evidência conferidos.');
+} finally { c.closeSync(); db.closeSync(); }

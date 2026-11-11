@@ -12,6 +12,8 @@ export interface Questao {
   montar(el: HTMLElement): void | Promise<void>;
   // opcionais: o que a questão acrescenta às gavetas
   gavetaMunicipio?(m: any): { html: string; ligar?(corpo: HTMLElement): void } | null;
+  // bloco logo abaixo da linha do tempo principal da gaveta do município
+  linhaMunicipio?(m: any): string;
   fichaCandidatura?(candidatura: any, historico: any): string;
   aoAbrirGaveta?(corpo: HTMLElement): void;
 }

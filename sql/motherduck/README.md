@@ -55,4 +55,21 @@ GROUP BY 1 ORDER BY 3 DESC;
 bun run frontend/scripts/aplicar-views.ts sql/motherduck/11_views_legenda.sql
 ```
 
+A questão 7 tem dois arquivos, nesta ordem: `14_vies_partidos.sql` cria `vies_onda_eleicao` e `vies_partido_onda`, converte `partido.vies_politico` e `candidatura.vies_politico_eleicao` para `DOUBLE` e preenche as duas colunas; `15_views_vies.sql` cria `vw_questao_7_vies`, com uma linha por município e eleição (2018, 2020, 2022 e 2024), o viés de −100 a +100, a cobertura dos votos válidos, o número de cargos que entraram na média e a onda do artigo usada. O viés de cada partido é a média dos especialistas de 0 a 10 transformada em `(média - 5) × 20`; dentro de cada cargo a média é ponderada pelos votos válidos (nominais + legenda, 1º turno) e os cargos têm peso igual. Partido sem valor não entra na média, mas entra na cobertura; sem valor o viés é `NULL`.
+
+`14_vies_partidos.sql` é autossuficiente (valores literais, sem Python nem CSV), então serve tanto para `bun run frontend/scripts/aplicar-views.ts` quanto para um administrador com acesso de escrita executá-lo direto no banco. `scripts/motherduck/carregar_vies_partidos.py` faz o mesmo a partir das referências e deve ser usado quando os valores precisarem ser regerados (ver README de scripts).
+
+```sql
+SELECT ano_eleicao, round(vies, 1) AS vies, cobertura, n_cargos, onda, onda_estendida
+FROM public.vw_questao_7_vies
+WHERE cd_municipio_tse = '71072'
+ORDER BY ano_eleicao;
+```
+
+```sh
+bun run frontend/scripts/aplicar-views.ts \
+  sql/motherduck/14_vies_partidos.sql \
+  sql/motherduck/15_views_vies.sql
+```
+
 `12_schema_dados_temporais.sql` define os fatos temporais municipais e de perfil. O fato `fato_idhm_atlas` recebe os campos do Atlas; sua carga reproduzível fica em `scripts/motherduck/carregar_idhm_atlas.py`. A escolaridade residente atualmente carregada é a do Censo 2022, universo 18+ (`10_censo_2022_escolaridade.sql`).

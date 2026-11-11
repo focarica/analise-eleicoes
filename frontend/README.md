@@ -4,7 +4,7 @@ O painel usa TypeScript, Vite e Bun. Seu markup, CSS, mapa e interações reprod
 
 ### Banco `BDR-TSE`
 
-O painel consulta `BDR-TSE`, a base de referência compartilhada. O usuário do painel precisa ter permissão de leitura nessa base. A votação presidencial (`CD_CARGO = 1`) está carregada para 2018 e 2022, nos municípios dos seis estados do recorte, a partir dos resultados do TSE por seção. Nos demais anos gerais, o painel não oferece o filtro presidencial. A tela e os filtros de candidatos usam todos os onze anos presentes na base: 2004–2024.
+O painel consulta `BDR-TSE`, a base de referência compartilhada. O usuário do painel precisa ter permissão de leitura nessa base. A votação presidencial (`CD_CARGO = 1`) está carregada por município nos anos gerais de 2006 a 2026, a partir dos resultados do TSE por seção. A tela e os filtros de candidatos usam os doze anos presentes na base: eleições municipais de 2004–2024 e gerais de 2006–2026.
 
 ## Requisitos
 
@@ -44,7 +44,7 @@ As chaves S3 compatíveis com R2 ainda são necessárias para administrar e carr
 
 ## Dados e estrutura
 
-O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2004–2024. A interface mostra o partido vencedor em cada município no mapa, filtro de cargo, busca de candidatos/municípios, detalhes em gaveta e um card por questão, que abre a questão num painel próprio.
+O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2004–2026. A eleição de 2026 já está integrada ao mapa, busca de candidatos, trajetórias, comparecimento, votação, despesas, receitas, patrimônio e seções que consultam esses anos. O card P3 e a análise P6 ficam limitados aos anos municipais, até 2024. A interface mostra o partido vencedor em cada município no mapa, filtro de cargo, busca de candidatos/municípios, detalhes em gaveta e um card por questão, que abre a questão num painel próprio.
 
 ### Linhas do tempo de município e candidato
 
@@ -70,15 +70,18 @@ Cada questão tem os próprios arquivos, para que cada pessoa mexa só na sua e 
 |---|---|---|
 | P1 custo por cadeira | `src/questoes/p1-custo-cadeira.ts` (+ `.css`) | `api/questoes/p1-custo-cadeira.ts` |
 | P2 patrimônio e gasto × sucesso | `src/questoes/p2-patrimonio-gasto.ts` | `api/questoes/p2-patrimonio-gasto.ts` |
+| P3 indicadores municipais e partido vencedor | `src/questoes/p3-indicadores.ts` | `api/questoes/p3-indicadores.ts` |
 | P4 escolaridade | `src/questoes/p4-escolaridade.ts` | `api/questoes/p4-escolaridade.ts` |
 | P5 votos de legenda | `src/questoes/p5-legenda.ts` | `api/questoes/p5-legenda.ts` |
+| P6 idade do eleitorado e alternância | `src/questoes/p6-idade-alternancia.ts` | `api/questoes/p6-idade-alternancia.ts` |
+| P7 viés político | `src/questoes/p7-vies.ts` (+ `.css`) | `api/questoes/p7-vies.ts` |
 | P8 financiamento público | `src/questoes/p8-financiamento.ts` | `api/questoes/p8-financiamento.ts` |
 | P9 propaganda (nuvens) | `src/questoes/p9-propaganda.ts` | `api/questoes/p9-propaganda.ts` |
 | P10 reeleição | `src/questoes/p10-reeleicao.ts` | `api/questoes/p10-reeleicao.ts` |
 
 O núcleo, que todas usam, fica à parte: `src/presentation.ts` (mapa, busca, gavetas, rotas), `src/painel.ts` (cards e painel), `src/util.ts`, `src/style.css`, `server.ts` (rotas do mapa, busca, ficha e município) e `api/banco.ts` (conexões com o MotherDuck, cache, `rows`, `json`). Mudanças nesses arquivos afetam todas as questões.
 
-**Frontend.** Cada `src/questoes/pN-*.ts` exporta por padrão um objeto com `id`, `numero`, `titulo`, `pergunta`, `resumo` e `montar(el)`, que desenha a questão dentro do painel; o contrato completo está em `src/questoes/tipos.ts`. `usaAno: true` faz o painel mostrar os anos do estado escolhido (P1, P2). Uma questão também pode acrescentar algo às gavetas sem mexer nelas: `gavetaMunicipio(m)` (a P4 põe a escolaridade na gaveta do município), `fichaCandidatura(c, h)` e `aoAbrirGaveta(corpo)` (a P9 põe as nuvens na ficha do candidato). `montar` é chamado ao abrir o painel e a cada troca de estado ou ano; leia o estado e o ano de `UF` e `ANO`, importados de `../presentation`.
+**Frontend.** Cada `src/questoes/pN-*.ts` exporta por padrão um objeto com `id`, `numero`, `titulo`, `pergunta`, `resumo` e `montar(el)`, que desenha a questão dentro do painel; o contrato completo está em `src/questoes/tipos.ts`. `usaAno: true` faz o painel mostrar os anos do estado escolhido (P1, P2). Uma questão também pode acrescentar algo às gavetas sem mexer nelas: `gavetaMunicipio(m)` (a P4 põe a escolaridade na gaveta do município), `linhaMunicipio(m)` (a P7 põe a linha do viés abaixo da linha do tempo), `fichaCandidatura(c, h)` e `aoAbrirGaveta(corpo)` (a P9 põe as nuvens na ficha do candidato). `montar` é chamado ao abrir o painel e a cada troca de estado ou ano; leia o estado e o ano de `UF` e `ANO`, importados de `../presentation`.
 
 **API.** Cada `api/questoes/pN-*.ts` exporta `rotas` (caminho → função que recebe a `URL` e devolve a resposta) e, se precisar, `municipio(codigo)` ou `candidato(id, candidaturas)`, cujo resultado é mesclado à resposta de `/api/municipality/:id` ou `/api/candidate/:id`. Use `rows`, `comCache`, `json` e `viewDisponivel` de `../banco`.
 
@@ -92,11 +95,35 @@ O cargo escolhido continua selecionado ao trocar de ano ou de estado, para compa
 
 ### Escolaridade: os eleitos se parecem com a população? (P4)
 
-A seção lê `/api/escolaridade?uf&ano&cargo`, sobre `vw_questao_4_escolaridade` (`sql/motherduck/07_views_escolaridade.sql`): por cargo (prefeito e vereador, juntos ou separados) e eleição, a distribuição de candidatos, eleitos e população de 18+ do Censo 2022 nos quatro níveis do IBGE, e a lista de municípios pela diferença na parcela com superior completo (eleitos − população), nos dois sentidos. O ano padrão é o mais próximo do Censo. A gaveta de cada município traz a mesma comparação para o município.
+A seção lê `/api/escolaridade?uf&ano&cargo`, sobre `vw_questao_4_escolaridade` (`sql/motherduck/07_views_escolaridade.sql`): por cargo e eleição, distribui candidatos e eleitos contra a população 18+ do Censo 2022, o eleitorado apto do TSE ou ambos, nos quatro níveis comuns. Na lista municipal aparecem as duas diferenças de superior completo. O Censo e o perfil do eleitorado são marginais agregadas independentes, sem pareamento individual. O ano padrão é o mais próximo do Censo. A gaveta do município oferece os mesmos três modos.
+
+### Indicadores municipais e partido vencedor (P3)
+
+O card lê `/api/q3-indicadores` sobre `vw_questao_3_indicadores_municipio` (`sql/motherduck/12_view_questao_3_indicadores.sql`). Por eleição municipal, relaciona PIB per capita, população, IDHM, aptos/população, abstenção e partido do prefeito eleito. O indicador selecionado divide os municípios em quatro grupos; cada grupo mostra o partido que venceu mais prefeituras. PIB per capita e população podem vir de anos IBGE diferentes; suas referências ficam na nota. IDHM usa 2010. Aptos/população usa aptos do primeiro turno e habitantes, podendo passar de 100%. Abstenção é abstenções/aptos do primeiro turno. A visão exclui eleições suplementares ao selecionar o código TSE com maior cobertura municipal no ano.
+
+### Idade e alternância municipal (P6)
+
+O card lê `/api/q6-idade-alternancia` sobre `vw_questao_6_idade_alternancia` (`sql/motherduck/13_view_questao_6_idade_alternancia.sql`). A idade média do eleitorado é aproximada pelos pontos médios das faixas etárias do TSE; a idade do prefeito usa a data do primeiro turno. Alternância significa troca da sigla do partido do prefeito eleito em relação ao pleito quatro anos antes. O escopo usa apenas eleições municipais de 2004–2024; 2004 não tem ciclo anterior na janela e ciclos incompletos ficam fora da taxa.
 
 ### Eleitos com a ajuda do partido (P5)
 
 A seção "Eleitos com a ajuda do partido" lê `/api/legenda` e `/api/legenda/pessoas`, sobre `vw_questao_5_legenda` (`sql/motherduck/11_views_legenda.sql`). Para cada cargo proporcional e eleição: quantos eleitos tiveram menos votos próprios que o quociente eleitoral, a evolução de 2004 a 2024 (clicar num ano o seleciona), a tabela por partido (clicar num partido filtra a lista) e quem se elegeu com a menor fração do quociente. Sem estado escolhido, soma a amostra inteira.
+
+### Viés político do partido (P7)
+
+A P7 usa o survey de especialistas de Bolognesi et al. (Harvard Dataverse): a média de 0 a 10 de cada partido vira `(média − 5) × 20`, de −100 (esquerda) a +100 (direita). Na ficha de cada candidato, cada candidatura de 2018 a 2024 ganha uma régua que vai do partido mais à esquerda ao mais à direita daquela eleição, com o partido do candidato marcado. 2018 e 2020 usam a onda de 2018; 2022 e 2024, a de 2022 — **2024 é a onda de 2022 estendida por dois anos**. Partido sem nota no survey não recebe marcador; o valor nunca é tratado como zero.
+
+Na gaveta do município, a linha "Viés político ao longo do tempo" mostra o viés agregado de cada eleição de 2018 a 2024 numa escala fixa de −100 a +100: dentro de cada cargo, a média dos partidos é ponderada pelos votos válidos (nominais e de legenda, 1º turno); depois, os cargos entram com peso igual. No card da P7, um seletor de município mostra a mesma linha.
+
+Os dados não vêm do MotherDuck: a P7 lê o snapshot local `frontend/.p7-vies.duckdb`, gerado a partir do mesmo SQL que o administrador do banco executa (`sql/motherduck/14_vies_partidos.sql`) e do CSV `data/referencias/vies_municipios.csv` (exportado da view `vw_questao_7_vies`). `bun run dev` e `bun start` regeneram o snapshot automaticamente (scripts `predev`/`prestart`); para gerar na mão depois de mudar o SQL, rode:
+
+```sh
+bun run p7-local
+```
+
+Para reexportar o CSV municipal do banco `BDR-TSE`, rode `bun run p7-municipios` e depois `bun run p7-local`.
+
+`P7_DB` no `.env` aponta para outro arquivo, se necessário. Sem o snapshot, a ficha e a gaveta abrem normalmente e só a régua/linha não aparecem.
 
 ### Mapa de municípios
 
@@ -127,3 +154,7 @@ O script usa o `MOTHERDUCK_TOKEN` do `.env` e executa os statements individualme
 `server.ts` contém as rotas e consultas; `src/presentation.ts` preserva o comportamento do HTML original; `src/style.css` contém os estilos originais; `dev.ts` inicia os dois servidores em desenvolvimento; `scripts/malhas.ts` gera as malhas municipais. O arquivo `.env` é local e ignorado pelo Git: nunca coloque o token em código frontend, `VITE_*`, issues ou commits.
 
 O GitHub Pages hospeda apenas o frontend estático. Para publicar o painel com dados ao vivo, é necessário também hospedar a API Bun e configurar a URL dela no frontend, mantendo o token no ambiente do backend.
+
+A conferência/correção dos vínculos de pessoa de 2026 usa
+`scripts/reconciliar-2026.ts`; os procedimentos e as verificações estão em
+[Conferência dos vínculos de 2026](../scripts/motherduck/README.md#conferência-e-correção-dos-vínculos-de-2026).

@@ -1,0 +1,23 @@
+tipo;ano;resultado;origem;numero;observacao
+renomeacao;2017;MDB;PMDB;15;só mudou de nome
+renomeacao;2017;AVANTE;PT DO B;70;só mudou de nome
+renomeacao;2018;PATRI;PEN;51;só mudou de nome
+renomeacao;2019;PATRIOTA;PATRI;51;grafia da sigla no TSE (PATRI em 2018, PATRIOTA de 2020 em diante)
+renomeacao;2019;REPUBLICANOS;PRB;10;só mudou de nome
+renomeacao;2019;PL;PR;22;só mudou de nome
+renomeacao;2019;CIDADANIA;PPS;23;só mudou de nome
+renomeacao;2017;PODE;PTN;19;só mudou de nome
+renomeacao;2017;SOLIDARIEDADE;SD;77;só mudou de nome
+renomeacao;2022;AGIR;PTC;36;só mudou de nome
+renomeacao;2018;DC;PSDC;27;só mudou de nome
+renomeacao;2023;MOBILIZA;PMN;33;só mudou de nome
+renomeacao;2007;DEM;PFL;25;fora do escopo 2018-2024: só para partido.vies_politico de candidaturas antigas
+renomeacao;2003;PP;PPB;11;fora do escopo 2018-2024: só para partido.vies_politico de candidaturas antigas
+renomeacao;2000;PHS;PSN;31;fora do escopo 2018-2024: só para partido.vies_politico de candidaturas antigas
+fusao;2022;UNIÃO;DEM+PSL;44;fusão
+fusao;2019;PODE;PODE+PHS;19;incorporação do PHS
+fusao;2019;PC DO B;PC DO B+PPL;65;incorporação do PPL
+fusao;2019;PATRI;PATRI+PRP;51;incorporação do PRP
+fusao;2023;PRD;PTB+PATRI;25;fusão
+fusao;2023;PODE;PODE+PSC;20;incorporação do PSC (o Podemos passou a usar o número 20)
+fusao;2023;SOLIDARIEDADE;SOLIDARIEDADE+PROS;77;incorporação do PROS
