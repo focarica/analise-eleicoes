@@ -247,8 +247,9 @@ function renderReeleicao(){
       ${res.foras.length ? `<p class="aviso-mini">Fora do cálculo (eleição seguinte ainda sem dados na base): ${res.foras.join(", ")}.</p>` : ""}
     </div>
     ${UF ? `<div class="fin-bloco">
-      <h3>Quem são${REEL.ciclo!=null ? ` (${REEL.ciclo})` : ""}</h3>
-      ${REEL.ciclo!=null ? `<div class="cargos">${["voltou","perderam","nao"].map(g=>`<button data-g="${g}" aria-pressed="${REEL.aberto && REEL.grupo===g}" title="Mostrar este grupo; clique de novo para recolher a lista">${REEL_GRUPO_TXT[g]}</button>`).join("")}</div>
+      <h3>Quem são</h3>
+      ${REEL.ciclo!=null ? `<div class="cargos" role="group" aria-label="Faixas de anos com dados de reeleição para este cargo">${ciclos.map(c=>`<button data-ciclo-q="${c.anoEleito}" aria-pressed="${REEL.ciclo===c.anoEleito}" title="Eleitos em ${c.anoEleito}, disputa em ${c.anoDisputa}">${c.anoEleito}→${c.anoDisputa}</button>`).join("")}</div>
+      <div class="cargos">${["voltou","perderam","nao"].map(g=>`<button data-g="${g}" aria-pressed="${REEL.aberto && REEL.grupo===g}" title="Mostrar este grupo; clique de novo para recolher a lista">${REEL_GRUPO_TXT[g]}</button>`).join("")}</div>
       <input id="reel-busca" class="reel-busca" type="search" placeholder="Filtrar por nome ou município" value="${esc(REEL.busca)}" aria-label="Filtrar pessoas por nome ou município">
       <div id="reel-quem"></div>` : `<p class="aviso-mini">Sem ciclo selecionável para este cargo.</p>`}
     </div>` : (ufs.length ? `<div class="fin-bloco reel-linha">
@@ -260,6 +261,11 @@ function renderReeleicao(){
     renderReeleicao(); // a lista "quem são" recarrega junto
   });
   if (UF && REEL.ciclo != null){
+    el.querySelectorAll("[data-ciclo-q]").forEach(b => b.onclick = () => {
+      if (REEL.ciclo === +b.dataset.cicloQ) return; // faixa já selecionada
+      REEL.ciclo = +b.dataset.cicloQ; REEL.aberto = true; REEL.desde = 0;
+      renderReeleicao(); // mantém a tabela e o gráfico em sintonia com a faixa escolhida
+    });
     el.querySelectorAll("[data-g]").forEach(b => b.onclick = () => {
       const alvo = document.getElementById("reel-quem");
       if (REEL.aberto && REEL.grupo === b.dataset.g){ // de novo no mesmo grupo: colapsa a lista
