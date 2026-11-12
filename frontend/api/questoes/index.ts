@@ -7,7 +7,7 @@ import * as p2 from "./p2-patrimonio-gasto";
 import * as p3 from "./p3-indicadores";
 import * as p4 from "./p4-escolaridade";
 import * as p5 from "./p5-legenda";
-import * as p6 from "./p6-idade-alternancia";
+import * as p6 from "./p6-jovens-vies";
 import * as p7 from "./p7-vies";
 import * as p8 from "./p8-financiamento";
 import * as p9 from "./p9-propaganda";
