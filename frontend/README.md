@@ -44,7 +44,7 @@ As chaves S3 compatíveis com R2 ainda são necessárias para administrar e carr
 
 ## Dados e estrutura
 
-O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2004–2026. A eleição de 2026 já está integrada ao mapa, busca de candidatos, trajetórias, comparecimento, votação, despesas, receitas, patrimônio e seções que consultam esses anos. O card P3 e a análise P6 ficam limitados aos anos municipais, até 2024. A interface mostra o partido vencedor em cada município no mapa, filtro de cargo, busca de candidatos/municípios, detalhes em gaveta e um card por questão, que abre a questão num painel próprio.
+O banco contém AC, AL, BA, DF, RO e SP nos pleitos de 2004–2026. A eleição de 2026 já está integrada ao mapa, busca de candidatos, trajetórias, comparecimento, votação, despesas, receitas, patrimônio e seções que consultam esses anos. O card P3 fica limitado aos anos municipais, até 2024; a P6 cobre 2018–2024. A interface mostra o partido vencedor em cada município no mapa, filtro de cargo, busca de candidatos/municípios, detalhes em gaveta e um card por questão, que abre a questão num painel próprio.
 
 ### Linhas do tempo de município e candidato
 
@@ -73,7 +73,7 @@ Cada questão tem os próprios arquivos, para que cada pessoa mexa só na sua e 
 | P3 indicadores municipais e partido vencedor | `src/questoes/p3-indicadores.ts` | `api/questoes/p3-indicadores.ts` |
 | P4 escolaridade | `src/questoes/p4-escolaridade.ts` | `api/questoes/p4-escolaridade.ts` |
 | P5 votos de legenda | `src/questoes/p5-legenda.ts` | `api/questoes/p5-legenda.ts` |
-| P6 idade do eleitorado e alternância | `src/questoes/p6-idade-alternancia.ts` | `api/questoes/p6-idade-alternancia.ts` |
+| P6 jovens × não jovens × viés político | `src/questoes/p6-jovens-vies.ts` | `api/questoes/p6-jovens-vies.ts` |
 | P7 viés político | `src/questoes/p7-vies.ts` (+ `.css`) | `api/questoes/p7-vies.ts` |
 | P8 financiamento público | `src/questoes/p8-financiamento.ts` | `api/questoes/p8-financiamento.ts` |
 | P9 propaganda (nuvens) | `src/questoes/p9-propaganda.ts` | `api/questoes/p9-propaganda.ts` |
@@ -101,9 +101,9 @@ A seção lê `/api/escolaridade?uf&ano&cargo`, sobre `vw_questao_4_escolaridade
 
 O card lê `/api/q3-indicadores` sobre `vw_questao_3_indicadores_municipio` (`sql/motherduck/12_view_questao_3_indicadores.sql`). Por eleição municipal, relaciona PIB per capita, população, IDHM, aptos/população, abstenção e partido do prefeito eleito. O indicador selecionado divide os municípios em quatro grupos; cada grupo mostra o partido que venceu mais prefeituras. PIB per capita e população podem vir de anos IBGE diferentes; suas referências ficam na nota. IDHM usa 2010. Aptos/população usa aptos do primeiro turno e habitantes, podendo passar de 100%. Abstenção é abstenções/aptos do primeiro turno. A visão exclui eleições suplementares ao selecionar o código TSE com maior cobertura municipal no ano.
 
-### Idade e alternância municipal (P6)
+### Jovens × não jovens × viés político (P6)
 
-O card lê `/api/q6-idade-alternancia` sobre `vw_questao_6_idade_alternancia` (`sql/motherduck/13_view_questao_6_idade_alternancia.sql`). A idade média do eleitorado é aproximada pelos pontos médios das faixas etárias do TSE; a idade do prefeito usa a data do primeiro turno. Alternância significa troca da sigla do partido do prefeito eleito em relação ao pleito quatro anos antes. O escopo usa apenas eleições municipais de 2004–2024; 2004 não tem ciclo anterior na janela e ciclos incompletos ficam fora da taxa.
+O card lê `/api/q6-jovens-vies` sobre `vw_questao_6_jovens_vies` (`sql/motherduck/13_view_questao_6_jovens_vies.sql`); enquanto a view não estiver no `BDR-TSE`, a rota executa a mesma consulta lida desse arquivo. Jovem é quem tem de 18 a 29 anos na data do primeiro turno (Estatuto da Juventude), corte que coincide com as faixas etárias do eleitorado do TSE. Para cada eleição de 2018 a 2024, compara a proporção de jovens no eleitorado (base 18+) com a de candidatos e eleitos, e o viés médio do partido (P7) de jovens e não jovens. Nas municipais a unidade é o município (prefeito e vereador), com os municípios agrupados em quartos pela proporção de eleitores jovens; nas gerais, a UF (governador, senador e deputados).
 
 ### Eleitos com a ajuda do partido (P5)
 

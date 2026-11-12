@@ -83,7 +83,6 @@ Colunas empilhadas por ciclo, quem são e resumo somado.
 - **P1 restante**: view `custo_cadeira` pronta no SQL, falta o bloco na gaveta do estado.
 - **P3 restante**: PIB per capita, IDHM e população já vêm da API e não estão renderizados. Faltam eleitores/população e isentos.
 - **P4 (escolaridade candidato × votante)**: grau de instrução do eleitorado está na base; falta a comparação.
-- **P6 e P7 (alternância e viés)**: dependem de dados externos (candidaturas 1996–2016; notas de especialistas do Harvard Dataverse).
 - **P10b (carreira completa)**: depende de pleitos anteriores a 2004.
 - **IPCA**: deflator ainda não aplicado.
 
