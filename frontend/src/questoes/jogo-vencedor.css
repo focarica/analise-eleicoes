@@ -10,17 +10,26 @@
   margin-bottom: 16px;
 }
 
+/* Novo layout flexível para o título e botões no topo */
 .jogo-titulo-linha {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 16px;
   margin-bottom: 8px;
 }
 
 .jogo-titulo-linha h2 {
   margin: 0;
   font-size: 1.5rem;
+}
+
+/* Container para agrupar os botões de ação do topo */
+.jogo-acoes-topo {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .selo-jogo {
@@ -38,6 +47,10 @@
   color: var(--ink-3);
   letter-spacing: 1px;
   margin: 0;
+}
+
+.local-oculto .btn-mini {
+  margin-left: 8px;
 }
 
 .jogo-arena {
@@ -96,11 +109,16 @@
   padding-bottom: 12px;
   margin-bottom: 12px;
   text-align: center;
+  margin-top: 0;
 }
 
 .carta-header h3 {
   font-size: 1.2rem;
   margin: 0 0 6px 0;
+}
+
+.carta-header .btn-mini {
+  margin-top: 8px;
 }
 
 .tag-partido {
@@ -128,15 +146,13 @@
   font-size: 0.9rem;
 }
 
-.btn-apostar, .btn-primario, .btn-secundario {
+/* Botão de aposta consolidado */
+.btn-apostar {
   border-radius: 8px;
   font-weight: 700;
   cursor: pointer;
   border: none;
   width: 100%;
-}
-
-.btn-apostar {
   margin-top: 12px;
   padding: 10px 16px;
   font-size: 0.95rem;
@@ -145,25 +161,7 @@
   transition: background 0.2s;
 }
 
-.btn-apostar:hover { background: var(--ink); color: var(--bg); }
-
-.jogo-controles {
-  margin-top: 16px;
-  width: 100%;
-  max-width: 300px;
-}
-
-.btn-secundario {
-  padding: 12px 24px;
-  font-size: 16px;
-  background: transparent;
-  border: 1px solid var(--ink);
-  color: var(--ink);
-}
-
-.btn-primario {
-  padding: 10px 24px;
-  font-size: 16px;
+.btn-apostar:hover {
   background: var(--ink);
   color: var(--bg);
 }
@@ -175,8 +173,16 @@
   border-radius: 8px;
 }
 
-.resultado-votos .pct { display: block; font-size: 24px; font-weight: 800; }
-.resultado-votos .total { font-size: 12px; color: var(--ink-3); }
+.resultado-votos .pct { 
+  display: block; 
+  font-size: 24px; 
+  font-weight: 800; 
+}
+
+.resultado-votos .total { 
+  font-size: 12px; 
+  color: var(--ink-3); 
+}
 
 .jogo-feedback {
   width: 100%;
@@ -187,8 +193,15 @@
   margin-bottom: 16px;
 }
 
-.feedback-sucesso { background: #d1fae5; color: #065f46; }
-.feedback-erro { background: #fee2e2; color: #991b1b; }
+.feedback-sucesso { 
+  background: #d1fae5; 
+  color: #065f46; 
+}
+
+.feedback-erro { 
+  background: #fee2e2; 
+  color: #991b1b; 
+}
 
 .btn-mini {
   background: var(--bg-escuro);
@@ -199,7 +212,6 @@
   padding: 4px 10px;
   border-radius: 6px;
   cursor: pointer;
-  margin-left: 12px;
   vertical-align: middle;
   transition: all 0.2s;
 }
@@ -209,7 +221,55 @@
   color: var(--ink-2);
 }
 
-.carta-header .btn-mini {
-  margin-top: 8px;
-  margin-left: 0;
+/* Destaque para o botão Próximo Confronto */
+.btn-destaque {
+  background: var(--ink) !important;
+  color: var(--bg) !important;
+  border-color: var(--ink) !important;
+}
+
+.btn-destaque:hover {
+  background: var(--ink-2) !important;
+}
+
+.carta-foto-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.foto-moldura {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 3px solid var(--line);
+  background-color: var(--bg-escuro);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.foto-fallback {
+  width: 60%;
+  height: 60%;
+  color: var(--ink-3);
+}
+
+.foto-cand {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 3;
+}
+
+.foto-placeholder {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--ink-3);
+  z-index: 2;
 }
