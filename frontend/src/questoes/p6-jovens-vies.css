@@ -1,71 +1,116 @@
 /* Estilos exclusivos da questão (p6-jovens-vies). Vem com o módulo src/questoes/p6-jovens-vies.ts. */
-.q6-controles{display:flex;gap:.8rem;flex-wrap:wrap;align-items:flex-end;margin:.7rem 0 1rem}
-.q6-controles label{display:grid;gap:.25rem;font-size:.76rem;color:var(--ink-3)}
-.q6-controles select{min-width:11rem;padding:.55rem .7rem;border:1px solid var(--line);border-radius:var(--radius-sm,4px);background:var(--raised);color:var(--ink);font:inherit}
+.q6-intro{margin:.2rem 0 .9rem;font-size:.95rem;color:var(--ink-2);max-width:68ch}
+
+/* controles: anos e cargos como botões */
+.q6-controles{display:flex;gap:.6rem 1.2rem;flex-wrap:wrap;align-items:center;margin:0 0 1.2rem}
 .q6-chips{display:flex;gap:.35rem;flex-wrap:wrap}
-.q6-chips button{padding:.4rem .75rem;border:1px solid var(--line);border-radius:999px;background:var(--raised);color:var(--ink-2);font:inherit;font-size:.8rem;cursor:pointer}
+.q6-chips button{display:flex;flex-direction:column;align-items:center;line-height:1.15;padding:.42rem .8rem;border:1px solid var(--line);border-radius:999px;background:var(--raised);color:var(--ink-2);font:inherit;font-size:.85rem;font-weight:600;cursor:pointer}
+.q6-chips button small{font-size:.66rem;font-weight:400;color:var(--ink-3)}
 .q6-chips button:hover{border-color:var(--ink)}
 .q6-chips button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.q6-chips button[aria-pressed="true"] small{color:var(--bg);opacity:.8}
+.q6-chips-cargo button{font-weight:400;font-size:.8rem}
+#q6-conteudo{transition:opacity .15s}
+#q6-conteudo.q6-carregando{opacity:.45}
 
-.q6-resumo{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.6rem;margin:.7rem 0 1rem}
-.q6-card{border:1px solid var(--line);padding:.7rem .8rem}
-.q6-card small{display:block;color:var(--ink-3);font-size:.72rem;margin-bottom:.25rem}
-.q6-card b{display:block;font-size:1.15rem;font-variant-numeric:tabular-nums}
-.q6-vs{font-size:.85rem;font-weight:600;color:var(--ink-3)}
+/* cores: jovem = laranja; eleitorado = cinza; esquerda/direita = as da P7 */
+.q6-bloco{--q6-jovem:var(--faixa-2);--q6-eleitos:var(--faixa-1);--q6-esq:#cf4b4b;--q6-dir:#3b72b0;
+  border-top:1px solid var(--line);padding:1.1rem 0 1.3rem}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .q6-bloco{--q6-esq:#e06a6a;--q6-dir:#5b9bd5}}
+:root[data-theme="dark"] .q6-bloco{--q6-esq:#e06a6a;--q6-dir:#5b9bd5}
+.q6-esq{color:var(--q6-esq)}.q6-dir{color:var(--q6-dir)}
+.q6-bloco h3{display:flex;align-items:center;gap:.55rem;margin:0 0 .35rem;font-size:1.08rem}
+.q6-num{display:inline-grid;place-items:center;width:1.6rem;height:1.6rem;border-radius:50%;background:var(--ink);color:var(--bg);font-size:.8rem;flex:none}
+.q6-frase{margin:0 0 .9rem;font-size:1rem;color:var(--ink);max-width:70ch}
+.q6-frase b{font-size:1.05em}
+.q6-sub{margin:.6rem 0 0;font-size:.9rem;color:var(--ink-2)}
+.q6-mini{margin:.4rem 0 .6rem;font-size:.76rem;color:var(--ink-3);max-width:75ch}
 
-/* cores de esquerda/direita iguais às da P7 */
-.q6-esq{color:#b83c3c}.q6-dir{color:#2f62a0}
-.q6-esq-bg{background:#cf4b4b}.q6-dir-bg{background:#3b72b0}.q6-centro-bg{background:var(--vazio)}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]) .q6-esq{color:#e06a6a}
-  :root:not([data-theme="light"]) .q6-dir{color:#5b9bd5}
-  :root:not([data-theme="light"]) .q6-esq-bg{background:#e06a6a}
-  :root:not([data-theme="light"]) .q6-dir-bg{background:#5b9bd5}
-}
-:root[data-theme="dark"] .q6-esq{color:#e06a6a}
-:root[data-theme="dark"] .q6-dir{color:#5b9bd5}
-:root[data-theme="dark"] .q6-esq-bg{background:#e06a6a}
-:root[data-theme="dark"] .q6-dir-bg{background:#5b9bd5}
+/* 1. grades "de cada 100" */
+.q6-waffles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1.2rem}
+.q6-waffle{margin:0}
+.q6-waffle figcaption{display:grid;grid-template-columns:auto 1fr;align-items:baseline;column-gap:.5rem;margin-bottom:.45rem}
+.q6-waffle figcaption span{grid-column:1/-1;font-size:.8rem;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.03em}
+.q6-waffle figcaption b{font-size:2rem;line-height:1;font-variant-numeric:tabular-nums}
+.q6-waffle figcaption small{font-size:.78rem;color:var(--ink-3)}
+.q6-waffle-grade{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;max-width:200px}
+.q6-waffle-grade i{aspect-ratio:1;border-radius:2px;background:var(--vazio)}
+.q6-waffle-grade i.on{background:var(--q6-jovem)}
+.q6-waffle-det{display:block;margin-top:.4rem;font-size:.72rem;color:var(--ink-3)}
 
-.q6-reguas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}
-.q6-regua{margin:0}
-.q6-regua figcaption{font-size:.76rem;color:var(--ink-3)}
+/* 2. réguas de viés */
+.q6-regua{display:grid;grid-template-columns:6rem 1fr;align-items:center;gap:.6rem;max-width:760px}
+.q6-regua-rot{font-size:.82rem;font-weight:700;color:var(--ink-2)}
 .q6-regua svg{display:block;width:100%;height:auto;overflow:visible}
 .q6-regua text{font-family:inherit}
-.q6-regua-faixa{fill:var(--vazio)}
-.q6-regua-zero{stroke:var(--ink-3);stroke-dasharray:2 2}
-.q6-regua-eixo{font-size:11px;fill:var(--ink-3)}
-.q6-pt text{font-size:13px;font-weight:700;fill:var(--ink)}
-.q6-pt circle{stroke:var(--bg);stroke-width:2}
-.q6-pt-j circle{fill:var(--faixa-2)}
-.q6-pt-nj circle{fill:var(--ink-2)}
+.q6-stop-esq{stop-color:var(--q6-esq)}.q6-stop-meio{stop-color:var(--vazio)}.q6-stop-dir{stop-color:var(--q6-dir)}
+.q6-regua-centro{stroke:var(--ink-3);stroke-dasharray:2 2}
+.q6-regua-eixo{font-size:12px;fill:var(--ink-3)}
+.q6-marca text{font-size:14px;font-weight:700;fill:var(--ink)}
+.q6-marca line{stroke:var(--ink-3);stroke-width:1.5}
+.q6-marca circle{stroke:var(--bg);stroke-width:2.5}
+.q6-j circle{fill:var(--q6-jovem)}
+.q6-nj circle{fill:var(--ink-2)}
 
-.q6-lados{margin:.6rem 0 1rem}
-.q6-lado{display:grid;grid-template-columns:6.5rem 1fr 8.5rem;gap:.6rem;align-items:center;margin:.3rem 0;font-size:.8rem}
-.q6-lado-nome{color:var(--ink-2)}
-.q6-lado-barra{display:flex;height:.8rem;border-radius:4px;overflow:hidden;background:var(--vazio)}
-.q6-lado-barra i{display:block;height:100%}
-.q6-lado-num{text-align:right;font-variant-numeric:tabular-nums}
+/* 3. colunas (municipais) */
+.q6-colunas{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem;max-width:640px;align-items:end}
+.q6-col{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.3rem}
+.q6-col b{font-size:1.05rem;font-variant-numeric:tabular-nums}
+.q6-col-trilho{width:56%;height:150px;display:flex;align-items:flex-end;border-bottom:1px solid var(--line)}
+.q6-col-trilho i{display:block;width:100%;background:var(--q6-jovem);border-radius:4px 4px 0 0;min-height:2px}
+.q6-col span{font-size:.72rem;color:var(--ink-3);line-height:1.3}
+.q6-col em{display:block;font-style:normal;font-weight:700;color:var(--ink-2);font-size:.78rem}
 
-.q6-grupos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.45rem;margin:.7rem 0 1rem}
-.q6-grupo{border-top:3px solid var(--line);padding:.55rem;background:var(--raised)}
-.q6-grupo:nth-child(2){border-color:var(--ink-3)}.q6-grupo:nth-child(3){border-color:var(--ink-2)}.q6-grupo:nth-child(4){border-color:var(--ink)}
-.q6-grupo small{color:var(--ink-3);font-size:.72rem}
-.q6-g-faixa{display:block;font-size:.78rem;margin:.2rem 0 .4rem;color:var(--ink-2)}
-.q6-grupo dl{display:grid;grid-template-columns:1fr auto;gap:.15rem .5rem;margin:0;font-size:.8rem}
-.q6-grupo dt{color:var(--ink-3)}.q6-grupo dd{margin:0;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+/* 3b. barras pareadas (gerais) */
+.q6-legenda{display:flex;gap:1rem;flex-wrap:wrap;font-size:.78rem;color:var(--ink-2);margin:.2rem 0 .6rem}
+.q6-legenda span{display:inline-flex;align-items:center;gap:.35rem}
+.q6-legenda i{display:inline-block;width:.9rem;height:.9rem;border-radius:3px}
+.q6-sw-eleitorado{background:var(--ink-3)}
+.q6-sw-cand{background:var(--q6-jovem)}
+.q6-pares{display:grid;gap:.55rem;max-width:640px}
+.q6-par{display:grid;grid-template-columns:7rem 1fr;gap:.6rem;align-items:center}
+.q6-par-nome{font-size:.85rem;color:var(--ink-2)}
+.q6-par-barras{display:grid;gap:2px}
+.q6-par-barras div{display:flex;align-items:center;gap:.4rem;height:.95rem}
+.q6-par-barras i{display:block;height:100%;border-radius:0 4px 4px 0;min-width:2px}
+.q6-par-barras b{font-size:.75rem;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink-2)}
 
-.q6-tabela{max-height:28rem;overflow:auto;margin-bottom:.6rem}
+/* 4. comparação entre eleições do mesmo tipo */
+.q6-cmps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem;max-width:900px}
+.q6-cmp{margin:0}
+.q6-cmp figcaption{font-size:.85rem;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.03em}
+.q6-cmp .q6-legenda{margin:.3rem 0 .2rem}
+.q6-cmp svg{display:block;width:100%;height:auto;overflow:visible}
+.q6-cmp svg text{font-family:inherit}
+.q6-sw-antes,.q6-antes path{fill:var(--q6-antes);background:var(--q6-antes)}
+.q6-sw-depois,.q6-depois path{fill:var(--q6-jovem);background:var(--q6-jovem)}
+.q6-bloco{--q6-antes:color-mix(in srgb,var(--q6-jovem) 40%,var(--vazio))}
+.q6-antes text,.q6-depois text{font-size:12.5px;font-weight:700;fill:var(--ink)}
+.q6-cmp-rot{font-size:13px;fill:var(--ink-2)}
+.q6-base{stroke:var(--line)}
+.q6-cmp-frase{margin:.3rem 0 0;font-size:.88rem;color:var(--ink-2)}
+
+/* detalhes recolhidos */
+.q6-det{border-top:1px solid var(--line);padding:.7rem 0}
+.q6-det summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--ink-2)}
+.q6-det summary:hover{color:var(--ink)}
+.q6-metodo{margin:.6rem 0 0;padding-left:1.1rem;font-size:.82rem;color:var(--ink-2);max-width:75ch}
+.q6-metodo li{margin:.3rem 0}
+.q6-tabela{max-height:26rem;overflow:auto;margin:.6rem 0}
 .q6-tabela table{width:100%;border-collapse:collapse;font-size:.8rem}
-.q6-tabela th,.q6-tabela td{padding:.48rem .4rem;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;font-variant-numeric:tabular-nums}
+.q6-tabela th,.q6-tabela td{padding:.45rem .4rem;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;font-variant-numeric:tabular-nums}
 .q6-tabela th{position:sticky;top:0;background:var(--raised);z-index:1;color:var(--ink-3)}
-.q6-tabela td small{color:var(--ink-3)}
-.q6-tabela tr.q6-atual td{font-weight:700}
+.q6-tabela td small{color:var(--ink-3);margin-left:.25rem}
 
 @media(max-width:700px){
-  .q6-resumo{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .q6-reguas{grid-template-columns:1fr}
-  .q6-grupos{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .q6-lado{grid-template-columns:5rem 1fr 7.5rem}
+  .q6-waffles{grid-template-columns:1fr;gap:1rem}
+  .q6-waffle{display:grid;grid-template-columns:1fr auto;gap:.8rem;align-items:center}
+  .q6-waffle-grade{width:120px}
+  .q6-waffle-det{grid-column:1/-1;margin-top:0}
+  .q6-regua{grid-template-columns:1fr}
+  .q6-colunas{gap:.4rem}
+  .q6-col-trilho{width:70%;height:110px}
+  .q6-par{grid-template-columns:5rem 1fr}
+  .q6-cmps{grid-template-columns:1fr}
   .q6-tabela{max-width:calc(100vw - 3rem)}
 }
