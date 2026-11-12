@@ -5,6 +5,7 @@ import {
 import { EXTENSOES_CANDIDATO, EXTENSOES_MUNICIPIO, ROTAS_QUESTOES } from "./api/questoes";
 import { carregarIndicadoresMunicipio } from "./api/indicadores-municipio";
 import { fundoPublico } from "./api/questoes/p8-financiamento";
+import rotaJogoVencedor from "./api/jogo-vencedor";
 
 // Núcleo da API: mapa, busca, fotos, ficha do candidato e gaveta do município.
 // As rotas de cada questão ficam em api/questoes/ (uma por arquivo).
@@ -138,6 +139,10 @@ async function route(request: Request) {
   if (path === "/api/health") {
     await rows("SELECT 1 AS ok");
     return json({ ok: true, database: DATABASE });
+  }
+
+  if (path === "/api/jogo-vencedor") {
+    return rotaJogoVencedor();
   }
 
   if (path === "/api/meta") {
