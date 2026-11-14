@@ -28,9 +28,9 @@ function montarPatrimonio(linhas){
       </div>
       
       <div class="eixo num" style="display: flex !important; justify-content: space-between !important; text-align: center; width: 100% !important;">
-        ${faixas.map(q=>`<span style="flex: 1 1 19% !important; max-width: 19% !important; min-width: 0 !important; font-size: 9.5px; line-height: 1.1; padding-top: 4px; word-break: break-word;">
+        ${faixas.map(q=>`<span style="flex: 1 1 19% !important; max-width: 19% !important; min-width: 0 !important; font-size: 12px; line-height: 1.2; padding-top: 4px; word-break: break-word;">
           ${+q.quartil_patrimonio===0 ? "Sem bens" : `até<br>${brlc(+q.teto_faixa_valor).replace(/\s/g, '&nbsp;')}`}<br>
-          <em style="font-size: 8.5px; color:var(--ink-3);">${q.vazia ? "ninguém" : fmt.format(+q.qtd_candidatos_na_faixa) + "&nbsp;cand."}</em>
+          <em style="font-size: 10.5px; color:var(--ink-3);">${q.vazia ? "ninguém" : fmt.format(+q.qtd_candidatos_na_faixa) + "&nbsp;cand."}</em>
         </span>`).join("")}
       </div>
     </div>`;
