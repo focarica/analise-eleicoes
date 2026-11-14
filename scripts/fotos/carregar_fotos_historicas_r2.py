@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Carrega fotos oficiais do TSE de 2004–2016 no bucket público de R2.
+"""Carrega fotos oficiais do TSE de 2004–2016 e 2026 no bucket público de R2.
 
 Chaves de objeto compatíveis com o frontend:
     candidatos/{ANO}/{SQ_CANDIDATO}
@@ -31,9 +31,9 @@ import duckdb
 from PIL import Image, ImageOps
 
 ROOT = Path(__file__).resolve().parents[3]
-YEARS = (2004, 2006, 2008, 2010, 2012, 2014, 2016)
+YEARS = (2004, 2006, 2008, 2010, 2012, 2014, 2016, 2026)
 MUNICIPAL_YEARS = {2004, 2008, 2012, 2016}
-GENERAL_YEARS = {2006, 2010, 2014}
+GENERAL_YEARS = {2006, 2010, 2014, 2026}
 MUNICIPAL_UFS = ("AC", "AL", "BA", "RO", "SP")
 GENERAL_UFS = ("AC", "AL", "BA", "DF", "RO", "SP", "BR")
 BUCKET = "analise-eleicoes-fotos"
@@ -59,11 +59,12 @@ def request_json(url: str, headers: dict[str, str] | None = None) -> dict:
         return json.load(response)
 
 
-def motherduck_rows(token: str) -> list[tuple]:
+def motherduck_rows(token: str, years: set[int]) -> list[tuple]:
     encoded = urllib.parse.quote(token, safe="")
     conn = duckdb.connect(f"md:BDR-TSE?motherduck_token={encoded}", read_only=True)
     try:
-        return conn.execute("""
+        selected_years = ", ".join(str(year) for year in sorted(years))
+        return conn.execute(f"""
             WITH rows AS (
                 SELECT c.ano_eleicao,
                        CASE WHEN c.ano_eleicao IN (2004, 2008, 2012, 2016)
@@ -74,13 +75,12 @@ def motherduck_rows(token: str) -> list[tuple]:
                 FROM public.candidatura c
                 LEFT JOIN public.municipio m
                   ON c.cd_municipio_tse = m.cd_municipio_tse
-                WHERE c.ano_eleicao BETWEEN 2004 AND 2016
+                WHERE c.ano_eleicao IN ({selected_years})
             )
             SELECT ano_eleicao, uf, cd_municipio_tse, sq_tse,
                    MIN(sq_interno) AS sq_interno, COUNT(DISTINCT sq_interno) AS destinos
             FROM rows
-            WHERE ano_eleicao IN (2004, 2006, 2008, 2010, 2012, 2014, 2016)
-              AND uf IS NOT NULL AND sq_tse IS NOT NULL AND sq_interno IS NOT NULL
+            WHERE uf IS NOT NULL AND sq_tse IS NOT NULL AND sq_interno IS NOT NULL
             GROUP BY 1, 2, 3, 4
             ORDER BY 1, 2, 3, 4
         """).fetchall()
@@ -219,7 +219,7 @@ def main():
     if not token:
         raise SystemExit("MOTHERDUCK_TOKEN ausente em analise-eleicoes/frontend/.env")
 
-    rows = motherduck_rows(token)
+    rows = motherduck_rows(token, years)
     regular, municipal_2004, candidate_counts, ambiguous = make_indexes(rows, years, selected_ufs)
     del rows
 

@@ -8,14 +8,14 @@ GET https://dadosabertos.tse.jus.br/api/3/action/package_show?id=candidatos-2024
 
 Selecione `result.resources` cujo nome seja `<UF> - Fotos de candidatos`. Nas eleições gerais, consulte também `BR` para candidaturas nacionais. Em 2020/2024 não há recurso do DF nem BR nesse conjunto de eleições municipais.
 
-## Carga histórica 2004–2016
+## Carga histórica e eleição geral de 2026
 
 O script [`carregar_fotos_historicas_r2.py`](./carregar_fotos_historicas_r2.py) baixa os recursos do TSE e associa as imagens às candidaturas existentes no MotherDuck em modo somente leitura. O recorte utilizado é:
 
 - Municipais 2004, 2008, 2012 e 2016: AC, AL, BA, RO e SP.
-- Gerais 2006, 2010 e 2014: AC, AL, BA, DF, RO, SP e BR.
+- Gerais 2006, 2010, 2014 e 2026: AC, AL, BA, DF, RO, SP e BR.
 
-Os nomes variam por eleição. A rotina reconhece `F{UF}{SQ}_div.png` em 2006/2008, `{UF}{SQ}_div.jpg` em 2010/2012/2014 e `F{UF}{SQ}_div.jpg` em 2016. Em 2004, o nome também contém o código TSE do município (`F{UF}{MUNICIPIO}_{SQ}_div.png`); por isso, o vínculo usa UF + município + sequencial TSE. Nos demais anos, usa ano + UF + sequencial TSE. Em todos os casos, o destino é o `SQ_CANDIDATO` interno daquela candidatura, evitando colisões de identificadores entre pleitos.
+Os nomes variam por eleição. A rotina reconhece `F{UF}{SQ}_div.png` em 2006/2008, `{UF}{SQ}_div.jpg` em 2010/2012/2014, `F{UF}{SQ}_div.jpg` em 2016 e 2026. Em 2004, o nome também contém o código TSE do município (`F{UF}{MUNICIPIO}_{SQ}_div.png`); por isso, o vínculo usa UF + município + sequencial TSE. Nos demais anos, usa ano + UF + sequencial TSE. Em todos os casos, o destino é o `SQ_CANDIDATO` interno daquela candidatura, evitando colisões de identificadores entre pleitos.
 
 As fotos são normalizadas para JPEG, qualidade 78, limite de 322×450 pixels e fundo branco para transparências. O objeto mantém o padrão já consumido pelo frontend: `candidatos/{ANO}/{SQ_CANDIDATO}`, `Content-Type: image/jpeg` e `Cache-Control: public,max-age=3600`. A associação continua sendo resolvida pelo banco; não são gravados links, imagens ou tabelas auxiliares no MotherDuck, Railway ou Supabase. ZIPs e imagens intermediárias ficam em `/tmp/tse_fotos_historicas_r2` e podem ser removidos ao final.
 
@@ -25,7 +25,7 @@ Para reproduzir a carga, configure `MOTHERDUCK_TOKEN` em `analise-eleicoes/front
 python3 analise-eleicoes/scripts/fotos/carregar_fotos_historicas_r2.py
 ```
 
-O script consulta as candidaturas no MotherDuck apenas para leitura, filtra exatamente o escopo acima, não sobrescreve chaves que já existam, testa uma URL pública por ano e só remove o staging se todas as validações passarem. `--dry-run` baixa e valida as imagens sem enviar; `--keep-local` preserva os arquivos temporários; `--years` e `--ufs` permitem limitar a execução. O AWS CLI usa 20 requisições concorrentes e repete até quatro vezes erros temporários de sincronização. Uma sincronização pode ser reexecutada com segurança, pois as chaves existentes não são sobrescritas.
+O script consulta as candidaturas no MotherDuck apenas para leitura, filtra exatamente o escopo acima, não sobrescreve chaves que já existam, testa uma URL pública por ano e só remove o staging se todas as validações passarem. `--dry-run` baixa e valida as imagens sem enviar; `--keep-local` preserva os arquivos temporários; `--years` e `--ufs` permitem limitar a execução. Para carregar somente as fotos gerais de 2026 do recorte do projeto, use `--years 2026 --ufs AC AL BA BR DF RO SP`. O AWS CLI usa 20 requisições concorrentes e repete até quatro vezes erros temporários de sincronização. Uma sincronização pode ser reexecutada com segurança, pois as chaves existentes não são sobrescritas.
 
 ## Associação à candidatura
 
