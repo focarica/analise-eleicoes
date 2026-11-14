@@ -84,8 +84,8 @@ function linhaVies(rows){
   return `<div class="mun-chart-wrap q7m">
     <div class="q7m-cab"><span class="q7m-tit">Viés político ao longo do tempo</span><span class="q7m-legenda">−100 esquerda · +100 direita</span></div>
     <svg class="q7m-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(descricao)}">
-      <defs><linearGradient id="${grad}" gradientUnits="userSpaceOnUse" x1="${L}" x2="${W - R}">
-        <stop class="q7-stop-esq" offset="0"/><stop class="q7-stop-meio" offset="0.5"/><stop class="q7-stop-dir" offset="1"/>
+      <defs><linearGradient id="${grad}" gradientUnits="userSpaceOnUse" x1="${L}" y1="${T}" x2="${L}" y2="${H - B}">
+        <stop class="q7-stop-dir" offset="0"/><stop class="q7-stop-meio" offset="0.5"/><stop class="q7-stop-esq" offset="1"/>
       </linearGradient></defs>
       ${[100, 0, -100].map(v => `<line class="q7m-guia${v === 0 ? " q7m-zero" : ""}" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="q7m-eixo" x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v)}</text>`).join("")}
       ${caminho ? `<path class="q7m-tracado" style="stroke:url(#${grad})" d="${caminho}"/>` : ""}
@@ -110,8 +110,7 @@ let pararAnimacao = () => {}, pedidoEstado = 0;
 function desenharMapa(el, uf, dados, topo){
   const anos = dados.anos;
   if (!anos.length) throw new Error(`Sem série municipal de viés para ${uf}.`);
-  const slider = el.querySelector("#q7-ano");
-  const anoLabel = el.querySelector("#q7-ano-label");
+  const anosEl = el.querySelector("#q7-anos");
   const play = el.querySelector("#q7-animar");
   const resumo = el.querySelector("#q7-resumo");
   const detalhe = el.querySelector("#q7-municipio-detalhe");
@@ -146,7 +145,7 @@ function desenharMapa(el, uf, dados, topo){
     .attr("class", "q7-divisas").attr("d", path).attr("aria-hidden", "true");
 
   const linhaDoAno = (m, ano) => m?.serie.find(r => +r.ano_eleicao === +ano);
-  let anoIndex = Math.max(0, anos.indexOf(anos.at(-1)));
+  let anoIndex = 0, timer = null;
   let selecionado = null;
 
   function descrever(f, ano){
@@ -169,8 +168,7 @@ function desenharMapa(el, uf, dados, topo){
   function atualizarAno(index, animar = true){
     anoIndex = Math.max(0, Math.min(anos.length - 1, index));
     const ano = anos[anoIndex];
-    slider.value = String(anoIndex);
-    anoLabel.textContent = String(ano);
+    anosEl.querySelectorAll("[data-q7-year]").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.q7Year === +ano)));
     const linhas = feicoes.map(f => {
       const cd = String(f.properties.tse).padStart(5,"0");
       return linhaDoAno(porCodigo.get(cd), ano);
@@ -180,7 +178,7 @@ function desenharMapa(el, uf, dados, topo){
     const direita = validos.filter(r => +r.vies > 0).length;
     const centro = validos.length - esquerda - direita;
     resumo.innerHTML = `<span><b>${validos.length}</b> de ${feicoes.length} municípios com dado</span><span><b>${esquerda}</b> à esquerda</span><span><b>${centro}</b> no centro</span><span><b>${direita}</b> à direita</span>`;
-    contornos.interrupt().transition().duration(animar && !matchMedia("(prefers-reduced-motion: reduce)").matches ? 650 : 0)
+    contornos.interrupt().transition().duration(animar && !matchMedia("(prefers-reduced-motion: reduce)").matches ? 1450 : 0).ease(d3.easeCubicInOut)
       .attr("fill", f => {
         const cd = String(f.properties.tse).padStart(5,"0");
         const r = linhaDoAno(porCodigo.get(cd), ano);
@@ -191,29 +189,35 @@ function desenharMapa(el, uf, dados, topo){
     if (selecionado) contornos.classed("selecionado", f => String(f.properties.tse).padStart(5,"0") === selecionado);
   }
   contornos.append("title").text(f => descrever(f, anos[anoIndex]));
-  slider.max = String(anos.length - 1);
-  slider.disabled = false;
+  anosEl.innerHTML = anos.map(ano => `<button type="button" data-q7-year="${ano}" aria-pressed="false">${ano}</button>`).join("");
+  anosEl.querySelectorAll("[data-q7-year]").forEach(b => b.addEventListener("click", () => {
+    pararAnimacao();
+    atualizarAno(anos.indexOf(+b.dataset.q7Year));
+  }));
   atualizarAno(anoIndex, false);
-  slider.oninput = () => { pararAnimacao(); atualizarAno(+slider.value); };
-  play.onclick = () => {
-    if (play.getAttribute("aria-pressed") === "true") { pararAnimacao(); return; }
+  function parar(){
+    if (timer) clearInterval(timer);
+    timer = null;
+    play.textContent = "Animar evolução";
+    play.setAttribute("aria-pressed", "false");
+    if (pararAnimacao === parar) pararAnimacao = () => {};
+  }
+  function iniciar(){
+    if (timer) return;
     if (anoIndex === anos.length - 1) atualizarAno(0, false);
     play.textContent = "Pausar animação";
     play.setAttribute("aria-pressed", "true");
-    const timer = setInterval(() => {
+    timer = setInterval(() => {
       if (!el.isConnected || el.closest(".q-painel")?.hidden || document.hidden || anoIndex >= anos.length - 1) {
-        pararAnimacao(); return;
+        parar(); return;
       }
       atualizarAno(anoIndex + 1);
-      if (anoIndex >= anos.length - 1) pararAnimacao();
-    }, 1500);
-    pararAnimacao = () => {
-      clearInterval(timer);
-      play.textContent = "Animar evolução";
-      play.setAttribute("aria-pressed", "false");
-      pararAnimacao = () => {};
-    };
-  };
+      if (anoIndex >= anos.length - 1) parar();
+    }, 1800);
+  }
+  pararAnimacao = parar;
+  play.onclick = () => play.getAttribute("aria-pressed") === "true" ? parar() : iniciar();
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) iniciar();
 }
 
 async function carregarEstado(el, uf){
@@ -249,7 +253,7 @@ export default {
     el.innerHTML = `<div class="q7-explorer">
         <div class="q7-mapa">
           <div class="q7-mapa-cab"><div><span class="q7m-tit" id="q7-mapa-titulo">Evolução municipal</span><span class="q7m-legenda">Cores mostram o índice de −100 a +100</span></div><button type="button" id="q7-animar" aria-pressed="false">Animar evolução</button></div>
-          <label class="q7-ano-controle" for="q7-ano">Ano <output id="q7-ano-label" aria-live="polite">—</output><input id="q7-ano" type="range" min="0" max="0" value="0" step="1" disabled></label>
+          <div class="q7-ano-controle"><span>Ano</span><div id="q7-anos" class="q7-anos" role="group" aria-label="Ano do mapa"></div></div>
           <div id="q7-resumo" class="q7-resumo" aria-live="polite"></div>
           <div class="q7-mapa-legenda"><span>−100 · Esquerda</span><i aria-hidden="true"></i><span>Direita · +100</span><span class="q7-sem-dado"><i aria-hidden="true"></i>Sem dado</span></div>
           <div id="q7-mapa-area" class="q7-mapa-area"><p class="q7m-vazio">Selecione um estado nos filtros acima para explorar os municípios no mapa.</p></div>

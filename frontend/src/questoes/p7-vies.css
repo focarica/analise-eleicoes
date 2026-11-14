@@ -1,4 +1,7 @@
 /* Estilos exclusivos da questão (p7-vies). Vem com o módulo src/questoes/p7-vies.ts. */
+:root{ --q7-cor-esq:#b31f34; --q7-cor-centro:#f3f5f8; --q7-cor-dir:#145ca8; }
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --q7-cor-esq:#f07880; --q7-cor-centro:#202c36; --q7-cor-dir:#68aaf0; } }
+:root[data-theme="dark"]{ --q7-cor-esq:#f07880; --q7-cor-centro:#202c36; --q7-cor-dir:#68aaf0; }
 .q7{ margin:.65rem 0 .15rem; }
 .q7-cab{ display:flex; align-items:baseline; justify-content:space-between; gap:.6rem; font-size:.78rem; color:var(--ink-3); }
 .q7-tit{ font-weight:700; color:var(--ink-2); text-transform:uppercase; letter-spacing:.02em; }
@@ -12,18 +15,10 @@
 .q7-marca-linha{ stroke:var(--ink); stroke-width:2; }
 .q7-marca-pto{ fill:var(--ink); stroke:var(--bg); stroke-width:2; }
 .q7-marca-txt{ font-size:12px; font-weight:700; fill:var(--ink); }
-.q7-stop-esq{ stop-color:#cf4b4b; }
-.q7-stop-meio{ stop-color:var(--surface); }
-.q7-stop-dir{ stop-color:#3b72b0; }
+.q7-stop-esq{ stop-color:var(--q7-cor-esq); }
+.q7-stop-meio{ stop-color:var(--q7-cor-centro); }
+.q7-stop-dir{ stop-color:var(--q7-cor-dir); }
 .q7-nota{ margin:.15rem 0 0; font-size:.75rem; color:var(--ink-3); }
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]) .q7-stop-esq{ stop-color:#e06a6a; }
-  :root:not([data-theme="light"]) .q7-stop-meio{ stop-color:var(--raised); }
-  :root:not([data-theme="light"]) .q7-stop-dir{ stop-color:#5b9bd5; }
-}
-:root[data-theme="dark"] .q7-stop-esq{ stop-color:#e06a6a; }
-:root[data-theme="dark"] .q7-stop-meio{ stop-color:var(--raised); }
-:root[data-theme="dark"] .q7-stop-dir{ stop-color:#5b9bd5; }
 
 /* Linha do viés na gaveta do município (escala fixa −100..+100). */
 .q7m{ margin:.9rem 0 .2rem; }
@@ -37,21 +32,15 @@
 .q7m-eixo{ fill:var(--ink-3); font-size:12px; }
 .q7m-tracado{ fill:none; stroke-width:4; stroke-linecap:round; stroke-linejoin:round; }
 .q7m-ponto circle{ stroke:var(--surface); stroke-width:2.5; }
-.q7m-neg circle{ fill:#cf4b4b; }
-.q7m-pos circle{ fill:#3b72b0; }
+.q7m-neg circle{ fill:var(--q7-cor-esq); }
+.q7m-pos circle{ fill:var(--q7-cor-dir); }
 .q7m-neutro circle{ fill:var(--ink-3); }
 .q7m-valor{ fill:var(--ink); font-size:13px; font-weight:700; }
 .q7m-ano{ fill:var(--ink-2); font-size:14px; font-weight:700; }
 .q7m-nota{ margin:.15rem 0 0; font-size:.75rem; color:var(--ink-3); }
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]) .q7m-neg circle{ fill:#e06a6a; }
-  :root:not([data-theme="light"]) .q7m-pos circle{ fill:#5b9bd5; }
-}
-:root[data-theme="dark"] .q7m-neg circle{ fill:#e06a6a; }
-:root[data-theme="dark"] .q7m-pos circle{ fill:#5b9bd5; }
 
 /* Mapa temporal municipal da P7. */
-.q7-explorer{ --q7-esquerda:#cf4b4b; --q7-centro:#f1f3f4; --q7-direita:#3b72b0; margin:1.25rem 0 .5rem; }
+.q7-explorer{ --q7-esquerda:var(--q7-cor-esq); --q7-centro:var(--q7-cor-centro); --q7-direita:var(--q7-cor-dir); margin:1.25rem 0 .5rem; }
 .q7-mapa-cab button{ border:1px solid var(--line); border-radius:999px; padding:.45rem .8rem; background:var(--surface); color:var(--ink-2); font:inherit; font-size:.84rem; font-weight:650; cursor:pointer; }
 .q7-mapa-cab button:hover{ border-color:var(--ink-2); color:var(--ink); }
 .q7-mapa{ padding:1rem; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
@@ -60,9 +49,11 @@
 .q7-mapa-cab .q7m-legenda{ font-size:.8rem; }
 .q7-mapa-cab button{ flex:none; border-color:var(--ink); background:var(--ink); color:var(--bg); }
 .q7-mapa-cab button[aria-pressed="true"]{ background:var(--surface); color:var(--ink); }
-.q7-ano-controle{ display:grid; grid-template-columns:auto 1fr; align-items:center; gap:.15rem .75rem; margin:.9rem 0 .55rem; color:var(--ink-2); font-size:.85rem; font-weight:650; }
-.q7-ano-controle output{ color:var(--ink); font-size:1.2rem; font-weight:800; font-variant-numeric:tabular-nums; }
-.q7-ano-controle input{ grid-column:1/-1; width:100%; accent-color:var(--ink); cursor:pointer; }
+.q7-ano-controle{ display:flex; align-items:center; flex-wrap:wrap; gap:.55rem; margin:.9rem 0 .65rem; color:var(--ink-2); font-size:.85rem; font-weight:650; }
+.q7-anos{ display:flex; flex-wrap:wrap; gap:.35rem; }
+.q7-anos button{ min-width:3.7rem; padding:.35rem .65rem; border:1px solid var(--line); border-radius:999px; background:var(--bg); color:var(--ink-2); font:inherit; font-size:.82rem; font-weight:700; font-variant-numeric:tabular-nums; cursor:pointer; }
+.q7-anos button:hover{ border-color:var(--ink-2); color:var(--ink); }
+.q7-anos button[aria-pressed="true"]{ border-color:var(--ink); background:var(--ink); color:var(--bg); }
 .q7-resumo{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.45rem; }
 .q7-resumo span{ padding:.55rem .7rem; border-radius:8px; background:var(--bg); color:var(--ink-2); font-size:.78rem; }
 .q7-resumo b{ display:block; color:var(--ink); font-size:1.05rem; font-variant-numeric:tabular-nums; }
@@ -82,8 +73,6 @@
 .q7-metodologia .nota{ margin:.55rem 0; }
 .q7m-vazio{ margin:.4rem 0; font-size:.85rem; color:var(--ink-3); }
 .q7m-nome{ margin:.2rem 0 0; font-size:.9rem; font-weight:700; color:var(--ink); }
-@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .q7-explorer{ --q7-esquerda:#e06a6a; --q7-centro:#202c36; --q7-direita:#5b9bd5; } }
-:root[data-theme="dark"] .q7-explorer{ --q7-esquerda:#e06a6a; --q7-centro:#202c36; --q7-direita:#5b9bd5; }
 @media(max-width:620px){
   .q7-mapa{ padding:.7rem; }
   .q7-mapa-cab{ align-items:flex-start; }
