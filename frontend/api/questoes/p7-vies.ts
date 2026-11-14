@@ -3,7 +3,7 @@
 // e não consulta o MotherDuck. Edite só este arquivo para mudar a API da P7.
 import { DuckDBInstance } from "@duckdb/node-api";
 import { resolve } from "node:path";
-import { json } from "../banco";
+import { json, UFS } from "../banco";
 import type { ExtensaoCandidato, ExtensaoMunicipio, Rotas } from "./tipos";
 
 const CAMINHO = Bun.env.P7_DB || resolve(import.meta.dir, "../../.p7-vies.duckdb");
@@ -25,6 +25,7 @@ type ViesMunicipio = {
   onda: number;
   onda_estendida: boolean;
 };
+type SerieMunicipio = { cd: string; nome: string; serie: ViesMunicipio[] };
 
 let leitura: Promise<{ partidos: Vies[]; ondas: Onda[] }> | undefined;
 function dados() {
@@ -148,6 +149,51 @@ function listarMunicipios(uf: string) {
   return consulta;
 }
 
+// Série de todos os municípios de uma UF para o mapa temporal da P7.
+const cacheEstado = new Map<string, Promise<{ uf: string; anos: number[]; municipios: SerieMunicipio[] }>>();
+function lerEstado(uf: string) {
+  let consulta = cacheEstado.get(uf);
+  if (!consulta) {
+    consulta = (async () => {
+      const db = await DuckDBInstance.create(CAMINHO, { access_mode: "READ_ONLY" });
+      const con = await db.connect();
+      try {
+        const linhas = (await con.runAndReadAll(
+          `SELECT cd_municipio_tse AS cd, nm_municipio AS nome, ano_eleicao, vies,
+                  cobertura, n_cargos, onda, onda_estendida
+           FROM public.vies_municipio WHERE sg_uf = $1
+           ORDER BY nm_municipio, ano_eleicao`,
+          [uf],
+        )).getRowObjectsJson() as unknown as (ViesMunicipio & { cd: string; nome: string })[];
+        const municipios = new Map<string, SerieMunicipio>();
+        for (const r of linhas) {
+          const cd = String(r.cd).padStart(5, "0");
+          let municipio = municipios.get(cd);
+          if (!municipio) {
+            municipio = { cd, nome: r.nome, serie: [] };
+            municipios.set(cd, municipio);
+          }
+          municipio.serie.push({
+            ano_eleicao: Number(r.ano_eleicao),
+            vies: r.vies == null ? null : Number(r.vies),
+            cobertura: r.cobertura == null ? null : Number(r.cobertura),
+            n_cargos: Number(r.n_cargos),
+            onda: Number(r.onda),
+            onda_estendida: Boolean(r.onda_estendida),
+          });
+        }
+        const resultado = [...municipios.values()];
+        return { uf, anos: [...new Set(resultado.flatMap((m) => m.serie.map((r) => r.ano_eleicao)))].sort(), municipios: resultado };
+      } finally {
+        con.closeSync();
+        db.closeSync();
+      }
+    })().catch((error) => { cacheEstado.delete(uf); throw error; });
+    cacheEstado.set(uf, consulta);
+  }
+  return consulta;
+}
+
 // Um município: nome, UF e a série de viés, para a linha do card.
 async function municipioCompleto(codigo: string) {
   const vies = await lerMunicipio(codigo);
@@ -172,6 +218,17 @@ export const rotas: Rotas = {
     if (uf && !/^[A-Z]{2}$/.test(uf)) return json({ error: "UF inválida." }, 400);
     try {
       return json(await listarMunicipios(uf));
+    } catch {
+      return json({
+        error: "Snapshot local da P7 não encontrado. Rode `bun run p7-local` em frontend/.",
+      }, 503);
+    }
+  },
+  "/api/q7-vies/estado": async (url) => {
+    const uf = (url.searchParams.get("uf") || "").toUpperCase();
+    if (!UFS.has(uf)) return json({ error: "UF fora da amostra." }, 400);
+    try {
+      return json(await lerEstado(uf));
     } catch {
       return json({
         error: "Snapshot local da P7 não encontrado. Rode `bun run p7-local` em frontend/.",

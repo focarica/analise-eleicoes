@@ -104,25 +104,137 @@ function linhaMunicipio(m){
   return linhaVies(m.bruto?.viesMunicipio);
 }
 
-// Linha no card da P7: um seletor de município do estado escolhido.
-let municipioCard = null;
-function montarLinhaCard(el){
-  const sel = el.querySelector("#q7-card-mun");
-  const alvo = el.querySelector("#q7-card-linha");
-  const cd = sel.value;
-  if (!cd){
-    alvo.innerHTML = `<p class="q7m-vazio">Escolha um município para ver a linha do tempo.</p>`;
-    return;
-  }
-  alvo.innerHTML = `<p class="q7m-vazio">Carregando…</p>`;
-  request(`/api/q7-vies/municipio?cd=${encodeURIComponent(cd)}`, { silencioso: true })
-    .then(d => {
-      if (!el.isConnected || sel.value !== cd) return;
-      alvo.innerHTML = `<p class="q7m-nome">${esc(titulo(d.nome))} · ${esc(d.uf)}</p>` + linhaVies(d.vies);
-    })
-    .catch(e => {
-      if (el.isConnected && sel.value === cd) alvo.innerHTML = `<p class="q7m-vazio">${esc(e.message)}</p>`;
+const UF_NOME = { AC:"Acre", AL:"Alagoas", BA:"Bahia", DF:"Distrito Federal", RO:"Rondônia", SP:"São Paulo" };
+let pararAnimacao = () => {}, pedidoEstado = 0;
+
+function desenharMapa(el, uf, dados, topo){
+  const anos = dados.anos;
+  if (!anos.length) throw new Error(`Sem série municipal de viés para ${uf}.`);
+  const slider = el.querySelector("#q7-ano");
+  const anoLabel = el.querySelector("#q7-ano-label");
+  const play = el.querySelector("#q7-animar");
+  const resumo = el.querySelector("#q7-resumo");
+  const detalhe = el.querySelector("#q7-municipio-detalhe");
+  const svgEl = el.querySelector("#q7-mapa-svg");
+  el.querySelector("#q7-mapa-titulo").textContent = `Evolução municipal · ${UF_NOME[uf]}`;
+  const objeto = topo.objects.municipios;
+  const feicoes = topojson.feature(topo, objeto).features.filter(f => f.properties.tse);
+  const porCodigo = new Map(dados.municipios.map(m => [String(m.cd).padStart(5,"0"), m]));
+  const W = 900, H = 620;
+  const colecao = { type:"FeatureCollection", features:feicoes };
+  const proj = d3.geoMercator().fitExtent([[8,8],[W-8,H-8]], colecao);
+  const path = d3.geoPath(proj);
+  const svg = d3.select(svgEl).attr("viewBox", `0 0 ${W} ${H}`);
+  svg.selectAll("*").remove();
+  const estilo = getComputedStyle(el.querySelector(".q7-mapa"));
+  const cor = d3.scaleLinear().domain([-100,0,100]).range([
+    estilo.getPropertyValue("--q7-esquerda").trim(),
+    estilo.getPropertyValue("--q7-centro").trim(),
+    estilo.getPropertyValue("--q7-direita").trim(),
+  ]).clamp(true).interpolate(d3.interpolateRgb);
+  const semDado = estilo.getPropertyValue("--vazio").trim();
+  const contornos = svg.append("g").selectAll("path").data(feicoes).join("path")
+    .attr("class", "q7-mun")
+    .attr("d", path)
+    .attr("tabindex", 0)
+    .attr("role", "button")
+    .on("click", (_, f) => selecionar(f))
+    .on("keydown", (event, f) => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selecionar(f); }
     });
+  svg.append("path").datum(topojson.mesh(topo, objeto, (a,b) => a !== b))
+    .attr("class", "q7-divisas").attr("d", path).attr("aria-hidden", "true");
+
+  const linhaDoAno = (m, ano) => m?.serie.find(r => +r.ano_eleicao === +ano);
+  let anoIndex = Math.max(0, anos.indexOf(anos.at(-1)));
+  let selecionado = null;
+
+  function descrever(f, ano){
+    const cd = String(f.properties.tse).padStart(5,"0");
+    const m = porCodigo.get(cd), r = linhaDoAno(m, ano);
+    return `${m?.nome || f.properties.nome || "Município"} · ${ano}: ${r?.vies == null ? "sem dado" : numero(+r.vies)}`;
+  }
+  function selecionar(f){
+    const cd = String(f.properties.tse).padStart(5,"0");
+    selecionado = cd;
+    contornos.classed("selecionado", d => String(d.properties.tse).padStart(5,"0") === cd)
+      .attr("aria-pressed", d => String(d.properties.tse).padStart(5,"0") === cd ? "true" : "false");
+    const m = porCodigo.get(cd);
+    if (!m) {
+      detalhe.innerHTML = `<p class="q7m-vazio">${esc(f.properties.nome || "Município")}: sem observações de viés nesta base.</p>`;
+      return;
+    }
+    detalhe.innerHTML = `<p class="q7m-nome">${esc(titulo(m.nome))} · ${esc(uf)}</p>${linhaVies(m.serie) || `<p class="q7m-vazio">Sem valores de viés para este município.</p>`}`;
+  }
+  function atualizarAno(index, animar = true){
+    anoIndex = Math.max(0, Math.min(anos.length - 1, index));
+    const ano = anos[anoIndex];
+    slider.value = String(anoIndex);
+    anoLabel.textContent = String(ano);
+    const linhas = feicoes.map(f => {
+      const cd = String(f.properties.tse).padStart(5,"0");
+      return linhaDoAno(porCodigo.get(cd), ano);
+    });
+    const validos = linhas.filter(r => r?.vies != null);
+    const esquerda = validos.filter(r => +r.vies < 0).length;
+    const direita = validos.filter(r => +r.vies > 0).length;
+    const centro = validos.length - esquerda - direita;
+    resumo.innerHTML = `<span><b>${validos.length}</b> de ${feicoes.length} municípios com dado</span><span><b>${esquerda}</b> à esquerda</span><span><b>${centro}</b> no centro</span><span><b>${direita}</b> à direita</span>`;
+    contornos.interrupt().transition().duration(animar && !matchMedia("(prefers-reduced-motion: reduce)").matches ? 650 : 0)
+      .attr("fill", f => {
+        const cd = String(f.properties.tse).padStart(5,"0");
+        const r = linhaDoAno(porCodigo.get(cd), ano);
+        return r?.vies == null ? semDado : cor(+r.vies);
+      });
+    contornos.attr("aria-label", f => descrever(f, ano));
+    contornos.select("title").text(f => descrever(f, ano));
+    if (selecionado) contornos.classed("selecionado", f => String(f.properties.tse).padStart(5,"0") === selecionado);
+  }
+  contornos.append("title").text(f => descrever(f, anos[anoIndex]));
+  slider.max = String(anos.length - 1);
+  slider.disabled = false;
+  atualizarAno(anoIndex, false);
+  slider.oninput = () => { pararAnimacao(); atualizarAno(+slider.value); };
+  play.onclick = () => {
+    if (play.getAttribute("aria-pressed") === "true") { pararAnimacao(); return; }
+    if (anoIndex === anos.length - 1) atualizarAno(0, false);
+    play.textContent = "Pausar animação";
+    play.setAttribute("aria-pressed", "true");
+    const timer = setInterval(() => {
+      if (!el.isConnected || el.closest(".q-painel")?.hidden || document.hidden || anoIndex >= anos.length - 1) {
+        pararAnimacao(); return;
+      }
+      atualizarAno(anoIndex + 1);
+      if (anoIndex >= anos.length - 1) pararAnimacao();
+    }, 1500);
+    pararAnimacao = () => {
+      clearInterval(timer);
+      play.textContent = "Animar evolução";
+      play.setAttribute("aria-pressed", "false");
+      pararAnimacao = () => {};
+    };
+  };
+}
+
+async function carregarEstado(el, uf){
+  pararAnimacao();
+  const pedido = ++pedidoEstado;
+  el.querySelector("#q7-mapa-area").innerHTML = `<p class="q7m-vazio">Carregando mapa e série histórica de ${esc(UF_NOME[uf])}…</p>`;
+  el.querySelector("#q7-resumo").innerHTML = "";
+  el.querySelector("#q7-municipio-detalhe").innerHTML = `<p class="q7m-vazio">Selecione um município no mapa para ver a evolução.</p>`;
+  try {
+    const [dados, respostaGeo] = await Promise.all([
+      request(`/api/q7-vies/estado?uf=${encodeURIComponent(uf)}`, { silencioso: true }),
+      fetch(`${import.meta.env.BASE_URL}geo/municipios-${uf}.json`),
+    ]);
+    if (!respostaGeo.ok) throw new Error(`Malha municipal de ${uf} indisponível.`);
+    const topo = await respostaGeo.json();
+    if (!el.isConnected || pedido !== pedidoEstado) return;
+    el.querySelector("#q7-mapa-area").innerHTML = `<svg id="q7-mapa-svg" class="q7-mapa-svg" role="group" aria-label="Municípios de ${esc(UF_NOME[uf])}"></svg>`;
+    desenharMapa(el, uf, dados, topo);
+  } catch (e) {
+    if (el.isConnected && pedido === pedidoEstado) el.querySelector("#q7-mapa-area").innerHTML = `<p class="q7m-vazio">Não foi possível carregar o mapa: ${esc(e.message)}</p>`;
+  }
 }
 
 export default {
@@ -132,26 +244,26 @@ export default {
   resumo: "Uma régua de −100 (esquerda) a +100 (direita) mostra onde está o partido de cada candidatura e como o viés do município evolui.",
   onde: "Na ficha do candidato, na gaveta do município e neste card",
   montar(el) {
-    el.innerHTML = `<p class="nota">A posição de cada partido vem das notas de especialistas do estudo de Bolognesi et al. (Harvard Dataverse): a média de 0 a 10 vira <b>(média − 5) × 20</b>, de −100 (esquerda) a +100 (direita). Cada eleição usa a onda mais recente do survey: 2018 e 2020 usam a onda de 2018; 2022 e 2024, a de 2022 — <b>2024 é a onda de 2022 estendida por dois anos</b>. Antes de 2018 não há valor.</p>
-      <p class="nota">Na ficha do candidato, cada candidatura ganha uma régua que vai do partido mais à esquerda ao mais à direita daquela eleição, com o partido do candidato marcado. Partido sem nota no survey não recebe marcador; o valor nunca é tratado como zero.</p>
-      <p class="nota">Na gaveta do município, a linha do tempo mostra o viés agregado de cada eleição: dentro de cada cargo, a média dos partidos é ponderada pelos votos válidos (nominais e de legenda, 1º turno); depois, os cargos entram com peso igual.</p>
-      <div class="q7-card-mun">
-        <div class="q7-card-cab"><label for="q7-card-mun">Município</label><select id="q7-card-mun"><option value="">Carregando…</option></select></div>
-        <div id="q7-card-linha"></div>
+    pararAnimacao();
+    const inicial = UF || "";
+    el.innerHTML = `<div class="q7-explorer">
+        <div class="q7-mapa">
+          <div class="q7-mapa-cab"><div><span class="q7m-tit" id="q7-mapa-titulo">Evolução municipal</span><span class="q7m-legenda">Cores mostram o índice de −100 a +100</span></div><button type="button" id="q7-animar" aria-pressed="false">Animar evolução</button></div>
+          <label class="q7-ano-controle" for="q7-ano">Ano <output id="q7-ano-label" aria-live="polite">—</output><input id="q7-ano" type="range" min="0" max="0" value="0" step="1" disabled></label>
+          <div id="q7-resumo" class="q7-resumo" aria-live="polite"></div>
+          <div class="q7-mapa-legenda"><span>−100 · Esquerda</span><i aria-hidden="true"></i><span>Direita · +100</span><span class="q7-sem-dado"><i aria-hidden="true"></i>Sem dado</span></div>
+          <div id="q7-mapa-area" class="q7-mapa-area"><p class="q7m-vazio">Selecione um estado nos filtros acima para explorar os municípios no mapa.</p></div>
+          <p class="q7m-nota">Cada município usa a mesma escala em todas as eleições. A animação percorre somente os anos com dados para o estado.</p>
+        </div>
+        <div id="q7-municipio-detalhe" class="q7-municipio-detalhe"><p class="q7m-vazio">Clique em um município no mapa para ver a linha do tempo dele.</p></div>
       </div>
+      <details class="q7-metodologia"><summary>Como interpretar e de onde vêm os valores</summary>
+        <p class="nota">A posição de cada partido vem das notas de especialistas do estudo de Bolognesi et al. (Harvard Dataverse): a média de 0 a 10 vira <b>(média − 5) × 20</b>, de −100 (esquerda) a +100 (direita). Cada eleição usa a onda mais recente do survey: 2018 e 2020 usam a onda de 2018; 2022 e 2024, a de 2022 — <b>2024 é a onda de 2022 estendida por dois anos</b>. Antes de 2018 não há valor.</p>
+        <p class="nota">Na ficha do candidato, cada candidatura ganha uma régua que vai do partido mais à esquerda ao mais à direita daquela eleição, com o partido do candidato marcado. Partido sem nota no survey não recebe marcador; o valor nunca é tratado como zero.</p>
+        <p class="nota">Na gaveta do município, a linha do tempo mostra o viés agregado de cada eleição: dentro de cada cargo, a média dos partidos é ponderada pelos votos válidos (nominais e de legenda, 1º turno); depois, os cargos entram com peso igual.</p>
+      </details>
       <p><button type="button" class="link" id="p7-busca">Ir para a busca de candidatos</button></p>`;
-    const sel = el.querySelector("#q7-card-mun");
-    const uf = UF || "";
-    request(`/api/q7-vies/municipios${uf ? `?uf=${encodeURIComponent(uf)}` : ""}`, { silencioso: true })
-      .then(lista => {
-        if (!el.isConnected) return;
-        sel.innerHTML = `<option value="">Escolha um município</option>`
-          + lista.map(m => `<option value="${esc(m.cd)}">${esc(titulo(m.nome))}${uf ? "" : ` · ${esc(m.uf)}`}</option>`).join("");
-        if (municipioCard && lista.some(m => String(m.cd) === String(municipioCard))) sel.value = municipioCard;
-        montarLinhaCard(el);
-      })
-      .catch(() => { if (el.isConnected) sel.innerHTML = `<option value="">Municípios indisponíveis</option>`; });
-    sel.onchange = () => { municipioCard = sel.value || null; montarLinhaCard(el); };
+    if (inicial) void carregarEstado(el, inicial);
     el.querySelector("#p7-busca").onclick = () => {
       window.addEventListener("hashchange", () => setTimeout(() => {
         const busca = document.getElementById("busca");

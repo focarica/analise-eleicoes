@@ -50,10 +50,45 @@
 :root[data-theme="dark"] .q7m-neg circle{ fill:#e06a6a; }
 :root[data-theme="dark"] .q7m-pos circle{ fill:#5b9bd5; }
 
-/* Seletor de município no card da P7. */
-.q7-card-mun{ margin:1rem 0 .4rem; }
-.q7-card-cab{ display:flex; align-items:center; gap:.6rem; margin-bottom:.5rem; }
-.q7-card-cab label{ font-size:.8rem; font-weight:700; color:var(--ink-2); }
-.q7-card-cab select{ min-width:0; max-width:100%; padding:.45rem .6rem; border:1px solid var(--line); border-radius:10px; color:var(--ink); background:var(--surface); font:inherit; font-size:.9rem; }
+/* Mapa temporal municipal da P7. */
+.q7-explorer{ --q7-esquerda:#cf4b4b; --q7-centro:#f1f3f4; --q7-direita:#3b72b0; margin:1.25rem 0 .5rem; }
+.q7-mapa-cab button{ border:1px solid var(--line); border-radius:999px; padding:.45rem .8rem; background:var(--surface); color:var(--ink-2); font:inherit; font-size:.84rem; font-weight:650; cursor:pointer; }
+.q7-mapa-cab button:hover{ border-color:var(--ink-2); color:var(--ink); }
+.q7-mapa{ padding:1rem; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
+.q7-mapa-cab{ display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+.q7-mapa-cab>div{ display:flex; flex-direction:column; gap:.15rem; }
+.q7-mapa-cab .q7m-legenda{ font-size:.8rem; }
+.q7-mapa-cab button{ flex:none; border-color:var(--ink); background:var(--ink); color:var(--bg); }
+.q7-mapa-cab button[aria-pressed="true"]{ background:var(--surface); color:var(--ink); }
+.q7-ano-controle{ display:grid; grid-template-columns:auto 1fr; align-items:center; gap:.15rem .75rem; margin:.9rem 0 .55rem; color:var(--ink-2); font-size:.85rem; font-weight:650; }
+.q7-ano-controle output{ color:var(--ink); font-size:1.2rem; font-weight:800; font-variant-numeric:tabular-nums; }
+.q7-ano-controle input{ grid-column:1/-1; width:100%; accent-color:var(--ink); cursor:pointer; }
+.q7-resumo{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.45rem; }
+.q7-resumo span{ padding:.55rem .7rem; border-radius:8px; background:var(--bg); color:var(--ink-2); font-size:.78rem; }
+.q7-resumo b{ display:block; color:var(--ink); font-size:1.05rem; font-variant-numeric:tabular-nums; }
+.q7-mapa-legenda{ display:flex; align-items:center; gap:.45rem; margin:.85rem 0 .1rem; color:var(--ink-2); font-size:.75rem; }
+.q7-mapa-legenda>i{ width:min(32vw,180px); height:10px; border-radius:99px; background:linear-gradient(90deg,var(--q7-esquerda),var(--q7-centro),var(--q7-direita)); }
+.q7-sem-dado{ display:flex; align-items:center; gap:.35rem; margin-left:auto; }
+.q7-sem-dado i{ width:11px; height:11px; border:1px solid var(--line); border-radius:3px; background:var(--vazio); }
+.q7-mapa-area{ min-height:150px; }
+.q7-mapa-svg{ display:block; width:100%; height:auto; max-height:680px; }
+.q7-mun{ stroke:var(--bg); stroke-width:.7; cursor:pointer; vector-effect:non-scaling-stroke; transition:filter .12s; }
+.q7-mun:hover,.q7-mun:focus-visible{ filter:brightness(1.14); stroke:var(--ink); stroke-width:1.5; outline:none; }
+.q7-mun.selecionado{ stroke:var(--ink); stroke-width:2; }
+.q7-divisas{ fill:none; stroke:var(--bg); stroke-width:.45; pointer-events:none; vector-effect:non-scaling-stroke; }
+.q7-municipio-detalhe{ margin-top:.75rem; padding:0 .2rem; }
+.q7-metodologia{ margin:1rem 0; border-top:1px solid var(--line); }
+.q7-metodologia summary{ padding:.75rem 0 .3rem; color:var(--ink-2); font-size:.85rem; font-weight:700; cursor:pointer; }
+.q7-metodologia .nota{ margin:.55rem 0; }
 .q7m-vazio{ margin:.4rem 0; font-size:.85rem; color:var(--ink-3); }
 .q7m-nome{ margin:.2rem 0 0; font-size:.9rem; font-weight:700; color:var(--ink); }
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .q7-explorer{ --q7-esquerda:#e06a6a; --q7-centro:#202c36; --q7-direita:#5b9bd5; } }
+:root[data-theme="dark"] .q7-explorer{ --q7-esquerda:#e06a6a; --q7-centro:#202c36; --q7-direita:#5b9bd5; }
+@media(max-width:620px){
+  .q7-mapa{ padding:.7rem; }
+  .q7-mapa-cab{ align-items:flex-start; }
+  .q7-mapa-cab .q7m-legenda{ white-space:normal; }
+  .q7-resumo{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .q7-mapa-legenda{ flex-wrap:wrap; }
+  .q7-sem-dado{ margin-left:0; }
+}
