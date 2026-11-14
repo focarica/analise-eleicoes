@@ -43,7 +43,7 @@ try {
     const check = async (sql: string, message: string) => { if (await scalar(sql)) throw Error(message); };
     const facts = async () => {
       const result: Record<string, unknown> = {};
-      const sums: Record<string,string> = {bens_declarados:'vr_bem',receitas_campanha:'vr_receita',despesas_pagas:'vr_pago',votacao_candidato_municipio:'qt_votos_nominais',votacao_partido:'qt_votos_nominais + qt_votos_legenda'};
+      const sums: Record<string,string> = {bens_declarados:'vr_bem',receitas_campanha:'vr_receita',despesas_pagas:'COALESCE(vr_pago,vr_despesa_declarada)',votacao_candidato_municipio:'qt_votos_nominais',votacao_partido:'qt_votos_nominais + qt_votos_legenda'};
       for (const table of ['municipio','partido','bens_declarados','receitas_campanha','despesas_pagas','perfil_eleitorado','comparecimento_municipio','votacao_partido','votacao_candidato_municipio']) {
         result[table] = await rows(`SELECT COUNT(*) AS linhas${sums[table] ? `,SUM(${sums[table]})::VARCHAR AS total` : ''} FROM public.${table}`);
       }

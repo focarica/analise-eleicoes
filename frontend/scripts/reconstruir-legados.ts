@@ -72,7 +72,7 @@ async function apply(){
  const columns=(table:string)=>fields[table].map(ident).join(',');
  const mismatch=(table:string,a:string,b:string,filter='')=>`SELECT COUNT(*) FROM ((SELECT ${columns(table)} FROM ${a} ${filter} EXCEPT ALL SELECT ${columns(table)} FROM ${b}) UNION ALL (SELECT ${columns(table)} FROM ${b} EXCEPT ALL SELECT ${columns(table)} FROM ${a} ${filter}))`;
  const signature=async(table:string,filter='')=>await rows(`SELECT COUNT(*) AS rows,SUM(HASH(${columns(table)}))::VARCHAR AS checksum FROM public.${table} ${filter}`);
- const sums:Record<string,string>={bens_declarados:'vr_bem',receitas_campanha:'vr_receita',despesas_pagas:'vr_pago',votacao_candidato_municipio:'qt_votos_nominais'};
+ const sums:Record<string,string>={bens_declarados:'vr_bem',receitas_campanha:'vr_receita',despesas_pagas:'COALESCE(vr_pago,vr_despesa_declarada)',votacao_candidato_municipio:'qt_votos_nominais'};
  await c.run('BEGIN TRANSACTION');
  try{
   console.log('Validando que a base não mudou desde o snapshot.');

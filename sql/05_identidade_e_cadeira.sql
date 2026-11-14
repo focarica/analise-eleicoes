@@ -45,13 +45,16 @@ CREATE TABLE IF NOT EXISTS stg_tse.cobertura_despesa_paga (
 DROP VIEW IF EXISTS custo_cadeira;
 CREATE OR REPLACE VIEW custo_cadeira AS
 WITH gastos AS (
-    SELECT ano_eleicao,sq_candidato,sum(vr_pago) AS total,
-           bool_and(vr_pago IS NOT NULL) AS valores_validos
+    SELECT ano_eleicao,sq_candidato,
+           sum(coalesce(vr_pago,vr_despesa_declarada)) AS total,
+           bool_and(coalesce(vr_pago,vr_despesa_declarada) IS NOT NULL) AS valores_validos,
+           CASE WHEN count(vr_pago)>0 THEN 'PAGO' ELSE 'DECLARADO' END AS base_valor
     FROM despesas_pagas GROUP BY 1,2
 ), eleitos AS (
     SELECT c.*, stg_tse.inteiro_nao_negativo(o.registro->>'cd_eleicao') AS cd_eleicao,
            CASE WHEN k.completo AND coalesce(g.valores_validos,true)
-                     THEN coalesce(g.total,0) END AS gasto_pago
+                     THEN coalesce(g.total,0) END AS gasto_campanha,
+           g.base_valor
     FROM candidatura c
     LEFT JOIN stg_tse.observacao_pessoa o USING (ano_eleicao,sq_candidato)
     LEFT JOIN gastos g USING (ano_eleicao,sq_candidato)
@@ -59,9 +62,10 @@ WITH gastos AS (
     WHERE upper(trim(c.ds_sit_tot_turno)) IN ('ELEITO','ELEITO POR QP','ELEITO POR MÉDIA')
 )
 SELECT ano_eleicao,cd_eleicao,cd_cargo,ds_cargo,nr_turno_resultado,
-       count(*) AS qt_eleitos,count(gasto_pago) AS qt_eleitos_com_gasto_validado,
-       count(gasto_pago)=count(*) AS completo,
-       CASE WHEN count(gasto_pago)=count(*) THEN avg(gasto_pago) END AS valor_cadeira,
-       avg(gasto_pago) AS media_parcial_identificada
+       count(*) AS qt_eleitos,count(gasto_campanha) AS qt_eleitos_com_gasto_validado,
+       count(gasto_campanha)=count(*) AS completo,
+       CASE WHEN count(gasto_campanha)=count(*) THEN avg(gasto_campanha) END AS valor_cadeira,
+       avg(gasto_campanha) AS media_parcial_identificada,
+       min(base_valor) AS base_valor
 FROM eleitos GROUP BY 1,2,3,4,5;
 COMMIT;

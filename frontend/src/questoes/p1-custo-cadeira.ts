@@ -51,7 +51,8 @@ function montarCustoCadeira(linhas, mapaNomes, el) {
       custoTodos,
       vagas, 
       candComDespesaEleitos: r.qt_eleitos_com_despesa,
-      candComDespesaTodos: r.qt_com_despesa
+      candComDespesaTodos: r.qt_com_despesa,
+      base: r.base_valor === "DECLARADO" ? "despesas declaradas" : "despesas pagas"
     };
   });
 
@@ -90,8 +91,8 @@ function montarCustoCadeira(linhas, mapaNomes, el) {
 
       <p class="aviso-mini" style="margin-bottom: 24px;">
         ${modoCalculo === 'eleitos' 
-          ? "Cálculo: soma das despesas declaradas pelos <b>candidatos eleitos</b> dividida pelo número de cadeiras." 
-          : "Cálculo: soma das despesas de <b>todos os candidatos</b> dividida pelo número de cadeiras."}
+          ? `Cálculo: média das ${dadosBase[0]?.base || "despesas informadas"} dos <b>candidatos eleitos</b> nesta disputa.`
+          : `Cálculo: soma das ${dadosBase[0]?.base || "despesas informadas"} de <b>todos os candidatos</b> dividida pelo número de cadeiras.`}
         ${ehMunicipal && !termoBusca ? " Mostrando as disputas mais caras." : ""}
       </p>
 

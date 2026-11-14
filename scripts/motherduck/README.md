@@ -9,7 +9,7 @@ Gere o Flight atualizado e execute-o como um MotherDuck Flight com Python, DuckD
 ```sh
 python3 scripts/motherduck/gerar_carga_tse_flight.py
 ```
- Configure a autenticação MotherDuck no ambiente do Flight ou em `MOTHERDUCK_TOKEN`. O destino é o banco `BDR-TSE`; o script cria ou atualiza as tabelas do schema `public` e as seis views de `sql/motherduck/01_views_analiticas.sql` e `03_views_propaganda.sql`.
+Configure a autenticação MotherDuck no ambiente do Flight ou em `MOTHERDUCK_TOKEN`. O destino é o banco `BDR-TSE`; o script integral recria as tabelas do schema `public`, portanto use staging para uma carga completa. A carga inclui valores de despesas declaradas em 2004–2016 e valores pagos explícitos de 2018–2024.
 
 O escopo inclui eleições municipais de 2004, 2008, 2012, 2016, 2020 e 2024 e eleições gerais de 2006, 2010, 2014, 2018 e 2022. Candidaturas nacionais são lidas dos arquivos BR quando disponíveis; os fatos municipais seguem o recorte de UFs. A carga principal não inclui Presidente (`CD_CARGO = 1`), publicado pelo TSE em arquivos separados. O complemento presidencial para os cinco pleitos gerais é executado por `complementar_votos_presidente.py`; ele substitui os fatos presidenciais dos cinco anos, exige cobertura dos 1.239 municípios do escopo nos dois turnos e verifica a igualdade dos totais por município entre votos nominais dos candidatos e do partido.
 
@@ -17,7 +17,15 @@ O escopo inclui eleições municipais de 2004, 2008, 2012, 2016, 2020 e 2024 e e
 
 Após reconstruir ou recarregar as receitas, aplique `../../sql/motherduck/11_classificar_origem_receita.sql`. A regra só classifica rubricas cuja natureza pública ou privada está explícita; fundos públicos conhecidos e origens privadas identificadas recebem classe, enquanto partido/comitê, origens genéricas e rubricas ambíguas permanecem `NULL`. A view de financiamento usa essa classificação. Em 2004, o TSE não fornece valores de receita nos arquivos usados, portanto a rubrica pode existir sem valor numérico.
 
-`DS_CATEGORIA_DESPESA` está carregada nos pleitos de 2004 a 2024. `VR_PAGO` só tem valor em 2018–2024: nos arquivos anteriores há despesas declaradas, mas não um campo equivalente que comprove pagamento. Não converter valor declarado em valor pago.
+`DS_CATEGORIA_DESPESA` está carregada nos pleitos de 2004 a 2024. Os arquivos de 2004–2016 trazem valor declarado, enquanto `VR_PAGO` só representa pagamento nos leiautes de 2018 em diante. A coluna `VR_DESPESA_DECLARADA` mantém essa distinção; as views usam o valor disponível e carregam `BASE_VALOR` para não apresentar declaração como pagamento.
+
+Para recuperar valores declarados em uma base já publicada, gere `scripts/motherduck/backfill_despesas_declaradas_flight.py` e execute esse Flight dedicado. A versão preparada cobre 2010, 2012, 2014 e 2016, mapeando candidaturas pelo sequencial TSE único nesses anos e reconciliando descrição, categoria e duplicatas antes de atualizar. Divergências abortam a carga. A publicação altera somente a coluna declarada e as views; preserva os anos anteriores a 2010, os pagamentos de 2018 em diante e os dados de 2026. Os anos 2004–2008 continuam pendentes de reconciliação segura de identidade. Não execute a carga integral para esse reparo.
+
+Geração local:
+
+```sh
+python3 scripts/motherduck/gerar_backfill_despesas_flight.py
+```
 
 O perfil do eleitorado tem linhas para todos os pleitos de 2004 a 2024. Em 2004 e 2006, porém, a fonte disponível só permite o total municipal (`#NE`), sem divisão por idade. As faixas etárias publicadas a partir de 2008 são mantidas como informadas pelo TSE.
 

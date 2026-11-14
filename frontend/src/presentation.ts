@@ -594,17 +594,18 @@ export async function abrirCandidato(id){
     const receitas = c.receitas.length ? `<details><summary>Receitas por fonte</summary><div class="tabw"><table class="tab"><thead><tr><th>Fonte</th><th>Origem</th><th class="v">Lançamentos</th><th class="v">Valor</th></tr></thead><tbody>
       ${fontesCom.map(linhaFonte).join("")}</tbody></table></div>
       ${fontesZero.length ? `<details class="fontes-zero"><summary>${fontesZero.length} ${fontesZero.length===1?"fonte sem lançamentos":"fontes sem lançamentos"}</summary><div class="tabw"><table class="tab"><thead><tr><th>Fonte</th><th>Origem</th></tr></thead><tbody>${fontesZero.map(r=>`<tr><td>${esc(titulo(r.fonte))}</td><td>${esc(titulo(r.origem))}</td></tr>`).join("")}</tbody></table></div></details>` : ""}</details>` : "";
+    const baseDespesa = c.base_despesa === "DECLARADO" ? "declarado" : c.base_despesa === "PAGO" ? "pago" : "informado";
     const despesas = c.despesas.length ? `<details><summary>Despesas registradas (${Math.min(c.despesas.length, c.qt_despesas)} de ${fmt.format(c.qt_despesas)})</summary><div class="tabw"><table class="tab"><tbody>
-      ${c.despesas.map(d=>`<tr><td>${esc(d.despesa ? d.despesa.toLowerCase().replace(/^./,x=>x.toUpperCase()) : "Sem descrição")}</td><td class="v">${d.valor == null ? "Valor não informado na fonte" : brl(d.valor)}</td></tr>`).join("")}</tbody></table></div></details>` : "";
+      ${c.despesas.map(d=>`<tr><td>${esc(d.despesa ? d.despesa.toLowerCase().replace(/^./,x=>x.toUpperCase()) : "Sem descrição")}</td><td class="v">${d.valor == null ? "Valor não informado na fonte" : `${brl(d.valor)} · ${d.base_valor === "DECLARADO" ? "declarado" : d.base_valor === "PAGO" ? "pago" : "base mista"}`}</td></tr>`).join("")}</tbody></table></div></details>` : "";
     const despesasResumo = c.qt_despesas === 0
       ? "Sem despesas registradas na base"
       : c.total_despesas == null
-        ? "Valor pago não informado na fonte"
+        ? "Valor não informado na fonte"
         : brlc(c.total_despesas);
     const coberturaDespesas = c.qt_despesas > 0 && c.qt_despesas_com_valor === 0
-      ? `<div class="legenda-split">Nenhum dos ${fmt.format(c.qt_despesas)} lançamentos tem valor pago informado.</div>`
+      ? `<div class="legenda-split">Nenhum dos ${fmt.format(c.qt_despesas)} lançamentos tem valor informado.</div>`
       : c.qt_despesas_com_valor < c.qt_despesas
-        ? `<div class="legenda-split">Valor informado em ${fmt.format(c.qt_despesas_com_valor)} de ${fmt.format(c.qt_despesas)} lançamentos.</div>`
+        ? `<div class="legenda-split">Valor ${baseDespesa} informado em ${fmt.format(c.qt_despesas_com_valor)} de ${fmt.format(c.qt_despesas)} lançamentos.</div>`
         : "";
     const bens = c.bens.length ? `<details><summary>Bens declarados (${c.bens.length})</summary><div class="tabw"><table class="tab"><tbody>
       ${c.bens.map(b=>`<tr><td>${esc(b.tipo)}${b.descricao ? `<br><span style="color:var(--ink-3)">${esc(b.descricao.toLowerCase())}</span>` : ""}</td><td class="v">${brl(b.valor)}</td></tr>`).join("")}</tbody></table></div></details>` : "";
@@ -617,7 +618,7 @@ export async function abrirCandidato(id){
       <div class="grade">
         ${cardVotos}
         <div><small>Receitas</small><b class="num">${brlc(rt)}</b>${rt ? `<div class="split"><i style="width:${rp/rt*100}%;background:var(--ink)"></i><i style="width:${rv/rt*100}%;background:var(--ink-3)"></i></div><div class="legenda-split">${Math.round(rp/rt*100)}% público, ${Math.round(rv/rt*100)}% privado</div>` : ""}</div>
-        <div><small>Despesas pagas</small><b class="num">${despesasResumo}</b>${coberturaDespesas}${custoVoto ? `<div class="legenda-split">${brl(custoVoto)} por voto</div>` : ""}</div>
+        <div><small>Despesas ${baseDespesa}</small><b class="num">${despesasResumo}</b>${coberturaDespesas}${custoVoto ? `<div class="legenda-split">${brl(custoVoto)} ${baseDespesa === "pago" ? "por voto" : "declarados por voto"}</div>` : ""}</div>
         <div><small>Patrimônio declarado</small><b class="num">${brlc(+c.patrimonio_declarado)}</b></div>
       </div>
       ${QUESTOES.map(q => q.fichaCandidatura?.(c, h) || "").join("")}

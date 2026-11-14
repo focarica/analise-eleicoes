@@ -128,11 +128,12 @@ WHERE c.completo AND d.ano_eleicao=c.ano_eleicao AND d.sq_candidato=c.sq_candida
 
 INSERT INTO despesas_pagas (
     ano_eleicao, sq_candidato, id_despesa, ds_despesa,
-    ds_categoria_despesa, vr_pago
+    ds_categoria_despesa, vr_despesa_declarada, vr_pago
 )
 SELECT l.ano_eleicao::integer, l.sq_candidato::bigint, k.id_lancamento,
        CASE WHEN upper(trim(l.ds_despesa)) IN ('', '#NULO', '#NE', '-1', '-3', '-4', 'NÃO DIVULGÁVEL') THEN NULL ELSE trim(l.ds_despesa) END,
        CASE WHEN upper(trim(l.ds_categoria_despesa)) IN ('', '#NULO', '#NE', '-1', '-3', '-4', 'NÃO DIVULGÁVEL') THEN NULL ELSE trim(l.ds_categoria_despesa) END, -- DS_ORIGEM_DESPESA oficial do TSE
+       stg_tse.parse_brl_amount(l.vr_despesa_declarada),
        stg_tse.parse_brl_amount(l.vr_pago) -- somente origem explicitamente DESPESAS_PAGAS
 FROM stg_tse.despesa_candidato l
 JOIN stg_tse.mapa_lancamento k
@@ -148,6 +149,7 @@ WHERE l.ano_eleicao ~ '^[0-9]{4}$'
 ON CONFLICT (ano_eleicao, sq_candidato, id_despesa) DO UPDATE SET
     ds_despesa = EXCLUDED.ds_despesa,
     ds_categoria_despesa = EXCLUDED.ds_categoria_despesa,
+    vr_despesa_declarada = EXCLUDED.vr_despesa_declarada,
     vr_pago = EXCLUDED.vr_pago;
 
 -- Voto nominal, agregado zona -> município. Processa a staging em uma passagem

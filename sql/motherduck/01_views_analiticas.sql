@@ -28,7 +28,9 @@ GROUP BY 1, 2, 3, 4, 5, 6;
 -- iguais em reais (WIDTH_BUCKET), e não quartis por quantidade de candidatos.
 CREATE OR REPLACE VIEW public.v_gasto_sucesso AS
 WITH gastos_candidato AS (
-    SELECT ano_eleicao, sq_candidato, SUM(vr_pago) AS total_gasto
+    SELECT ano_eleicao, sq_candidato,
+           SUM(COALESCE(vr_pago, vr_despesa_declarada)) AS total_gasto,
+           CASE WHEN COUNT(vr_pago) > 0 THEN 'PAGO' ELSE 'DECLARADO' END AS base_valor
     FROM public.despesas_pagas
     GROUP BY ano_eleicao, sq_candidato
 ),
@@ -43,8 +45,9 @@ base_candidatos AS (
             ELSE 0
         END AS flag_eleito,
         g.total_gasto,
+        g.base_valor,
         MAX(g.total_gasto) OVER (
-            PARTITION BY c.ano_eleicao, COALESCE(m.sg_uf, c.sg_ue), c.ds_cargo
+            PARTITION BY c.ano_eleicao, COALESCE(m.sg_uf, c.sg_ue), c.ds_cargo, g.base_valor
         ) AS teto_maximo_cargo_ano
     FROM public.candidatura c
     LEFT JOIN public.municipio m
@@ -75,6 +78,7 @@ SELECT
     uf,
     ds_cargo,
     faixa_financeira,
+    base_valor,
     ROUND((MAX(teto_maximo_cargo_ano) + 0.01) * (faixa_financeira - 1) / 4, 2)
         AS limite_inferior_faixa,
     ROUND((MAX(teto_maximo_cargo_ano) + 0.01) * faixa_financeira / 4, 2)
@@ -91,7 +95,7 @@ SELECT
     CAST(quantile_cont(total_gasto, 0.5) FILTER (WHERE flag_eleito = 0) AS DECIMAL(14, 2))
         AS mediana_gasto_nao_eleitos
 FROM faixas_gasto
-GROUP BY ano_eleicao, uf, ds_cargo, faixa_financeira;
+GROUP BY ano_eleicao, uf, ds_cargo, base_valor, faixa_financeira;
 
 -- View oficial da Questão 2, conforme definição validada pelo grupo.
 -- Mantém a saída usada no HTML e deriva da regra financeira acima.
@@ -101,6 +105,7 @@ SELECT
     uf,
     ds_cargo,
     faixa_financeira,
+    base_valor,
     piso_faixa AS "piso_faixa_r$",
     teto_faixa AS "teto_faixa_r$",
     qtd_candidatos_na_faixa,
@@ -152,10 +157,12 @@ despesa_linhas AS (
         dp.ano_eleicao,
         dp.sq_candidato,
         dp.ds_despesa,
-        dp.vr_pago,
+        COALESCE(dp.vr_pago, dp.vr_despesa_declarada) AS valor,
+        CASE WHEN dp.vr_pago IS NOT NULL THEN 'PAGO'
+             WHEN dp.vr_despesa_declarada IS NOT NULL THEN 'DECLARADO' END AS base_valor,
         ROW_NUMBER() OVER (
             PARTITION BY dp.ano_eleicao, dp.sq_candidato
-            ORDER BY dp.vr_pago DESC NULLS LAST
+            ORDER BY COALESCE(dp.vr_pago, dp.vr_despesa_declarada) DESC NULLS LAST
         ) AS rn
     FROM public.despesas_pagas dp
 ),
@@ -163,11 +170,14 @@ despesas AS (
     SELECT
         ano_eleicao,
         sq_candidato,
-        SUM(vr_pago) AS total_despesas,
+        SUM(valor) AS total_despesas,
         COUNT(*) AS qt_despesas,
+        COUNT(valor) AS qt_despesas_com_valor,
+        CASE WHEN COUNT(*) FILTER (WHERE base_valor = 'PAGO') > 0 THEN 'PAGO'
+             WHEN COUNT(*) FILTER (WHERE base_valor = 'DECLARADO') > 0 THEN 'DECLARADO' END AS base_despesa,
         TO_JSON(LIST(
-            STRUCT_PACK(despesa := ds_despesa, valor := vr_pago)
-            ORDER BY vr_pago DESC NULLS LAST
+            STRUCT_PACK(despesa := ds_despesa, valor := valor, base_valor := base_valor)
+            ORDER BY valor DESC NULLS LAST
         ) FILTER (WHERE rn <= 8)) AS despesas
     FROM despesa_linhas
     GROUP BY 1, 2
@@ -207,6 +217,8 @@ SELECT
     COALESCE(r.receitas, '[]'::JSON) AS receitas,
     d.total_despesas AS total_despesas,
     COALESCE(d.qt_despesas, 0) AS qt_despesas,
+    COALESCE(d.qt_despesas_com_valor, 0) AS qt_despesas_com_valor,
+    d.base_despesa,
     COALESCE(d.despesas, '[]'::JSON) AS despesas,
     COALESCE(b.total_bens, 0) AS patrimonio_declarado,
     COALESCE(b.bens, '[]'::JSON) AS bens

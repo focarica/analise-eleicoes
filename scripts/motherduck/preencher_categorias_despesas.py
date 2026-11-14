@@ -183,7 +183,7 @@ def main():
     # Staging estritamente TEMP; nenhuma nova tabela publicada.
     con.execute("CREATE TEMP TABLE categorias_raw (ano_eleicao VARCHAR, sq_candidato VARCHAR, "
                 "id_linha_origem VARCHAR, ds_despesa VARCHAR, ds_categoria_despesa VARCHAR, "
-                "vr_pago VARCHAR, source_file VARCHAR)")
+                "vr_despesa_declarada VARCHAR, vr_pago VARCHAR, source_file VARCHAR)")
     con.execute("COPY categorias_raw FROM ? (DELIMITER ';', HEADER FALSE, NULL '')",
                 [str(stage / "despesa_candidato.csv")])
     con.execute("""
@@ -234,7 +234,7 @@ def main():
               WHERE r.ano_eleicao=f.ano_eleicao AND r.sq_candidato=f.sq_candidato
                 AND r.id_despesa=f.id_despesa);
     """)
-    before = con.execute("SELECT ano_eleicao,COUNT(*),COUNT(ds_categoria_despesa),SUM(vr_pago) "
+    before = con.execute("SELECT ano_eleicao,COUNT(*),COUNT(ds_categoria_despesa),SUM(vr_despesa_declarada),SUM(vr_pago) "
                          "FROM public.despesas_pagas GROUP BY 1 ORDER BY 1").fetchall()
     coverage = con.execute("""
         SELECT d.ano_eleicao,COUNT(*) AS existentes,COUNT(r.id_despesa) AS reconciliados,
@@ -258,9 +258,9 @@ def main():
                   AND d.id_despesa=r.id_despesa
             """)
             con.execute((ROOT / "sql/motherduck/03_views_propaganda.sql").read_text())
-            after = con.execute("SELECT ano_eleicao,COUNT(*),COUNT(ds_categoria_despesa),SUM(vr_pago) "
+            after = con.execute("SELECT ano_eleicao,COUNT(*),COUNT(ds_categoria_despesa),SUM(vr_despesa_declarada),SUM(vr_pago) "
                                 "FROM public.despesas_pagas GROUP BY 1 ORDER BY 1").fetchall()
-            if [(r[0],r[1],r[3]) for r in before] != [(r[0],r[1],r[3]) for r in after]:
+            if [(r[0],r[1],r[3],r[4]) for r in before] != [(r[0],r[1],r[3],r[4]) for r in after]:
                 raise RuntimeError("Quantidade ou soma financeira mudou; rollback")
             con.execute("COMMIT")
             report.update({"applied": True, "after": after})

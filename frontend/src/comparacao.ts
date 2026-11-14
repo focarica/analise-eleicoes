@@ -228,7 +228,7 @@ function desenharEscolhido(side: string) {
 
 function resumir(p: Perfil) {
   const cs = p.candidacies || [];
-  return { cs, years: anos(p), votos: cs.reduce((s,c)=>s+n(c.votos),0), gastos: cs.reduce((s,c)=>s+n(c.total_despesas),0), receitas: cs.reduce((s,c)=>s+n(c.total_receitas),0), patrimonio: cs.reduce((s,c)=>s+n(c.patrimonio_declarado),0), eleito: cs.filter(c=>["ELEITO","ELEITO POR QP","ELEITO POR MÉDIA"].includes(String(c.situacao).toUpperCase())).length };
+  return { cs, years: anos(p), votos: cs.reduce((s,c)=>s+n(c.votos),0), gastosPagos: cs.filter(c=>c.base_despesa==="PAGO").reduce((s,c)=>s+n(c.total_despesas),0), gastosDeclarados: cs.filter(c=>c.base_despesa==="DECLARADO").reduce((s,c)=>s+n(c.total_despesas),0), receitas: cs.reduce((s,c)=>s+n(c.total_receitas),0), patrimonio: cs.reduce((s,c)=>s+n(c.patrimonio_declarado),0), eleito: cs.filter(c=>["ELEITO","ELEITO POR QP","ELEITO POR MÉDIA"].includes(String(c.situacao).toUpperCase())).length };
 }
 function idadeEm(data?: string, ano?: number) {
   if (!data || !ano) return null;
@@ -258,7 +258,7 @@ function frase(a: Perfil, b: Perfil, sa: ReturnType<typeof resumir>, sb: ReturnT
     if(n(high.votos)-n(low.votos)>=10000 && ratio!=null && ratio>=2) fatos.push(`A maior votação de ${who} chegou a ${fmt.format(n(high.votos))} votos em ${high.ano_eleicao}. Isso é mais que o dobro do recorde de ${other}.`);
   }
   const topGastoA=maiorRegistro(sa.cs,"total_despesas"), topGastoB=maiorRegistro(sb.cs,"total_despesas");
-  if(topGastoA&&topGastoB) {
+  if(topGastoA&&topGastoB&&topGastoA.base_despesa===topGastoB.base_despesa) {
     const high=n(topGastoA.total_despesas)>=n(topGastoB.total_despesas)?topGastoA:topGastoB, low=high===topGastoA?topGastoB:topGastoA, who=high===topGastoA?nomeA:nomeB, other=high===topGastoA?nomeB:nomeA;
     const ratio=n(low.total_despesas)>0?n(high.total_despesas)/n(low.total_despesas):null;
     if(n(high.total_despesas)-n(low.total_despesas)>=100000 && ratio!=null && ratio>=2) fatos.push(`A campanha mais cara de ${who} custou ${dinheiro(high.total_despesas)}. Foi pelo menos o dobro do maior gasto de ${other}, em valores nominais.`);
@@ -272,7 +272,7 @@ function frase(a: Perfil, b: Perfil, sa: ReturnType<typeof resumir>, sb: ReturnT
 }
 function detalheLista(items: any[], rotulo: string, key: string, contexto = "") {
   if (!items.length) return "";
-  return `<details class="duelo-detalhes"><summary>${rotulo}: ${items.length} registros${contexto ? ` · ${esc(contexto)}` : ""}</summary><ul>${items.map(i=>`<li><span>${esc(i[key] || i.fonte || i.tipo || "Registro")}</span><b>${i.valor == null && rotulo === "Despesas pagas" ? "Valor não informado na fonte" : dinheiro(i.valor)}</b></li>`).join("")}</ul></details>`;
+  return `<details class="duelo-detalhes"><summary>${rotulo}: ${items.length} registros${contexto ? ` · ${esc(contexto)}` : ""}</summary><ul>${items.map(i=>`<li><span>${esc(i[key] || i.fonte || i.tipo || "Registro")}</span><b>${i.valor == null && rotulo.startsWith("Despesas") ? "Valor não informado na fonte" : dinheiro(i.valor)}${i.base_valor ? ` · ${i.base_valor === "DECLARADO" ? "declarado" : "pago"}` : ""}</b></li>`).join("")}</ul></details>`;
 }
 function candidaturas(cs: Candidatura[], nascimento?: string) {
   if (!cs.length) return `<p class="duelo-sem-candidatura">Sem candidatura nesta eleição na base.</p>`;
@@ -285,8 +285,8 @@ function candidaturas(cs: Candidatura[], nascimento?: string) {
     return `<article class="duelo-candidatura">
       <div class="duelo-cargo"><b>${esc(cargoNome(c.cargo))}</b><span>${esc(c.partido || "Partido não informado")} ${c.situacao ? `· ${esc(sitTxt(c.situacao))}` : ""}${turno}</span></div>
       ${c.nm_urna_candidato?`<p class="duelo-local">Na urna: ${esc(titulo(c.nm_urna_candidato))}</p>`:""}${cidade?`<p class="duelo-local">${esc(cidade)}</p>`:""}
-      <dl class="duelo-metricas"><div><dt>Idade no ano</dt><dd>${idade == null ? "Sem dado" : `${idade} anos`}</dd></div><div><dt>Votos</dt><dd>${c.votos==null?"Sem dado":fmt.format(n(c.votos))}</dd></div><div><dt>Arrecadado</dt><dd>${dinheiro(c.total_receitas)}</dd></div><div><dt>Despesas</dt><dd>${c.qt_despesas === 0 ? "Sem registro na base" : c.total_despesas == null ? "Valor pago não informado na fonte" : dinheiro(c.total_despesas)}</dd></div><div><dt>Patrimônio declarado</dt><dd>${dinheiro(c.patrimonio_declarado)}</dd></div></dl>
-      ${detalheLista(receitas,"Fontes de receita","fonte",origemReceita)}${detalheLista(despesas,"Despesas pagas","despesa",`${fmt.format(n(c.qt_despesas))} lançamentos · ${c.total_despesas == null && c.qt_despesas > 0 ? "valor pago não informado na fonte" : dinheiro(c.total_despesas)}`)}${detalheLista(bens,"Bens declarados","descricao")}
+      <dl class="duelo-metricas"><div><dt>Idade no ano</dt><dd>${idade == null ? "Sem dado" : `${idade} anos`}</dd></div><div><dt>Votos</dt><dd>${c.votos==null?"Sem dado":fmt.format(n(c.votos))}</dd></div><div><dt>Arrecadado</dt><dd>${dinheiro(c.total_receitas)}</dd></div><div><dt>Despesas ${c.base_despesa === "DECLARADO" ? "declaradas" : c.base_despesa === "PAGO" ? "pagas" : c.base_despesa === "MISTO" ? "mistas" : "informadas"}</dt><dd>${c.qt_despesas === 0 ? "Sem registro na base" : c.total_despesas == null ? "Valor não informado na fonte" : dinheiro(c.total_despesas)}</dd></div><div><dt>Patrimônio declarado</dt><dd>${dinheiro(c.patrimonio_declarado)}</dd></div></dl>
+      ${detalheLista(receitas,"Fontes de receita","fonte",origemReceita)}${detalheLista(despesas,`Despesas ${c.base_despesa === "DECLARADO" ? "declaradas" : c.base_despesa === "PAGO" ? "pagas" : c.base_despesa === "MISTO" ? "mistas" : "informadas"}`,"despesa",`${fmt.format(n(c.qt_despesas))} lançamentos · ${c.total_despesas == null && c.qt_despesas > 0 ? "valor não informado na fonte" : dinheiro(c.total_despesas)}`)}${detalheLista(bens,"Bens declarados","descricao")}
     </article>`;
   }).join("");
 }
@@ -423,7 +423,7 @@ function fatosTrajetoria(a: Perfil, b: Perfil, sa: ReturnType<typeof resumir>, s
     if(razao!=null && razao>=2 && n(maior.votos)-n(menor.votos)>=10000) fatos.push(`${nomeMaior} teve sua maior votação em ${maior.ano_eleicao}, com ${fmt.format(n(maior.votos))} votos, mais que o dobro do recorde de ${maior===xV?nomeB:nomeA}.`);
   }
   const xG=maiorRegistro(sa.cs,"total_despesas"), yG=maiorRegistro(sb.cs,"total_despesas");
-  if(xG&&yG&&n(xG.total_despesas)!==n(yG.total_despesas)) {
+  if(xG&&yG&&xG.base_despesa===yG.base_despesa&&n(xG.total_despesas)!==n(yG.total_despesas)) {
     const maior=n(xG.total_despesas)>n(yG.total_despesas)?xG:yG, menor=maior===xG?yG:xG, nomeMaior=maior===xG?nomeA:nomeB, nomeMenor=maior===xG?nomeB:nomeA;
     const razao=n(menor.total_despesas)>0?n(maior.total_despesas)/n(menor.total_despesas):null;
     if(razao!=null && razao>=2 && n(maior.total_despesas)-n(menor.total_despesas)>=100000) fatos.push(`A campanha mais cara de ${nomeMaior} foi em ${maior.ano_eleicao}: ${dinheiro(maior.total_despesas)}, pelo menos o dobro do maior gasto de ${nomeMenor}. Valores nominais, sem ajuste pela inflação.`);
@@ -494,7 +494,9 @@ function fatosEntreAnos(ca: Candidatura, cb: Candidatura, a: Perfil, b: Perfil) 
     const nomeMaior=x>y?titulo(a.nm_candidato):titulo(b.nm_candidato), nomeMenor=x>y?titulo(b.nm_candidato):titulo(a.nm_candidato), anoMaior=x>y?ca.ano_eleicao:cb.ano_eleicao;
     return `${rotulo}: ${nomeMaior} registrou ${dinheiro(maior)} em ${anoMaior}, pelo menos o dobro do valor de ${nomeMenor}. Valores nominais, sem ajuste pela inflação.`;
   };
-  for (const [label,x,y] of [["despesas de campanha",ca.total_despesas,cb.total_despesas],["arrecadação de campanha",ca.total_receitas,cb.total_receitas],["patrimônio declarado",ca.patrimonio_declarado,cb.patrimonio_declarado]] as [string,unknown,unknown][]) {
+  const metricas: [string,unknown,unknown][] = [["arrecadação de campanha",ca.total_receitas,cb.total_receitas],["patrimônio declarado",ca.patrimonio_declarado,cb.patrimonio_declarado]];
+  if(ca.base_despesa===cb.base_despesa) metricas.unshift(["despesas de campanha",ca.total_despesas,cb.total_despesas]);
+  for (const [label,x,y] of metricas) {
     const f=comparacao(label,x,y); if (f) fatos.push(f);
   }
   return fatos;
@@ -561,7 +563,7 @@ function desenharResultado() {
     out.querySelectorAll<HTMLImageElement>("[data-duelo-foto]").forEach(img=>img.addEventListener("error",()=>img.remove(),{once:true}));
     return;
   }
-  const summary = (p:Perfil,s:ReturnType<typeof resumir>) => `<dl class="duelo-resumo"><div><dt>Nas urnas</dt><dd>${s.years.length} eleições</dd></div><div><dt>Votos somados</dt><dd>${fmt.format(s.votos)}</dd></div><div><dt>Receita de campanha</dt><dd>${dinheiro(s.receitas)}</dd></div><div><dt>Despesas</dt><dd>${dinheiro(s.gastos)}</dd></div><div><dt>Vitórias registradas</dt><dd>${s.eleito}</dd></div><div><dt>Escolaridade</dt><dd>${esc(titulo(p.ds_grau_instrucao||"Não informada"))}</dd></div></dl>`;
+  const summary = (p:Perfil,s:ReturnType<typeof resumir>) => `<dl class="duelo-resumo"><div><dt>Nas urnas</dt><dd>${s.years.length} eleições</dd></div><div><dt>Votos somados</dt><dd>${fmt.format(s.votos)}</dd></div><div><dt>Receita de campanha</dt><dd>${dinheiro(s.receitas)}</dd></div><div><dt>Despesas declaradas</dt><dd>${dinheiro(s.gastosDeclarados)}</dd></div><div><dt>Despesas pagas</dt><dd>${dinheiro(s.gastosPagos)}</dd></div><div><dt>Vitórias registradas</dt><dd>${s.eleito}</dd></div><div><dt>Escolaridade</dt><dd>${esc(titulo(p.ds_grau_instrucao||"Não informada"))}</dd></div></dl>`;
   const carreira = `<div class="duelo-placar">${identidades}<div class="duelo-saldos">${summary(a,sa)}<span class="duelo-saldo-vs" aria-hidden="true">×</span>${summary(b,sb)}</div></div>`;
   const fatosHeadToHead=frase(a,b,sa,sb);
   const curiosidades = fatosHeadToHead.length ? `<section class="duelo-trivia" aria-labelledby="duelo-fatos"><h3 id="duelo-fatos">A urna também conta histórias</h3><ol>${fatosHeadToHead.map((f,i)=>`<li><span>${String(i+1).padStart(2,"0")}</span><p>${esc(f)}</p></li>`).join("")}</ol></section>` : "";

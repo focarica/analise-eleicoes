@@ -37,7 +37,7 @@ STAGES = {
     "perfil_eleitorado_municipio": ["ano_eleicao", "sg_uf", "cd_municipio_tse", "tp_dimensao", "ds_categoria", "qt_eleitores_perfil", "source_file"],
     "municipio_correspondencia": ["cd_municipio_tse", "cd_municipio_ibge", "nm_municipio", "sg_uf", "source_file"],
     "receita_candidato": ["ano_eleicao", "sq_candidato", "id_linha_origem", "ds_fonte_receita", "vr_receita", "tp_origem_recurso", "source_file"],
-    "despesa_candidato": ["ano_eleicao", "sq_candidato", "id_linha_origem", "ds_despesa", "ds_categoria_despesa", "vr_pago", "source_file"],
+    "despesa_candidato": ["ano_eleicao", "sq_candidato", "id_linha_origem", "ds_despesa", "ds_categoria_despesa", "vr_despesa_declarada", "vr_pago", "source_file"],
     "cobertura_despesa_paga": ["ano_eleicao", "sq_candidato", "completo", "source_manifest"],
     "comparecimento_zonas_esperadas": ["ano_eleicao", "cd_eleicao", "nr_turno", "cd_municipio_tse", "nr_zona", "source_manifest", "manifesto_verificado"],
 }
@@ -138,6 +138,7 @@ def finance_val(fields, key, default=None):
         "DS_FONTE_RECEITA": "FONTE_RECURSO",
         "DS_DESPESA": "DESCRICAO_DA_DESPESA",
         "DS_CATEGORIA_DESPESA": "TIPO_DESPESA",
+        "VR_DESPESA_DECLARADA": "VR_DESPESA",
     }
     canonical = finance_header(key)
     if canonical in fields:
@@ -149,7 +150,8 @@ def finance_val(fields, key, default=None):
     legacy_aliases = {
         "DS_FONTE_RECEITA": ("DS_TITULO", "DS_ESP_RECURSO", "TIPO_RECEITA", "DESCRICAO_TIPO_RECEITA", "DESCRICAO_TIPO_RECURSO"),
         "DS_DESPESA": ("DS_TITULO", "TIPO_DESPESA", "DESCRICAO_DA_DESPESA"),
-        "DS_CATEGORIA_DESPESA": ("TIPO_DESPESA", "DS_TITULO", "DESCRICAO_DA_DESPESA"),
+        "DS_CATEGORIA_DESPESA": ("DS_ORIGEM_DESPESA", "DS_NATUREZA_DESPESA", "TIPO_DESPESA", "DS_TITULO", "DESCRICAO_DA_DESPESA"),
+        "VR_DESPESA_DECLARADA": ("VR_DESPESA_CONTRATADA", "VALOR_DESPESA", "VL_DESPESA"),
     }
     for alias in legacy_aliases.get(key, ()):
         alias = finance_header(alias)
@@ -337,13 +339,13 @@ def main():
                                             duplicate_expense_rows_dropped += 1
                                             continue
                                         expense_keys.add(key)
-                                        # Os leiautes antigos publicam valor declarado, sem campo
-                                        # equivalente a despesa paga. Mantemos descrição/categoria;
-                                        # VR_PAGO fica NULL até decisão semântica do grupo.
+                                        # Até 2016 o valor publicado é declarado; em 2018+ a
+                                        # prestação de despesas pagas traz o pagamento realizado.
                                         out.put("despesa_candidato", [
                                             year, sq, fingerprint,
                                             finance_val(fields, "DS_DESPESA"),
-                                            finance_val(fields, "DS_CATEGORIA_DESPESA"), None, source_file
+                                            finance_val(fields, "DS_CATEGORIA_DESPESA"),
+                                            finance_val(fields, "VR_DESPESA_DECLARADA"), None, source_file
                                         ])
                                 continue
                             kind = next((x for x in ("receitas_candidatos", "despesas_pagas_candidatos", "despesas_contratadas_candidatos") if x in base.lower()), None)
@@ -609,7 +611,18 @@ def main():
                                 duplicate_expense_rows_dropped += 1
                                 continue
                             expense_keys.add(key)
-                            out.put("despesa_candidato",[year,sq,line,val(r,"DS_DESPESA"),val(r,"DS_ORIGEM_DESPESA"),val(r,"VR_PAGTO_DESPESA"),source_file])
+                            if year <= 2016:
+                                fields = finance_fields(r)
+                                descricao = finance_val(fields, "DS_DESPESA")
+                                categoria = finance_val(fields, "DS_CATEGORIA_DESPESA")
+                                declarado = finance_val(fields, "VR_DESPESA_DECLARADA")
+                                pago = None
+                            else:
+                                descricao = val(r, "DS_DESPESA")
+                                categoria = val(r, "DS_ORIGEM_DESPESA")
+                                declarado = None
+                                pago = val(r, "VR_PAGTO_DESPESA")
+                            out.put("despesa_candidato", [year, sq, line, descricao, categoria, declarado, pago, source_file])
                     covered.add((year,sq))
         # A coverage row is emitted only when an account was identified from a
         # final TSE prestação. No account is silently interpreted as zero cost.

@@ -143,9 +143,13 @@ CREATE TABLE IF NOT EXISTS stg_tse.despesa_candidato (
     id_linha_origem text NOT NULL,
     ds_despesa text,
     ds_categoria_despesa text,
+    vr_despesa_declarada text,
     vr_pago text,
     source_file text NOT NULL
 );
+
+ALTER TABLE stg_tse.despesa_candidato
+    ADD COLUMN IF NOT EXISTS vr_despesa_declarada text;
 
 -- Chave técnica da candidatura. Após 05/03, vários pares ano/SQ podem
 -- compartilhar o ID da pessoa identificada pelo título eleitoral.

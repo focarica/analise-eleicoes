@@ -83,11 +83,15 @@ CREATE TABLE IF NOT EXISTS despesas_pagas (
     id_despesa integer NOT NULL,
     ds_despesa text,
     ds_categoria_despesa varchar(150),
+    vr_despesa_declarada numeric(14,2),
     vr_pago numeric(14,2),
     PRIMARY KEY (ano_eleicao, sq_candidato, id_despesa),
     FOREIGN KEY (ano_eleicao, sq_candidato)
         REFERENCES candidatura(ano_eleicao, sq_candidato)
 );
+
+ALTER TABLE despesas_pagas
+    ADD COLUMN IF NOT EXISTS vr_despesa_declarada numeric(14,2);
 
 CREATE TABLE IF NOT EXISTS perfil_eleitorado (
     cd_municipio_tse varchar(10) NOT NULL REFERENCES municipio(cd_municipio_tse),

@@ -62,10 +62,12 @@ despesa_linhas AS (
         dp.ano_eleicao,
         dp.sq_candidato,
         dp.ds_despesa,
-        dp.vr_pago,
+        COALESCE(dp.vr_pago, dp.vr_despesa_declarada) AS valor,
+        CASE WHEN dp.vr_pago IS NOT NULL THEN 'PAGO'
+             WHEN dp.vr_despesa_declarada IS NOT NULL THEN 'DECLARADO' END AS base_valor,
         ROW_NUMBER() OVER (
             PARTITION BY dp.ano_eleicao, dp.sq_candidato
-            ORDER BY dp.vr_pago DESC NULLS LAST
+            ORDER BY COALESCE(dp.vr_pago, dp.vr_despesa_declarada) DESC NULLS LAST
         ) AS rn
     FROM public.despesas_pagas dp
     JOIN alvo USING (ano_eleicao, sq_candidato)
@@ -74,12 +76,14 @@ despesas AS (
     SELECT
         ano_eleicao,
         sq_candidato,
-        SUM(vr_pago) AS total_despesas,
+        SUM(valor) AS total_despesas,
         COUNT(*)::INTEGER AS qt_despesas,
-        COUNT(vr_pago)::INTEGER AS qt_despesas_com_valor,
+        COUNT(valor)::INTEGER AS qt_despesas_com_valor,
+        CASE WHEN COUNT(*) FILTER (WHERE base_valor = 'PAGO') > 0 THEN 'PAGO'
+             WHEN COUNT(*) FILTER (WHERE base_valor = 'DECLARADO') > 0 THEN 'DECLARADO' END AS base_despesa,
         TO_JSON(LIST(
-            STRUCT_PACK(despesa := ds_despesa, valor := vr_pago)
-            ORDER BY vr_pago DESC NULLS LAST
+            STRUCT_PACK(despesa := ds_despesa, valor := valor, base_valor := base_valor)
+            ORDER BY valor DESC NULLS LAST
         ) FILTER (WHERE rn <= 8)) AS despesas
     FROM despesa_linhas
     GROUP BY 1, 2
@@ -121,6 +125,7 @@ SELECT
     d.total_despesas AS total_despesas,
     COALESCE(d.qt_despesas, 0) AS qt_despesas,
     COALESCE(d.qt_despesas_com_valor, 0) AS qt_despesas_com_valor,
+    d.base_despesa,
     COALESCE(d.despesas, '[]'::JSON) AS despesas,
     COALESCE(b.total_bens, 0) AS patrimonio_declarado,
     COALESCE(b.bens, '[]'::JSON) AS bens

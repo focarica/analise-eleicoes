@@ -74,7 +74,7 @@ export default {
 <p class="nota">Candidatos divididos em faixas de patrimônio. A primeira faixa concentra quem declarou R$ 0. Os demais foram divididos em quatro faixas (quartis) contendo o mesmo número de candidatos, do menor ao maior patrimônio declarado.</p>
 <div class="quartis" id="patrimonio-quartis"></div>
 <h3 class="q-sub">Quem gasta mais se elege mais?</h3>
-<p class="nota">Candidatos que prestaram contas, em quatro faixas de despesa paga do mesmo tamanho em reais, de R$ 0 até o maior gasto de cada cargo. A barra mostra a parcela de eleitos em cada faixa; abaixo dela, o limite da faixa e quantos candidatos caíram nela.</p>
+<p class="nota" id="p2-base-despesa">Candidatos com lançamentos de despesas, em quatro faixas de valor do mesmo tamanho em reais. A barra mostra a parcela de eleitos em cada faixa; abaixo dela, o limite da faixa e quantos candidatos caíram nela.</p>
 <div class="quartis" id="quartis"></div>`;
     const pat = el.querySelector("#patrimonio-quartis"), gasto = el.querySelector("#quartis");
     if (!UF) {
@@ -95,7 +95,13 @@ export default {
     };
     await Promise.all([
       carregar(`/api/q2-patrimonio?${q}`, pat, montarPatrimonio),
-      carregar(`/api/q2-despesas?${q}`, gasto, montarQuartis),
+      carregar(`/api/q2-despesas?${q}`, gasto, dados => {
+        montarQuartis(dados);
+        const base = dados[0]?.base_valor;
+        el.querySelector("#p2-base-despesa").textContent = base === "DECLARADO"
+          ? "Os valores são despesas declaradas nos arquivos históricos do TSE (2004–2016), não pagamentos confirmados. A barra mostra a parcela de eleitos em cada faixa."
+          : "Os valores são despesas efetivamente pagas conforme os arquivos do TSE (2018 em diante). A barra mostra a parcela de eleitos em cada faixa.";
+      }),
     ]);
   },
 };
