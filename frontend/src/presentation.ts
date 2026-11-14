@@ -800,6 +800,7 @@ export async function abrirMunicipio(cd, nomeMapa){
     <div class="mun-turno-note">O segundo turno só aparece quando ninguém alcança a maioria absoluta dos votos válidos. Para prefeito, ele só pode ocorrer em capitais e municípios com mais de 200 mil eleitores.</div>
     <div id="mun-timeline">${htmlLinhaHistoricaMunicipio(m, cargoInicial, turnoInicial)}</div>
     <div class="mun-nota-fonte">A série mostra a parcela de votos do candidato destacado e identifica o turno usado em cada ano. Selecione um retrato para abrir a trajetória da pessoa.</div>
+    ${QUESTOES.map(q => q.linhaMunicipio?.(m) || "").join("")}
   </section>
   <section class="mun-retrato-eleitorado"><div class="mun-section-heading"><span class="mun-kicker">Quem vive a eleição</span><h3>O perfil de quem vota</h3><p>Uma leitura rápida da idade e da escolaridade declarada no cadastro eleitoral.</p></div>
     <div class="mun-retrato-grid">

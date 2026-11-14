@@ -20,6 +20,10 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
   <div class="topo">
     <span class="marca">Eleições nos estados da amostra</span>
     <div class="topo-dir">
+      <button class="duelo-abrir" id="jogo-abrir" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="jogo-modal" style="margin-right: 8px;">
+        <svg viewBox="0 0 24 24" aria-hidden="true" style="fill: transparent; stroke: currentColor; stroke-width: 2;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        <span>Quem venceu?</span>
+      </button>
       <button class="duelo-abrir" id="duelo-abrir" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="duelo-modal">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h6.5v13H4zM13.5 5.5H20v13h-6.5zM10.5 9h3M10.5 15h3"/></svg>
         <span>Comparar candidatos</span>
@@ -82,6 +86,19 @@ try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark")
     <div class="duelo-resultado" id="duelo-resultado" aria-live="polite">
       <div class="duelo-vazio"><span aria-hidden="true">＋</span><p>Escolha dois candidatos para revelar as curiosidades que a história eleitoral guardou.</p></div>
     </div>
+  </dialog>
+
+  <dialog class="duelo-modal" id="jogo-modal" aria-labelledby="jogo-titulo">
+    <div class="duelo-modal-cab">
+      <div class="duelo-intro">
+        <div>
+          <p class="duelo-selo">Modo Desafio · Jogo Interativo</p>
+          <h2 id="jogo-titulo">Quem venceu a eleição?</h2>
+        </div>
+      </div>
+      <button class="fechar duelo-fechar" id="jogo-fechar" type="button" aria-label="Fechar jogo">✕</button>
+    </div>
+    <div id="jogo-corpo"></div>
   </dialog>
 
   <div class="comp">

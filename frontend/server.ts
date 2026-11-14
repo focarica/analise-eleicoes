@@ -5,6 +5,7 @@ import {
 import { EXTENSOES_CANDIDATO, EXTENSOES_MUNICIPIO, ROTAS_QUESTOES } from "./api/questoes";
 import { carregarIndicadoresMunicipio } from "./api/indicadores-municipio";
 import { fundoPublico } from "./api/questoes/p8-financiamento";
+import rotaJogoVencedor from "./api/jogo-vencedor";
 
 // Núcleo da API: mapa, busca, fotos, ficha do candidato e gaveta do município.
 // As rotas de cada questão ficam em api/questoes/ (uma por arquivo).
@@ -104,6 +105,7 @@ SELECT
     c.sq_candidato,
     ca.nm_candidato,
     c.nm_urna_candidato,
+    c.nr_partido,
     c.sg_partido AS partido,
     c.ds_cargo AS cargo,
     COALESCE(m.sg_uf, c.sg_ue) AS uf,
@@ -137,6 +139,10 @@ async function route(request: Request) {
   if (path === "/api/health") {
     await rows("SELECT 1 AS ok");
     return json({ ok: true, database: DATABASE });
+  }
+
+  if (path === "/api/jogo-vencedor") {
+    return rotaJogoVencedor();
   }
 
   if (path === "/api/meta") {
@@ -326,7 +332,7 @@ async function route(request: Request) {
     // candidaturas da pessoa e filtra por (ano, sq) — o que o README das views da
     // Q9 já recomenda —, e o histórico usa a mesma regra da view com o filtro no
     // início (SQL_HISTORICO_CANDIDATO). Mantém o mesmo cálculo da view.
-    const [personRows, candidacies, extras] = await comCache(`cand-pagamentos-v3:${id}`, async () => {
+    const [personRows, candidacies, extras] = await comCache(`cand-pagamentos-v4:${id}`, async () => {
       const chaves = await rows(`SELECT ano_eleicao, sq_candidato FROM public.candidatura
                                  WHERE id_pessoa_projeto = $1 ORDER BY 1, 2`, [id]);
       return Promise.all([
