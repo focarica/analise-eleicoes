@@ -170,8 +170,8 @@ function grafReel(ciclos, municipal){
     const naoSeg = (de, ate, txt) => ate > de
       ? `${seg(de, ate, "var(--line)", txt)}<rect x="${(cx - larg/2).toFixed(1)}" y="${y(ate).toFixed(1)}" width="${larg.toFixed(1)}" height="${(y(de) - y(ate)).toFixed(1)}" fill="url(#hach-reel)" class="hachura"><title>${esc(txt)}</title></rect>` : "";
     const taxaTxt = c.taxa != null ? `${c.taxa.toLocaleString("pt-BR")}%` : "–";
-    return `${seg(0, p(c.reeleitos), "var(--ink)", `Voltaram: ${c.reeleitos} de ${c.eleitos} eleitos em ${c.anoEleito} (${taxaTxt} de quem tentou)`)}` +
-      `${seg(p(c.reeleitos), p(c.reeleitos + tp), "color-mix(in srgb, var(--ink) 45%, var(--bg))", `Tentaram e perderam: ${tp}`)}` +
+    return `${seg(0, p(c.reeleitos), "#2f8f5b", `Voltaram: ${c.reeleitos} de ${c.eleitos} eleitos em ${c.anoEleito} (${taxaTxt} de quem tentou)`)}` +
+      `${seg(p(c.reeleitos), p(c.reeleitos + tp), "#c8323c", `Tentaram e perderam: ${tp}`)}` +
       `${naoSeg(p(c.reeleitos + tp), 100, `Não tentaram de novo: ${nt}`)}` +
       `<text x="${cx.toFixed(1)}" y="${(T - 8).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--ink)">${taxaTxt}</text>` +
       `${municipal && c.taxaMunicipios != null ? `<text x="${cx.toFixed(1)}" y="${(T - 20).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--ink-3)">média mun. ${c.taxaMunicipios.toLocaleString("pt-BR")}%</text>` : ""}` +
