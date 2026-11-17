@@ -2,19 +2,15 @@
 import { fmt, brlc, titulo, cargoNome, esc, request } from "../util";
 import { UF, ANO } from "../presentation";
 import "./p1-custo-cadeira.css";
-import { montarMapaCusto } from "./p1-mapa";
 
 // Cache para não baixar o mapa de municípios várias vezes
 const nomesMunicipios = new Map();
-const malhasMunicipais = new Map();
 
 async function obterNomesMunicipios(uf) {
   if (nomesMunicipios.has(uf)) return nomesMunicipios.get(uf);
   try {
     const res = await fetch(`/geo/municipios-${uf}.json`);
-    if (!res.ok) throw new Error("Malha municipal indisponível");
     const malha = await res.json();
-    malhasMunicipais.set(uf, malha);
     const mapa = new Map();
     // Extrai os nomes a partir da geometria do TopoJSON
     malha.objects.municipios.geometries.forEach(g => {
@@ -161,7 +157,7 @@ export default {
   usaAno: true,
   async montar(el) {
     if (UF && !ANO) { el.innerHTML = `<p class="aviso-mini">Escolha um ano acima para ver o custo por cadeira.</p>`; return; }
-    el.innerHTML = `<p class="nota">Relação entre as despesas de campanha e as cadeiras conquistadas por cargo.</p><div id="p1-mapa"></div><div id="custo-cadeira"></div>`;
+    el.innerHTML = `<p class="nota">Relação entre as despesas de campanha e as cadeiras conquistadas por cargo.</p><div id="custo-cadeira"></div>`;
     
     const alvo = el.querySelector("#custo-cadeira");
     if (!UF) { alvo.innerHTML = `<p class="aviso-mini">Escolha um estado da amostra para ver o custo por cadeira.</p>`; return; }
@@ -174,13 +170,7 @@ export default {
         request(`/api/q1-custo-cadeira?uf=${encodeURIComponent(UF)}&ano=${ANO}`, { silencioso: true }),
         obterNomesMunicipios(UF)
       ]);
-      if (pedido === pedidoP1 && alvo.isConnected) {
-        montarCustoCadeira(d.dados, mapaNomes, alvo);
-        const mapa = el.querySelector('#p1-mapa');
-        if (d.dados.some(r => r.cd_municipio_tse) && malhasMunicipais.has(UF)) {
-          montarMapaCusto(mapa, malhasMunicipais.get(UF), d.dados);
-        }
-      }
+      if (pedido === pedidoP1 && alvo.isConnected) montarCustoCadeira(d.dados, mapaNomes, alvo);
     } catch (e) {
       if (pedido === pedidoP1 && alvo.isConnected) alvo.innerHTML = `<p class="aviso-mini">Não foi possível carregar: ${esc(e.message)}</p>`;
     }

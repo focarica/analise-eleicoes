@@ -1,6 +1,1 @@
 /* Estilos exclusivos da questão (p1-custo-cadeira). Vem com o módulo src/questoes/p1-custo-cadeira.ts. */
-#p1-mapa:not(:empty){margin:1rem 0 2rem;padding:1rem;border:1px solid var(--line);border-radius:10px;background:var(--raised)}
-.p1-mapa-area{position:relative}.p1-mapa-area svg{display:block;width:100%;max-height:750px}.p1-mapa-base{fill:var(--surface);stroke:var(--line);stroke-width:.5}.p1-mapa-lado{fill:var(--faixa-0);filter:brightness(.65);stroke:var(--faixa-0);stroke-width:.2}.p1-mapa-topo{fill:var(--faixa-0);stroke:var(--raised);stroke-width:.5}.p1-mapa-sem-dado{fill:var(--surface);stroke:var(--line);stroke-width:.5}.p1-mapa-municipio{cursor:pointer}.p1-mapa-municipio:hover .p1-mapa-topo,.p1-mapa-municipio:focus-visible .p1-mapa-topo{stroke:var(--ink);stroke-width:2;filter:brightness(1.2)}.p1-mapa-escala{fill:var(--ink-2);font:13px var(--font)}.p1-mapa-tooltip{position:absolute;top:.5rem;left:.5rem;max-width:90%;padding:.6rem .8rem;border-radius:6px;background:var(--ink);color:var(--raised);pointer-events:none;font-size:.85rem}
-.p1-mapa-area svg{touch-action:none;cursor:grab}.p1-mapa-area svg:active{cursor:grabbing}
-
-.p1-mapa-lado{filter:none;fill:color-mix(in srgb,var(--faixa-0) 65%,#000);stroke:none}
