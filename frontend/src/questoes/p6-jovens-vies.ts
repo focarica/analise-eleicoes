@@ -165,6 +165,22 @@ function fraseVies(vj, vnj, quem) {
   return `${quem[0].toUpperCase() + quem.slice(1)} jovens estão em partidos <b class="${d < 0 ? "q6-esq" : "q6-dir"}">mais à ${d < 0 ? "esquerda" : "direita"}</b> que os não jovens (${vies(vj)} contra ${vies(vnj)}).`;
 }
 
+// Quantos candidatos de cada grupo estão do lado esquerdo da escala (nota < 0).
+// Não há categoria de centro: partidos de centro com nota positiva contam do lado
+// direito. Quando a diferença entre os grupos é pequena, a frase diz isso.
+const DIFERENCA_PEQUENA = 0.05;   // 5 pontos percentuais
+function fraseLados(t) {
+  if (t.esqJ == null || t.esqNJ == null) return "";
+  const d = Math.abs(t.esqJ - t.esqNJ);
+  const dirJ = div(t.dir_jovens, t.vies_n_jovens), dirNJ = div(t.dir_nao_jovens, t.vies_n_nao_jovens);
+  const emDez = dirJ != null && dirNJ != null ? Math.round(10 * (dirJ + dirNJ) / 2) : null;
+  const pp = (100 * d).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  const pequena = d < DIFERENCA_PEQUENA
+    ? ` A diferença é pequena (${pp} ${pp === "1" ? "ponto percentual" : "pontos percentuais"}): jovens e não jovens se distribuem de forma parecida${emDez != null ? `, com cerca de ${emDez} em cada 10 em partidos do lado direito da escala nos dois grupos` : ""}.`
+    : "";
+  return `<p class="q6-sub"><b>${pct(t.esqJ)}</b> dos candidatos jovens estão em partidos do <span class="q6-esq">lado esquerdo da escala</span> (nota abaixo de zero), contra <b>${pct(t.esqNJ)}</b> dos não jovens.${pequena}</p>`;
+}
+
 export default {
   id: "p6", numero: "P6",
   titulo: "Jovens, não jovens e viés político",
@@ -247,7 +263,7 @@ export default {
         <p class="q6-frase">${fraseVies(t.viesJ, t.viesNJ, "candidatos")}</p>
         ${regua("Candidatos", t.viesJ, t.viesNJ)}
         ${regua("Eleitos", t.viesEJ, t.viesENJ)}
-        ${t.esqJ != null && t.esqNJ != null ? `<p class="q6-sub"><b>${pct(t.esqJ)}</b> dos candidatos jovens estão em partidos de <span class="q6-esq">esquerda</span>, contra <b>${pct(t.esqNJ)}</b> dos não jovens.</p>` : ""}
+        ${fraseLados(t)}
         <p class="q6-mini">Cada partido tem uma nota de −100 (esquerda) a +100 (direita), dada por especialistas (a mesma da P7). O ponto é a média dos partidos dos candidatos de cada grupo.</p>
       </section>`;
 
@@ -313,7 +329,7 @@ export default {
             <li><b>Jovem</b> = 18 a 29 anos (Estatuto da Juventude, a partir da idade mínima para se candidatar). A idade do candidato é calculada pela data de nascimento no dia do 1º turno.</li>
             <li><b>Eleitores</b>: faixas etárias do cadastro do TSE, contando só quem tem 18 anos ou mais. É o cadastro, não quem foi votar.</li>
             <li><b>Eleições municipais</b> (2020, 2024): prefeito e vereador, comparados com o eleitorado de cada município. <b>Gerais</b> (2018, 2022): governador, senador e deputados, comparados com o eleitorado do estado.</li>
-            <li><b>Viés</b>: nota do partido da candidatura naquela eleição (survey de especialistas, Harvard Dataverse), de −100 a +100. Partido sem nota fica fora da média.</li>
+            <li><b>Viés</b>: nota do partido da candidatura naquela eleição (survey de especialistas, Harvard Dataverse), de −100 a +100. Partido sem nota fica fora da média. "Lado esquerdo da escala" = partido com nota abaixo de zero; não há categoria de centro, então partidos de centro com nota positiva contam do lado direito. A nota é do partido, não da opinião do candidato.</li>
             <li>Ficam de fora vices, suplentes de senador, presidente e candidaturas que não chegaram à totalização.</li>
           </ul>
         </details>`;
