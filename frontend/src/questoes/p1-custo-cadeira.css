@@ -1,18 +1,6 @@
-.p1-painel{--p1-eleitos:var(--ok);--p1-todos:var(--ink-3)}
-#q-painel:has(.p1-painel) #qp-ufs,#q-painel:has(.p1-painel) #qp-anos{display:none}
-.p1-painel .q4-filtros{grid-template-columns:repeat(2,minmax(0,1fr))}.p1-painel h3,.p1-painel h4,.p1-painel strong{font-family:var(--font)}
-.p1-manchete strong{display:block;font-weight:800;font-size:clamp(2rem,5vw,3.5rem);letter-spacing:-.03em;color:var(--p1-eleitos)}.p1-manchete p{margin:.5rem 0}.p1-manchete p:last-child{color:var(--ink-2);font-size:.85rem}
-.p1-controles{display:flex;flex-wrap:wrap;gap:1rem;margin:1rem 0}.p1-controles label,.p1-local{display:grid;gap:.35rem;font-size:.8rem;color:var(--ink-2)}
-.p1-barra{display:grid;grid-template-columns:minmax(120px,1fr) 2fr minmax(110px,.8fr);gap:1rem;align-items:center;margin:1.2rem 0;font-size:.85rem}.p1-barra small{display:block;color:var(--ink-2);font-size:.76rem;margin-top:.3rem}.p1-barra>div:last-child{text-align:right;font-variant-numeric:tabular-nums}.p1-amostra{display:block;text-decoration:underline dotted}.p1-trilho{height:18px;background:var(--surface);border-radius:3px;overflow:hidden}.p1-trilho i{display:block;height:100%;background:var(--p1-eleitos);border-radius:3px}.p1-todos .p1-trilho i{background:var(--p1-todos)}.p1-eixo{display:flex;justify-content:space-between;font-size:.7rem;color:var(--ink-2);margin-left:29%;margin-right:20%}.p1-par{margin:1.5rem 0}.p1-par svg,.p1-serie svg{display:block;width:100%;height:auto}.p1-eleitos{fill:var(--p1-eleitos);stroke:var(--p1-eleitos)}.p1-todos{fill:var(--p1-todos);stroke:var(--p1-todos)}.p1-ligacao{stroke:var(--line);stroke-width:10;stroke-linecap:round}.p1-guia{stroke:var(--line);stroke-dasharray:3 4}.p1-serie-linha{fill:none;stroke-width:2.5}.p1-serie{margin:1.5rem 0}.p1-serie h4{margin:.4rem 0;font-size:.85rem}
-@media(max-width:550px){.p1-barra{grid-template-columns:1fr 110px;gap:.5rem}.p1-trilho{grid-column:1/-1;grid-row:2}.p1-barra>div:last-child{grid-column:2;grid-row:1}.p1-eixo{margin:0}.p1-controles label{width:100%}.p1-par svg{min-height:100px}.p1-painel svg text{font-size:14px}}
-
-.p1-base-todos .p1-manchete strong{color:var(--p1-todos)}
-
 /* Estilos exclusivos da questão (p1-custo-cadeira). Vem com o módulo src/questoes/p1-custo-cadeira.ts. */
-[data-mapa-anterior]:not(:empty){margin:1rem 0 2rem;padding:1rem;border:1px solid var(--line);border-radius:10px;background:var(--raised)}
+#p1-mapa:not(:empty){margin:1rem 0 2rem;padding:1rem;border:1px solid var(--line);border-radius:10px;background:var(--raised)}
 .p1-mapa-area{position:relative}.p1-mapa-area svg{display:block;width:100%;max-height:750px}.p1-mapa-base{fill:var(--surface);stroke:var(--line);stroke-width:.5}.p1-mapa-lado{fill:var(--faixa-0);filter:brightness(.65);stroke:var(--faixa-0);stroke-width:.2}.p1-mapa-topo{fill:var(--faixa-0);stroke:var(--raised);stroke-width:.5}.p1-mapa-sem-dado{fill:var(--surface);stroke:var(--line);stroke-width:.5}.p1-mapa-municipio{cursor:pointer}.p1-mapa-municipio:hover .p1-mapa-topo,.p1-mapa-municipio:focus-visible .p1-mapa-topo{stroke:var(--ink);stroke-width:2;filter:brightness(1.2)}.p1-mapa-escala{fill:var(--ink-2);font:13px var(--font)}.p1-mapa-tooltip{position:absolute;top:.5rem;left:.5rem;max-width:90%;padding:.6rem .8rem;border-radius:6px;background:var(--ink);color:var(--raised);pointer-events:none;font-size:.85rem}
 .p1-mapa-area svg{touch-action:none;cursor:grab}.p1-mapa-area svg:active{cursor:grabbing}
 
 .p1-mapa-lado{filter:none;fill:color-mix(in srgb,var(--faixa-0) 65%,#000);stroke:none}
-
-.p1-visualizacao{margin:1rem 0}.p1-visualizacao label{display:grid;gap:.35rem;max-width:24rem;font-size:.8rem;color:var(--ink-2)}

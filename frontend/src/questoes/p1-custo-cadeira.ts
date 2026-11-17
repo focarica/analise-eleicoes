@@ -1,54 +1,37 @@
 // @ts-nocheck
-import { fmt, brl, brlc, titulo, cargoNome, esc, request, UFS, ANOS } from '../util';
-import { UF, ANO, GEO, irPara, anosDisponiveis } from '../presentation';
+import { esc, request } from '../util';
+import { UF, ANO } from '../presentation';
 import './p1-custo-cadeira.css';
-import './p4-escolaridade.css';
-import { montarAnterior } from './p1-anterior';
-const numero=v=>Number(v).toLocaleString('pt-BR',{maximumFractionDigits:1});
-const cache=new Map();
-const nomesMunicipais=new Map();
-let visualizacao = 'painel';
-async function pedir(uf,ano){const key=`${uf}:${ano}`;if(!cache.has(key))cache.set(key,request(`/api/q1-custo-cadeira?uf=${uf}&ano=${ano}`,{silencioso:true}).catch(e=>{cache.delete(key);throw e;}));return cache.get(key);}
-function valores(r){return {...r,eleitos:+r.qt_eleitos_com_despesa>0?+r.vr_despesas_eleitos/+r.qt_eleitos_com_despesa:null,todos:+r.qt_com_despesa>0?(+r.vr_despesas_total)/(+r.qt_eleitos||1):null};}
+import { montarMapaCusto } from './p1-mapa';
+
+let pedidoP1 = 0;
 export default {
- id:'p1',numero:'P1',titulo:'Qual o custo de uma cadeira?',pergunta:'Quanto custa uma cadeira?',resumo:'Despesas de campanha e cadeiras conquistadas, por cargo.',
- async montar(el){
-  let uf=UF||'',ano=ANO,modo='eleitos',log=false,municipio='',dados=[],historico=[],token=0;
-  const ufs=UFS.map(u=>`<option value="${u}" ${u===uf?'selected':''}>${esc(GEO[u]?.properties?.nome||u)}</option>`).join('');
-  el.innerHTML=`<div class="q4-painel p1-painel"><div class="q4-filtros"><label>Estado<select data-uf><option value="">Selecione</option>${ufs}</select></label><label>Ano<select data-ano></select></label></div><div class="p1-visualizacao"><label>Visualização<select data-visualizacao><option value="painel">Painel comparativo</option><option value="anterior">Anterior · mapa e barras</option></select></label></div><div data-conteudo aria-live="polite"></div></div>`;
-  const root=el.querySelector('.p1-painel'),body=root.querySelector('[data-conteudo]'),anoSelect=root.querySelector('[data-ano]');
-  const seletorVisual=root.querySelector('[data-visualizacao]');
-  seletorVisual.value=visualizacao;
-  seletorVisual.onchange=()=>{visualizacao=seletorVisual.value;desenhar();};
-  async function carregar(){const id=++token;const anos=uf?anosDisponiveis(uf):[];if(!anos.includes(ano))ano=anos.at(-1);anoSelect.innerHTML=anos.map(a=>`<option ${a===ano?'selected':''}>${a}</option>`).join('');if(!uf){body.innerHTML='<p class="nota">Selecione um estado para comparar os custos por cargo.</p>';return;}body.innerHTML='<p class="nota">Carregando…</p>';try{const resposta=await pedir(uf,ano);if(id!==token||!root.isConnected)return;dados=resposta.dados.map(valores);historico=[];
-if(dados.some(r=>r.cd_municipio_tse)&&!nomesMunicipais.has(uf)){
- try{const res=await fetch(`/geo/municipios-${uf}.json`);if(res.ok){const topo=await res.json();nomesMunicipais.set(uf,new Map(topo.objects.municipios.geometries.map(g=>[String(g.properties.tse),g.properties.nome])));}}catch{}
- if(id!==token||!root.isConnected)return;
-}if(!dados.some(r=>String(r.cd_municipio_tse)===municipio))municipio=String(dados.find(r=>r.cd_municipio_tse)?.cd_municipio_tse||'');desenhar();historico=[];for(const a of anos){try{const d=await pedir(uf,a);if(id!==token||!root.isConnected)return;historico.push({ano:a,rows:d.dados.map(valores)});}catch{historico.push({ano:a,rows:[],erro:true});}desenharHistorico();}}catch(e){if(id===token)body.innerHTML=`<p class="nota">Não foi possível carregar: ${esc(e.message)}</p>`;}}
-  const recorte=rows=>rows.filter(r=>!r.cd_municipio_tse||String(r.cd_municipio_tse)===municipio);
-  function desenhar(){
-   if(visualizacao==='anterior'){
-    body.innerHTML='<div data-anterior></div>';
-    montarAnterior(body.querySelector('[data-anterior]'),dados,uf,ano);
-    return;
-   }
-   root.classList.toggle("p1-base-todos",modo==="todos");
-   const rows=recorte(dados).slice().sort((a,b)=>(b[modo]??-1)-(a[modo]??-1)),validos=rows.filter(r=>r[modo]!=null),positivos=validos.filter(r=>r[modo]>0),barato=positivos.at(-1),foco=validos.find(r=>r.ds_cargo==='DEPUTADO FEDERAL')||validos[0];
-   const max=Math.max(1,...validos.map(r=>r[modo])),min=Math.min(...positivos.map(r=>r[modo]));
-   const minimoLog=Number.isFinite(min)?Math.pow(10,Math.floor(Math.log10(min))-1):1;
-   const tetoLog=Math.max(minimoLog*10,Math.pow(10,Math.ceil(Math.log10(max))));
-   const escala=log?d3.scaleLog().domain([minimoLog,tetoLog]).range([0,100]):d3.scaleLinear().domain([0,max]).range([0,100]);
-   const municipios=[...new Set(dados.filter(r=>r.cd_municipio_tse).map(r=>String(r.cd_municipio_tse)))];
-   body.innerHTML=`${municipios.length?`<label class="p1-local">Disputa municipal<select data-municipio>${municipios.map(m=>`<option value="${esc(m)}" ${m===municipio?'selected':''}>${esc(titulo(nomesMunicipais.get(uf)?.get(m)||m))}</option>`).join('')}</select></label>`:''}<section class="p1-manchete">${foco?`<p>Em ${ano}, ${modo==='eleitos'?'uma cadeira de':'o gasto total por cadeira de'} ${esc(cargoNome(foco.ds_cargo).toLowerCase())} por ${uf}${municipio?` · ${esc(titulo(nomesMunicipais.get(uf)?.get(municipio)||municipio))}`:''}</p><strong title="${brl(foco[modo])}">${brlc(foco[modo])}</strong><p>${barato&&foco!==barato?`É <b>${numero(foco[modo]/barato[modo])} vezes</b> o custo de ${esc(cargoNome(barato.ds_cargo).toLowerCase())}, o cargo mais barato neste recorte.`:'Custo médio entre as candidaturas eleitas com dados financeiros.'}</p>`:'<p>Sem despesas disponíveis neste recorte.</p>'}</section>
-   <section><h3>Custo por cargo</h3><div class="p1-controles"><label>Base<select data-modo><option value="eleitos" ${modo==='eleitos'?'selected':''}>Apenas eleitos</option><option value="todos" ${modo==='todos'?'selected':''}>Todos os candidatos · por cadeira</option></select></label><label>Escala<select data-escala><option value="linear" ${!log?'selected':''}>Linear</option><option value="log" ${log?'selected':''}>Logarítmica</option></select></label></div>${log?'<p class="nota">Cada marca no eixo vale 10 vezes a anterior. Zero e valores negativos não são representados nesta escala.</p>':''}<div class="p1-barras ${modo==='todos'?'p1-todos':''}">${rows.map(r=>{const n=Number(modo==='eleitos'?r.qt_eleitos_com_despesa:r.qt_com_despesa),v=r[modo];return `<div class="p1-barra" tabindex="0" title="${esc(cargoNome(r.ds_cargo))}: ${brl(v)}"><div><b>${esc(cargoNome(r.ds_cargo))}</b><small>${fmt.format(n)} ${n===1?'candidatura':'candidaturas'} ${n>0&&n<5?'<span class="p1-amostra" title="Este valor representa menos de cinco candidaturas com dados financeiros.">amostra pequena</span>':''}</small></div><div class="p1-trilho"><i style="width:${v==null||log&&v<=0?0:escala(v)}%"></i></div><div><b>${brlc(v)}</b><small>${barato&&v>0?`${numero(v/barato[modo])}×`:'–'}</small></div></div>`;}).join('')}</div><div class="p1-eixo">${(log?d3.range(Math.log10(minimoLog),Math.log10(tetoLog)+1).map(e=>10**e):[0,max/2,max]).map(v=>`<span>${brlc(v)}</span>`).join('')}</div></section>
-   <section><h3>Quanto variam os gastos dentro de cada cargo?</h3><p class="nota">A consulta atual fornece médias e contagens, sem valores individuais, mediana ou quartis. A dispersão fica indisponível neste recorte.</p></section>
-   <section><h3>Eleitos × todos os candidatos</h3><p class="nota">● Eleitos: média das candidaturas eleitas. ◆ Todos: gasto total dividido pelas cadeiras conquistadas. Os denominadores são diferentes.</p><div data-comparacao></div></section>
-   <section><h3>Evolução do custo da cadeira</h3><p class="nota">Valores nominais em reais, sem correção pela inflação. Cada cargo aparece somente nas eleições com dados; anos sem informação interrompem a linha. Verde: eleitos; cinza-azulado: todos por cadeira.</p><div data-historico></div></section>
-   <details class="q4-metodo"><summary>Como lemos estes dados</summary><p>Relação entre as despesas de campanha e as cadeiras conquistadas por cargo. ${modo==='eleitos'?'Cálculo: média das despesas dos candidatos eleitos com dados financeiros nesta disputa.':'Cálculo: soma das despesas de todos os candidatos dividida pelo número de cadeiras conquistadas; não é a média por candidato.'}</p><p>${[...new Set(dados.map(r=>r.base_valor))].map(b=>b==='DECLARADO'?'Despesas declaradas nos arquivos históricos do TSE.':b==='PAGO'?'Despesas efetivamente pagas conforme o TSE.':'Base financeira não informada para parte dos registros.').join(' ')} Ausência de dados não significa gasto zero. As contagens mostram candidaturas com dados financeiros. A cobertura dos anos históricos pode ser parcial. As comparações entre anos usam valores nominais e podem envolver bases financeiras diferentes.</p></details>`;
-   body.querySelector('[data-modo]').onchange=e=>{modo=e.target.value;desenhar();};body.querySelector('[data-escala]').onchange=e=>{log=e.target.value==='log';desenhar();};const mun=body.querySelector('[data-municipio]');if(mun)mun.onchange=e=>{municipio=e.target.value;desenhar();};
-   const comparacao=body.querySelector('[data-comparacao]');comparacao.innerHTML=rows.map(r=>{const mx=Math.max(r.eleitos||0,r.todos||0,1),x=v=>40+v/mx*620;return `<div class="p1-par"><b>${esc(cargoNome(r.ds_cargo))}</b><svg viewBox="0 0 740 95" role="img" aria-label="${esc(cargoNome(r.ds_cargo))}: eleitos ${brl(r.eleitos)}, todos por cadeira ${brl(r.todos)}">${r.eleitos!=null&&r.todos!=null?`<line x1="${x(r.eleitos)}" x2="${x(r.todos)}" y1="45" y2="45" class="p1-ligacao"/>`:''}${r.eleitos!=null?`<circle cx="${x(r.eleitos)}" cy="45" r="6" class="p1-eleitos"/><text x="${x(r.eleitos)}" y="23" text-anchor="middle">● ${brlc(r.eleitos)}</text>`:''}${r.todos!=null?`<path class="p1-todos" d="M${x(r.todos)},38l7,7l-7,7l-7,-7Z"/><text x="${x(r.todos)}" y="78" text-anchor="middle">◆ ${brlc(r.todos)}</text>`:''}</svg><p class="nota">${r.eleitos!=null&&r.todos!=null?`Todos por cadeira − eleitos: ${brlc(r.todos-r.eleitos)}${r.eleitos>0?` · ${numero(r.todos/r.eleitos)}×`:''}`:'Comparação indisponível.'}</p></div>`;}).join('');desenharHistorico();
-  }
-  function desenharHistorico(){const host=body.querySelector('[data-historico]');if(!host)return;if(!historico.length){host.textContent='Carregando série histórica…';return;}const cargos=[...new Set(recorte(dados).map(r=>r.ds_cargo))];host.innerHTML=cargos.map(c=>{const serie=historico.map(d=>({ano:d.ano,r:recorte(d.rows).find(r=>r.ds_cargo===c)}));const valores=serie.map(d=>d.r?.[modo]).filter(v=>v!=null);if(!valores.length)return '';const max=Math.max(1,...valores),x=a=>75+(a-2004)/(2026-2004)*610,y=v=>180-v/max*130,line=d3.line().defined(d=>d.r?.[modo]!=null).x(d=>x(d.ano)).y(d=>y(d.r[modo]));const tipo=recorte(dados).find(r=>r.ds_cargo===c)?.cd_cargo;const municipal=[11,13].includes(+tipo);const pontos=serie.filter(d=>municipal?[2004,2008,2012,2016,2020,2024].includes(d.ano):[2006,2010,2014,2018,2022,2026].includes(d.ano));return `<div class="p1-serie"><h4>${esc(cargoNome(c))}</h4><svg viewBox="0 0 760 225" role="img" aria-label="Evolução nominal de ${esc(cargoNome(c))}">${[0,max/2,max].map(v=>`<text x="68" y="${y(v)+4}" text-anchor="end">${brlc(v)}</text><line class="p1-guia" x1="75" x2="685" y1="${y(v)}" y2="${y(v)}"/>`).join('')}<path class="p1-serie-linha ${modo==='todos'?'p1-todos':'p1-eleitos'}" d="${line(pontos)||''}"/>${pontos.map(d=>`<text x="${x(d.ano)}" y="210" text-anchor="middle">${d.ano}</text>${d.r?.[modo]!=null?`<circle tabindex="0" class="${modo==='todos'?'p1-todos':'p1-eleitos'}" cx="${x(d.ano)}" cy="${y(d.r[modo])}" r="${d.ano===ano?7:4}"><title>${d.ano}: ${brl(d.r[modo])} · ${d.r.base_valor||'base não informada'}</title></circle>`:''}`).join('')}</svg></div>`;}).join('')+`<p class="nota">${historico.length} de ${anosDisponiveis(uf).length} anos consultados.${historico.some(d=>d.erro)?' Algumas consultas falharam; a série está incompleta.':''}</p>`;}
-  root.querySelector('[data-uf]').onchange=e=>irPara(e.target.value||null,'p1');anoSelect.onchange=e=>{ano=+e.target.value;carregar();};await carregar();
- }
+  id: 'p1', numero: 'P1',
+  titulo: 'Qual o custo de uma cadeira?',
+  pergunta: 'Quanto custa uma cadeira?',
+  resumo: 'Despesas de campanha e cadeiras conquistadas, por cargo.',
+  usaAno: true,
+  async montar(el) {
+    if (!UF || !ANO) {
+      el.innerHTML = `<p class="aviso-mini">Escolha um estado e um ano para ver os gastos por município.</p>`;
+      return;
+    }
+
+    el.innerHTML = '<p class="nota">Carregando…</p><div id="p1-mapa"></div>';
+    const mapa = el.querySelector('#p1-mapa');
+    const pedido = ++pedidoP1;
+    try {
+      const [resposta, malhaRes] = await Promise.all([
+        request(`/api/q1-custo-cadeira?uf=${encodeURIComponent(UF)}&ano=${ANO}`, { silencioso: true }),
+        fetch(`/geo/municipios-${UF}.json`),
+      ]);
+      if (!malhaRes.ok) throw new Error('Malha municipal indisponível');
+      const malha = await malhaRes.json();
+      if (pedido !== pedidoP1 || !mapa.isConnected) return;
+      mapa.innerHTML = '';
+      montarMapaCusto(mapa, malha, resposta.dados);
+    } catch (e) {
+      if (pedido === pedidoP1 && mapa.isConnected) mapa.innerHTML = `<p class="aviso-mini">Não foi possível carregar: ${esc(e.message)}</p>`;
+    }
+  },
 };
