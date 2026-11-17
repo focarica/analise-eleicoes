@@ -7,15 +7,8 @@
 .q3-card small{display:block;color:var(--ink-2);font-size:.74rem;margin-bottom:.4rem}
 .q3-card b{display:block;font-size:clamp(1.15rem,2vw,1.6rem);line-height:1.2;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .q3-dashboard{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin:1rem 0 1.5rem;align-items:start}
-.q3-dashboard{--q3-vies-esq:#b31f34;--q3-vies-meio:#f3f5f8;--q3-vies-dir:#145ca8}
-@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .q3-dashboard{--q3-vies-esq:#f07880;--q3-vies-meio:#202c36;--q3-vies-dir:#68aaf0}}
-:root[data-theme="dark"] .q3-dashboard{--q3-vies-esq:#f07880;--q3-vies-meio:#202c36;--q3-vies-dir:#68aaf0}
 .q3-grafico{min-width:0;padding:1.15rem;background:var(--raised);border:1px solid var(--line);border-radius:10px}
-.q3-grafico header{display:flex;justify-content:space-between;align-items:start;gap:.75rem;margin-bottom:1rem}.q3-grafico h3{margin:0;font-size:1rem;line-height:1.4;letter-spacing:-.015em}
-.q3-expandir,.q3-fechar{flex:0 0 auto;padding:.4rem .65rem;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--ink-2);cursor:pointer;font:inherit;font-size:.75rem}
-.q3-visualizacao{width:min(96vw,1400px);max-width:none;max-height:94vh;overflow:auto;padding:1rem;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink)}
-.q3-visualizacao::backdrop{background:#10141bcc;backdrop-filter:blur(3px)}
-.q3-visualizacao>.q3-grafico{box-sizing:border-box;width:100%;margin-top:.75rem}
+.q3-grafico header{margin-bottom:1rem}.q3-grafico h3{margin:0;font-size:1rem;line-height:1.4;letter-spacing:-.015em}
 .q3-grafico header p{margin:.35rem 0 0;color:var(--ink-2);font-size:.76rem;line-height:1.5}
 .q3-composicao,.q3-ranking{grid-column:1/-1}
 .q3-regua{display:flex;justify-content:space-between;padding-bottom:.4rem;color:var(--ink-3);font-size:.67rem;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--line)}
@@ -33,7 +26,6 @@
 .q3-eixo path,.q3-eixo line{stroke:var(--line)}.q3-eixo .domain{display:none}
 .q3-grade path{display:none}.q3-grade line{stroke:var(--line);stroke-dasharray:3 4}
 .q3-histograma-barra{fill:var(--faixa-0)}.q3-ponto{fill-opacity:.7;stroke:var(--raised);stroke-width:.6;transition:opacity .15s}
-.q3-vies-legenda{display:flex;align-items:center;gap:.4rem;margin-top:.65rem;color:var(--ink-2);font-size:.68rem}.q3-vies-legenda>i{width:min(28vw,180px);height:9px;border-radius:99px;background:linear-gradient(90deg,var(--q3-vies-esq),var(--q3-vies-meio),var(--q3-vies-dir))}.q3-vies-ausente{display:inline-flex;align-items:center;gap:.3rem;margin-left:auto}.q3-vies-ausente i{width:10px;height:10px;border-radius:50%;background:#8A8F98}
 .q3-tooltip{position:fixed;z-index:100;max-width:min(340px,calc(100vw - 24px));padding:.75rem .9rem;border:1px solid var(--line);border-radius:7px;background:var(--ink);color:var(--raised);font-size:.78rem;line-height:1.5;pointer-events:none;box-shadow:0 6px 24px #0003}
 .q3-ativo{stroke:var(--ink);stroke-width:2;fill-opacity:1!important;outline:none}.q3-party-mark.q3-atenuado{opacity:.16}.q3-party-mark.q3-destaque{opacity:1;fill-opacity:1}
 .q3-zoom{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;margin-top:.6rem}
@@ -44,7 +36,6 @@
 .q3-ranking-linha:hover{background:var(--surface)}.q3-posicao{color:var(--ink-3);font-size:.65rem}.q3-ranking-local{min-width:0;overflow-wrap:anywhere}.q3-ranking-local small{display:block;color:var(--ink-3);font-size:.65rem;margin-top:.1rem}
 .q3-ranking-trilho{height:9px;background:var(--surface);border-radius:2px;overflow:hidden}.q3-ranking-barra{display:block;height:100%;min-width:1px;border-radius:2px;transition:opacity .15s}
 .q3-ranking-valor{text-align:right;font-size:.73rem;font-variant-numeric:tabular-nums;white-space:nowrap}
-.q3-ranking-controles{display:flex;gap:.4rem;margin:-.25rem 0 .75rem}.q3-ranking-controles button{padding:.35rem .55rem;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--ink-2);cursor:pointer;font:inherit;font-size:.72rem}.q3-ranking-controles button[aria-pressed="true"]{border-color:var(--ink-2);background:var(--ink);color:var(--raised)}
 .q3-detalhes{border-top:1px solid var(--line);padding:.85rem 0}.q3-detalhes summary{cursor:pointer;font-weight:600;font-size:.8rem}
 .q3-quartis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.6rem;margin:.8rem 0}
 .q3-quartil{padding:.65rem;background:var(--raised);border:1px solid var(--line);border-radius:5px}

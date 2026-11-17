@@ -17,22 +17,7 @@ function valorCompleto(m, valor) {
 function quadro(host, id, tituloGrafico, subtitulo) {
   const card = document.createElement('article');
   card.className = `q3-grafico q3-${id}`;
-  card.innerHTML = `<header><div><h3>${esc(tituloGrafico)}</h3><p>${esc(subtitulo)}</p></div><button class="q3-expandir" type="button" aria-label="Ampliar ${esc(tituloGrafico)}">Ampliar</button></header><div class="q3-canvas"></div>`;
-  card.querySelector('.q3-expandir').onclick = () => {
-    const placeholder = document.createComment('q3-grafico');
-    card.before(placeholder);
-    const dialog = document.createElement('dialog');
-    dialog.className = 'q3-visualizacao';
-    dialog.setAttribute('aria-label', `Visualização ampliada: ${tituloGrafico}`);
-    const fechar = document.createElement('button');
-    fechar.className = 'q3-fechar'; fechar.type = 'button'; fechar.textContent = 'Fechar';
-    fechar.onclick = () => dialog.close();
-    dialog.append(fechar, card);
-    document.body.append(dialog);
-    dialog.addEventListener('close', () => { placeholder.replaceWith(card); dialog.remove(); }, { once: true });
-    dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
-    dialog.showModal();
-  };
+  card.innerHTML = `<header><div><h3>${esc(tituloGrafico)}</h3><p>${esc(subtitulo)}</p></div></header><div class="q3-canvas"></div>`;
   host.append(card);
   return { card, canvas: card.querySelector('.q3-canvas') };
 }
@@ -170,25 +155,15 @@ export function dispersao(host, rows, m, tooltip, abrirMunicipio) {
   const x = escala(m.campo, [q.margem.esquerda, q.direita]), y = escala(campoY, [q.base, q.margem.topo]);
   const atualizarEixos = eixos(q, x, y, m.formatar, v => `${percentual.format(v)}%`, m.nome, `${nomeY} (%)`);
   atualizarEixos();
-  const estilo = getComputedStyle(host);
-  const corVies = d3.scaleLinear().domain([-100, 0, 100]).range([
-    estilo.getPropertyValue('--q3-vies-esq').trim(),
-    estilo.getPropertyValue('--q3-vies-meio').trim(),
-    estilo.getPropertyValue('--q3-vies-dir').trim(),
-  ]).interpolate(d3.interpolateRgb).clamp(true);
   const clipId = `q3-recorte-${++sequencia}`;
   q.svg.append('defs').append('clipPath').attr('id', clipId).append('rect')
     .attr('x', q.margem.esquerda).attr('y', q.margem.topo).attr('width', q.direita - q.margem.esquerda).attr('height', q.base - q.margem.topo);
   const marcas = q.svg.append('g').attr('clip-path', `url(#${clipId})`).selectAll('circle').data(dados).join('circle')
     .attr('class', 'q3-ponto q3-party-mark').attr('data-partido', r => r.sg_partido || '')
-    .attr('data-vies', r => r.vies_partido ?? '')
     .attr('data-x', r => r[m.campo]).attr('data-y', r => r[campoY])
     .attr('cx', r => x(Number(r[m.campo]))).attr('cy', r => y(Number(r[campoY])))
-    .attr('r', 4.5).attr('fill', r => r.vies_partido == null ? '#8A8F98' : corVies(Number(r.vies_partido)));
-  detalhes(marcas, tooltip, r => `${titulo(r.nm_municipio)} · ${r.sg_uf} — ${m.nome}: ${valorCompleto(m, r[m.campo])}; ${nomeY}: ${percentual.format(Number(r[campoY]))}%; ${r.sg_partido || 'partido não identificado'}; ${r.vies_partido == null ? 'viés não classificado' : `viés ${Number(r.vies_partido).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}`}`, abrirMunicipio);
-  const legendaVies = document.createElement('div'); legendaVies.className = 'q3-vies-legenda';
-  legendaVies.innerHTML = '<span>Esquerda −100</span><i aria-hidden="true"></i><span>Direita +100</span><span class="q3-vies-ausente"><i aria-hidden="true"></i>Sem classificação</span>';
-  q.card.append(legendaVies);
+    .attr('r', 4.5).attr('fill', r => corP(r.sg_partido));
+  detalhes(marcas, tooltip, r => `${titulo(r.nm_municipio)} · ${r.sg_uf} — ${m.nome}: ${valorCompleto(m, r[m.campo])}; ${nomeY}: ${percentual.format(Number(r[campoY]))}%; ${r.sg_partido || 'partido não identificado'}`, abrirMunicipio);
   const zoom = d3.zoom().extent([[q.margem.esquerda, q.margem.topo], [q.direita, q.base]])
     .scaleExtent([1, 12]).translateExtent([[q.margem.esquerda, q.margem.topo], [q.direita, q.base]])
     .filter(e => e.type !== 'dblclick' && (e.type !== 'wheel' || e.ctrlKey))
@@ -209,40 +184,23 @@ export function dispersao(host, rows, m, tooltip, abrirMunicipio) {
 }
 
 export function ranking(host, rows, m, tooltip, abrirMunicipio) {
-  let menores = false;
   const q = quadro(host, 'ranking', 'Os 20 municípios com maior indicador', 'Comprimento = valor do indicador · cor = partido do prefeito eleito.');
   if (!rows.length) { q.canvas.textContent = 'Sem municípios com indicador publicado.'; return; }
-  const tituloGrafico = q.card.querySelector('h3');
-  const controles = document.createElement('div'); controles.className = 'q3-ranking-controles';
-  controles.innerHTML = '<button type="button" aria-pressed="true">20 maiores</button><button type="button" aria-pressed="false">20 menores</button>';
-  q.canvas.before(controles);
-  const botoes = controles.querySelectorAll('button');
-  const desenhar = () => {
-    tituloGrafico.textContent = `Os 20 municípios com ${menores ? 'menor' : 'maior'} indicador`;
-    q.canvas.replaceChildren();
-    const exibidos = menores ? rows.slice(0, 20) : rows.slice(-20).reverse();
-    const max = d3.max(exibidos, r => Number(r[m.campo])) || 1;
-    const linhas = d3.select(q.canvas).append('div').attr('class', 'q3-ranking-lista').selectAll('button')
-      .data(exibidos).join('button').attr('type', 'button').attr('class', 'q3-ranking-linha')
-      .attr('data-value', r => r[m.campo]).attr('data-municipio', r => r.cd_municipio_tse);
-    linhas.append('span').attr('class', 'q3-posicao').text((_, i) => String(i + 1).padStart(2, '0'));
-    linhas.append('span').attr('class', 'q3-ranking-local').text(r => titulo(r.nm_municipio))
-      .append('small').text(r => ` ${r.sg_uf} · ${r.sg_partido || 'Sem partido'}`);
-    linhas.append('span').attr('class', 'q3-ranking-trilho').append('span')
-      .attr('class', 'q3-ranking-barra q3-party-mark').attr('data-partido', r => r.sg_partido || '')
-      .style('width', r => `${Math.max(0, 100 * Number(r[m.campo]) / max)}%`).style('background', r => corP(r.sg_partido));
-    linhas.append('b').attr('class', 'q3-ranking-valor').text(r => m.formatar(r[m.campo]));
-    detalhes(linhas, tooltip, r => `${titulo(r.nm_municipio)} · ${r.sg_uf}: ${valorCompleto(m, r[m.campo])}; ${r.sg_partido || 'partido não identificado'}`, abrirMunicipio);
-  };
-  botoes.forEach((botao, i) => botao.onclick = () => {
-    menores = i === 1;
-    botoes.forEach((b, n) => b.setAttribute('aria-pressed', String(n === i)));
-    desenhar();
-  });
-  desenhar();
+  const max = d3.max(rows, r => Number(r[m.campo])) || 1;
+  const linhas = d3.select(q.canvas).append('div').attr('class', 'q3-ranking-lista').selectAll('button')
+    .data(rows).join('button').attr('type', 'button').attr('class', 'q3-ranking-linha')
+    .attr('data-value', r => r[m.campo]).attr('data-municipio', r => r.cd_municipio_tse);
+  linhas.append('span').attr('class', 'q3-posicao').text((_, i) => String(i + 1).padStart(2, '0'));
+  linhas.append('span').attr('class', 'q3-ranking-local').text(r => titulo(r.nm_municipio))
+    .append('small').text(r => ` ${r.sg_uf} · ${r.sg_partido || 'Sem partido'}`);
+  linhas.append('span').attr('class', 'q3-ranking-trilho').append('span')
+    .attr('class', 'q3-ranking-barra q3-party-mark').attr('data-partido', r => r.sg_partido || '')
+    .style('width', r => `${Math.max(0, 100 * Number(r[m.campo]) / max)}%`).style('background', r => corP(r.sg_partido));
+  linhas.append('b').attr('class', 'q3-ranking-valor').text(r => m.formatar(r[m.campo]));
+  detalhes(linhas, tooltip, r => `${titulo(r.nm_municipio)} · ${r.sg_uf}: ${valorCompleto(m, r[m.campo])}; ${r.sg_partido || 'partido não identificado'}`, abrirMunicipio);
 }
 
-export function montarGraficos(host, rows, m, grupos, municipiosOrdenados, abrirMunicipio) {
+export function montarGraficos(host, rows, m, grupos, tabela, abrirMunicipio) {
   observador?.disconnect();
   let selecionado = '';
   const totais = new Map();
@@ -266,7 +224,7 @@ export function montarGraficos(host, rows, m, grupos, municipiosOrdenados, abrir
     composicao(host, grupos, m, partidos, tooltip, selecionar);
     dispersao(host, rows, m, tooltip, abrirMunicipio);
     distribuicao(host, rows, m, tooltip);
-    ranking(host, municipiosOrdenados, m, tooltip, abrirMunicipio);
+    ranking(host, tabela, m, tooltip, abrirMunicipio);
     realcar();
   };
   desenhar();
