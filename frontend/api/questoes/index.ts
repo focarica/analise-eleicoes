@@ -12,8 +12,9 @@ import * as p7 from "./p7-vies";
 import * as p8 from "./p8-financiamento";
 import * as p9 from "./p9-propaganda";
 import * as p10 from "./p10-reeleicao";
+import * as camaras from "./camaras";
 
-const QUESTOES: QuestaoApi[] = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10];
+const QUESTOES: QuestaoApi[] = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, camaras];
 
 export const ROTAS_QUESTOES: Rotas = Object.assign({}, ...QUESTOES.map((q) => q.rotas || {}));
 export const EXTENSOES_MUNICIPIO: ExtensaoMunicipio[] = QUESTOES.flatMap((q) => q.municipio ? [q.municipio] : []);
