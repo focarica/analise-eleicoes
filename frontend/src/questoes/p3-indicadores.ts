@@ -64,6 +64,7 @@ export default {
       const grupos = dadosQuartis(rows, metrica);
       const formatMetric = v => v == null ? "Sem dado" : m.formatar(v);
       const locais = validos.slice().sort((a, b) => Number(b[m.campo]) - Number(a[m.campo]));
+      const rankingMunicipios = validos.slice().sort((a, b) => Number(a[m.campo]) - Number(b[m.campo]) || String(a.nm_municipio).localeCompare(String(b.nm_municipio)));
       const nomeUf = UF ? GEO[UF]?.properties?.nome : null;
       const tabela = locais.slice(0, 20);
       alvo.innerHTML = `<div class="q3-resumo">
@@ -78,7 +79,7 @@ export default {
       </details><details class="q3-detalhes"><summary>Ver a tabela dos 20 municípios</summary>
       <div class="q3-tabela"><table><thead><tr><th>Município${nomeUf ? ` · ${esc(nomeUf)}` : " · UF"}</th><th class="num">${m.nome}</th><th class="num">Abstenção</th><th class="num">Aptos/pop.</th><th>Prefeito eleito</th><th>Partido</th></tr></thead><tbody>${tabela.map(r => `<tr><td>${esc(titulo(r.nm_municipio))}${UF ? "" : ` · ${esc(r.sg_uf)}`}</td><td class="num">${formatMetric(r[m.campo])}</td><td class="num">${r.pct_abstencao == null ? "–" : `${Number(r.pct_abstencao).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}</td><td class="num">${r.pct_eleitores_populacao == null ? "–" : `${Number(r.pct_eleitores_populacao).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}</td><td>${esc(titulo(r.nm_urna_candidato || "Sem registro"))}</td><td>${esc(r.sg_partido || "–")}</td></tr>`).join("")}</tbody></table></div></details>
       <p class="aviso-mini">${fmt.format(rows.length)} municípios na base para ${ano}${UF ? ` · ${esc(UF)}` : " · amostra de seis UFs"}. População e PIB per capita usam cada um o último ano IBGE publicado até a eleição; os anos aparecem nas fontes e a série pode terminar antes do pleito. IDHM usa ${rows.find(r => r.ano_idhm != null)?.ano_idhm || "a referência mais recente disponível"}. Aptos/população usa aptos do 1º turno e população IBGE; abstenção usa abstenções/aptos do 1º turno. ${mediaEleitorado == null ? "Proporção de aptos/população indisponível neste recorte." : `Proporção média de aptos/população: ${mediaEleitorado.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%.`}</p>`;
-      montarGraficos(alvo.querySelector("[data-q3-graficos]"), rows, m, grupos, tabela, abrirMunicipio);
+      montarGraficos(alvo.querySelector("[data-q3-graficos]"), rows, m, grupos, rankingMunicipios, abrirMunicipio);
     };
     anoSel.onchange = carregar; metricaSel.onchange = carregar;
     await carregar();
