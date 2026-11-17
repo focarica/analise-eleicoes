@@ -12,6 +12,7 @@ import p7 from "./p7-vies";
 import p8 from "./p8-financiamento";
 import p9 from "./p9-propaganda";
 import p10 from "./p10-reeleicao";
+import camaras from "./camaras";
 
-export const QUESTOES = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10];
+export const QUESTOES = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, camaras];
 export const questaoPorId = (id) => QUESTOES.find((q) => q.id === id) || null;

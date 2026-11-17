@@ -1,0 +1,121 @@
+/* Estilos exclusivos das Câmaras (plenário). Vem com o módulo src/questoes/camaras.ts.
+   As cores do viés (--q7-cor-esq/centro/dir) são as da régua da P7 (p7-vies.css). */
+.cam{ --cam-neutro:var(--vazio); margin:.2rem 0 1rem; }
+.cam-intro{ margin:.2rem 0 .9rem; font-size:.95rem; color:var(--ink-2); max-width:70ch; }
+
+/* controles: casa, ano, município e modo de cor (mesmo padrão de botões da P6/P7) */
+.cam-controles{ display:flex; flex-wrap:wrap; gap:.7rem 1.4rem; align-items:flex-start; margin:0 0 1rem; }
+.cam-grupo{ display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .55rem; min-width:0; }
+.cam-grupo[hidden]{ display:none; }
+.cam-rot{ color:var(--ink-2); font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
+.cam-chips{ display:flex; flex-wrap:wrap; gap:.35rem; }
+.cam-chips button{ display:flex; flex-direction:column; align-items:center; line-height:1.15; padding:.4rem .8rem; border:1px solid var(--line); border-radius:999px; background:var(--raised); color:var(--ink-2); font:inherit; font-size:.84rem; font-weight:650; cursor:pointer; }
+.cam-chips button small{ font-size:.66rem; font-weight:400; color:var(--ink-3); }
+.cam-chips button:hover{ border-color:var(--ink); color:var(--ink); }
+.cam-chips button[aria-pressed="true"]{ border-color:var(--ink); background:var(--ink); color:var(--bg); }
+.cam-chips button[aria-pressed="true"] small{ color:var(--bg); opacity:.8; }
+.cam-anos button{ font-variant-numeric:tabular-nums; }
+.cam-grupo select{ max-width:100%; min-height:2.1rem; padding:.3rem .5rem; border:1px solid var(--line); border-radius:8px; background:var(--raised); color:var(--ink); font:inherit; font-size:.88rem; }
+.cam-local-nota{ flex-basis:100%; color:var(--ink-3); font-size:.75rem; }
+.cam-estado{ margin:.4rem 0; color:var(--ink-3); font-size:.9rem; }
+.cam-estado:empty{ display:none; }
+
+.cam-conteudo{ padding:1rem; border:1px solid var(--line); border-radius:12px; background:var(--surface); transition:opacity .15s; }
+.cam-conteudo.cam-carregando{ opacity:.5; }
+.cam-cab{ display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:.2rem .8rem; margin-bottom:.7rem; }
+.cam-cab h3{ margin:0; font-size:1.05rem; line-height:1.3; }
+.cam-onda{ color:var(--ink-3); font-size:.78rem; }
+
+/* resumo em blocos, como o da P7 */
+.cam-resumo{ display:grid; grid-template-columns:repeat(auto-fit,minmax(8.2rem,1fr)); gap:.45rem; }
+.cam-resumo span{ min-width:0; padding:.55rem .7rem; border-radius:8px; background:var(--bg); color:var(--ink-2); font-size:.78rem; line-height:1.3; }
+.cam-resumo b{ display:block; color:var(--ink); font-size:1.05rem; overflow-wrap:anywhere; }
+.cam-r-esq{ box-shadow:inset 3px 0 0 var(--q7-cor-esq); }
+.cam-r-dir{ box-shadow:inset 3px 0 0 var(--q7-cor-dir); }
+.cam-aviso{ margin:.7rem 0 0; padding:.6rem .75rem; border:1px dashed var(--ink-3); border-radius:8px; color:var(--ink-2); font-size:.85rem; line-height:1.45; }
+.cam-aviso b{ color:var(--ink); }
+
+/* o plenário */
+.cam-palco{ position:relative; margin:1rem 0 .2rem; }
+.cam-svg{ display:block; width:100%; height:auto; margin:0 auto; overflow:visible; }
+.cam-svg text{ font-family:inherit; }
+.cam-cadeira{ stroke:color-mix(in srgb, var(--ink) 28%, transparent); stroke-width:1; vector-effect:non-scaling-stroke; outline:none;
+  transition:transform .55s cubic-bezier(.4,0,.2,1), fill .35s, opacity .2s; animation:cam-surge .35s both; }
+.cam-clicavel{ cursor:pointer; }
+.cam-cadeira:hover, .cam-cadeira:focus-visible{ stroke:var(--ink); stroke-width:2.5; }
+.cam-cadeira.cam-apagada{ opacity:.14; }
+.cam-cadeira.cam-apagada:hover, .cam-cadeira.cam-apagada:focus-visible{ opacity:.6; }
+.cam-sem-nota{ stroke:var(--ink-3); stroke-dasharray:3 2; }
+.cam-vazia{ fill:none; stroke:var(--ink-3); stroke-width:1.5; stroke-dasharray:4 3; }
+@keyframes cam-surge{ from{ opacity:0; } }
+.cam-mesa{ fill:var(--line); }
+.cam-total{ fill:var(--ink); font-weight:800; font-variant-numeric:tabular-nums; }
+.cam-total-rot{ fill:var(--ink-3); font-size:13px; font-weight:600; }
+.cam-ajuda{ margin:.2rem 0 .8rem; text-align:center; color:var(--ink-3); font-size:.75rem; }
+
+/* dica da cadeira */
+.cam-dica{ position:absolute; z-index:2; display:flex; flex-direction:column; gap:.12rem; width:max-content; max-width:min(17rem,calc(100% - 8px)); padding:.5rem .65rem; border:1px solid var(--line); border-radius:8px; background:var(--raised); color:var(--ink-2); font-size:.8rem; line-height:1.35; box-shadow:0 8px 22px rgba(0,0,0,.16); pointer-events:none; }
+.cam-dica[hidden]{ display:none; }
+.cam-dica > b{ color:var(--ink); font-size:.9rem; }
+.cam-dica span b{ color:var(--ink); font-variant-numeric:tabular-nums; }
+.cam-dica small{ margin-top:.15rem; color:var(--ink-3); font-size:.72rem; }
+.cam-ponto{ display:inline-block; width:.65rem; height:.65rem; margin-right:.35rem; border-radius:50%; border:1px solid color-mix(in srgb, var(--ink) 28%, transparent); vertical-align:-1px; }
+
+/* escala do viés e blocos */
+.cam-escala{ margin:0 0 .9rem; }
+.cam-escala[hidden]{ display:none; }
+.cam-regua{ display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:.3rem .45rem; color:var(--ink-2); font-size:.75rem; }
+.cam-regua > i{ width:min(26vw,220px); height:10px; border-radius:99px; border:1px solid var(--line); background:linear-gradient(90deg,var(--q7-cor-esq),var(--q7-cor-centro),var(--q7-cor-dir)); }
+.cam-sem{ display:inline-flex; align-items:center; gap:.35rem; margin-left:.8rem; }
+.cam-sem i, .cam-sw-sem{ border:1px dashed var(--ink-3) !important; }
+.cam-sem i{ width:11px; height:11px; border-radius:50%; background:var(--cam-neutro); }
+.cam-blocos{ display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .55rem; margin-top:.75rem; }
+.cam-blocos button{ padding:.32rem .75rem; font-size:.8rem; }
+.cam-b-esq{ box-shadow:inset 0 -3px 0 var(--q7-cor-esq); }
+.cam-b-dir{ box-shadow:inset 0 -3px 0 var(--q7-cor-dir); }
+
+/* legenda clicável: filtro por partido */
+.cam-filtros-cab{ display:flex; align-items:baseline; gap:.8rem; margin-bottom:.4rem; }
+.cam-limpar{ color:var(--ink-2); font-size:.8rem; }
+.cam-limpar[hidden]{ display:none; }
+.cam-legenda{ display:flex; flex-wrap:wrap; gap:.35rem; }
+.cam-leg{ display:inline-flex; align-items:center; gap:.35rem; padding:.28rem .6rem .28rem .45rem; border:1px solid var(--line); border-radius:999px; background:var(--raised); color:var(--ink-2); font:inherit; font-size:.8rem; cursor:pointer; }
+.cam-leg i{ flex:none; width:.8rem; height:.8rem; border-radius:50%; border:1px solid color-mix(in srgb, var(--ink) 28%, transparent); }
+.cam-leg b{ color:var(--ink); font-weight:700; }
+.cam-leg span{ font-weight:600; }
+.cam-leg small{ color:var(--ink-3); font-size:.72rem; }
+.cam-leg small:empty{ display:none; }
+.cam-leg:hover{ border-color:var(--ink); }
+.cam-leg[aria-pressed="true"]{ border-color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink); background:var(--bg); }
+/* com algum partido escolhido, os demais ficam esmaecidos também na legenda */
+.cam-legenda:has([aria-pressed="true"]) .cam-leg[aria-pressed="false"]{ opacity:.55; }
+
+.cam-notas{ margin-top:.9rem; }
+.cam-notas .nota{ margin:0 0 .4rem; max-width:80ch; }
+.cam-nota-vazia i{ display:inline-block; width:.75rem; height:.75rem; margin-right:.35rem; border:1.5px dashed var(--ink-3); border-radius:50%; vertical-align:-1px; }
+
+/* lista equivalente das cadeiras */
+.cam-lista{ margin-top:.6rem; border-top:1px solid var(--line); }
+.cam-lista summary{ padding:.7rem 0 .3rem; color:var(--ink-2); font-size:.85rem; font-weight:700; cursor:pointer; }
+.cam-lista-rolagem{ max-height:22rem; overflow:auto; }
+.cam-tabela{ width:100%; border-collapse:collapse; font-size:.82rem; }
+.cam-tabela th{ position:sticky; top:0; padding:.35rem .5rem; background:var(--surface); color:var(--ink-3); font-size:.72rem; font-weight:700; text-align:left; text-transform:uppercase; letter-spacing:.03em; }
+.cam-tabela td{ padding:.3rem .5rem; border-top:1px solid var(--line); color:var(--ink-2); }
+.cam-tabela .num{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.cam-tabela .link{ color:var(--ink); }
+
+.cam :is(button, select, summary):focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
+
+@media (max-width:620px){
+  .cam-conteudo{ padding:.7rem; }
+  .cam-controles{ gap:.6rem; }
+  .cam-grupo{ flex-basis:100%; }
+  .cam-chips button{ padding:.38rem .65rem; font-size:.8rem; }
+  .cam-resumo{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .cam-sem{ margin-left:0; }
+  .cam-ajuda{ display:none; }
+}
+@media (prefers-reduced-motion: reduce){
+  .cam-cadeira{ transition:none; animation:none; }
+  .cam-conteudo{ transition:none; }
+}
